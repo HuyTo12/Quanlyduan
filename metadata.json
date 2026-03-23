@@ -1,0 +1,5 @@
+{
+  "name": "Hệ thống Quản lý Công việc KPI",
+  "description": "Website quản lý giao việc, theo dõi timeline và đánh giá KPI công việc theo thời gian thực.",
+  "requestFramePermissions": []
+}
