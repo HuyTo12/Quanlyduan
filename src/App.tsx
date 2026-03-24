@@ -230,9 +230,10 @@ export default function App() {
           const fileName = parts[1] || "file_dinh_kem"; // Lấy tên gốc
           
           const link = await uploadToDrive(actualBase64, newTask.project, fileName);
-          if (link) driveLinks.push(link);
+          // CHỈ THÊM LINK NẾU CHƯA CÓ TRONG DANH SÁCH (ĐỂ CHỈ CÓ 1 LINK THƯ MỤC DUY NHẤT)
+          if (link && !driveLinks.includes(link)) driveLinks.push(link);
         } else {
-          driveLinks.push(fileData);
+          if (!driveLinks.includes(fileData)) driveLinks.push(fileData);
         }
       }
     }
