@@ -164,12 +164,19 @@ export default function App() {
     try {
       const response = await fetch(gasUrl, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8', // Dòng thông hành giúp vượt tường lửa Google
+        },
         body: JSON.stringify({ base64, projectName, date: format(new Date(), 'dd-MM-yyyy') })
       });
       const result = await response.json();
+      
+      if (result.status === 'error') {
+        alert("Lỗi từ Google Drive: " + result.error); // Báo lỗi nếu Google từ chối
+      }
       return result.status === 'success' ? result.url : null;
-    } catch (e) {
-      console.error("Lỗi upload Drive:", e);
+    } catch (e: any) {
+      alert("Lỗi kết nối Google Drive! Hãy kiểm tra lại VITE_GAS_URL. Chi tiết: " + e.message);
       return null;
     }
   };
