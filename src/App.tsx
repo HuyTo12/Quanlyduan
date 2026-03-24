@@ -55,6 +55,13 @@ import {
 } from 'recharts';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { createClient } from '@supabase/supabase-js';
+
+// --- KẾT NỐI SUPABASE & GOOGLE DRIVE ---
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const gasUrl = import.meta.env.VITE_GAS_URL || '';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 import { 
   KPILevel, 
   KPI_CONFIG, 
@@ -139,6 +146,34 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  // --- BẮT ĐẦU PHẦN THÊM MỚI ---
+  const [loading, setLoading] = useState(false);
+
+  // Lấy dữ liệu từ Supabase
+  const fetchTasks = async () => {
+    const { data, error } = await supabase.from('projects').select('*').order('createdAt', { ascending: false });
+    if (!error && data) setTasks(data);
+  };
+
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
+  // Đẩy file lên Google Drive
+  const uploadToDrive = async (base64: string, projectName: string) => {
+    try {
+      const response = await fetch(gasUrl, {
+        method: 'POST',
+        body: JSON.stringify({ base64, projectName, date: format(new Date(), 'dd-MM-yyyy') })
+      });
+      const result = await response.json();
+      return result.status === 'success' ? result.url : null;
+    } catch (e) {
+      console.error("Lỗi upload Drive:", e);
+      return null;
+    }
+  };
+  // --- KẾT THÚC PHẦN THÊM MỚI ---
 
   const showToast = (message: string, type: 'success' | 'delete' | 'edit' | 'error', task?: Task) => {
     const id = Date.now();
@@ -173,12 +208,29 @@ export default function App() {
     localStorage.setItem('kpi_tasks', JSON.stringify(tasks));
   }, [tasks]);
 
-  const addTask = (newTask: Omit<Task, 'id' | 'startDate' | 'workingDays' | 'dailyKpiPoints' | 'createdAt' | 'status'>) => {
+ // Thay thế hàm addTask cũ:
+  const addTask = async (newTask: Omit<Task, 'id' | 'startDate' | 'workingDays' | 'dailyKpiPoints' | 'createdAt' | 'status'>) => {
+    setLoading(true);
+    let driveLinks: string[] = [];
+
+    // Nếu có file, đẩy lên Google Drive trước
+    if (newTask.files && newTask.files.length > 0) {
+      for (const base64 of newTask.files) {
+        // Chỉ upload nếu file là chuỗi base64 (tránh upload lại link cũ)
+        if (base64.startsWith('data:')) {
+          const link = await uploadToDrive(base64, newTask.project);
+          if (link) driveLinks.push(link);
+        } else {
+          driveLinks.push(base64);
+        }
+      }
+    }
+
     const deadlineDate = parseISO(newTask.deadline);
     const { startDate, workingDays } = calculateTaskDates(deadlineDate, newTask.kpiLevel);
     const kpiPoints = KPI_CONFIG[newTask.kpiLevel].points;
     
-    const task: Task = {
+    const taskRecord = {
       ...newTask,
       id: crypto.randomUUID(),
       startDate: startDate.toISOString(),
@@ -186,26 +238,42 @@ export default function App() {
       dailyKpiPoints: kpiPoints / workingDays.length,
       createdAt: new Date().toISOString(),
       status: TaskStatus.IN_PROGRESS,
+      files: driveLinks // Lưu link Drive vào data
     };
     
-    setTasks(prev => [...prev, task]);
-    showToast('Đã giao việc thành công', 'success', task);
+    // Lưu vào Supabase
+    const { error } = await supabase.from('projects').insert([taskRecord]);
+    if (!error) {
+      setTasks(prev => [taskRecord, ...prev]);
+      showToast('Đã giao việc & lưu Cloud thành công', 'success', taskRecord as Task);
+    } else {
+      showToast('Lỗi lưu dữ liệu: ' + error.message, 'error');
+    }
+    setLoading(false);
   };
 
-  const deleteTask = (id: string) => {
+  // Thay thế hàm deleteTask cũ:
+  const deleteTask = async (id: string) => {
     const taskToDelete = tasks.find(t => t.id === id);
     if (taskToDelete) {
-      setTasks(prev => prev.filter(t => t.id !== id));
-      showToast('Đã xóa Dự án', 'delete', taskToDelete);
+      const { error } = await supabase.from('projects').delete().eq('id', id);
+      if (!error) {
+        setTasks(prev => prev.filter(t => t.id !== id));
+        showToast('Đã xóa Dự án', 'delete', taskToDelete);
+      }
     }
   };
 
-  const updateTask = (updatedTask: Task) => {
-    setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
+  // Thay thế hàm updateTask cũ:
+  const updateTask = async (updatedTask: Task) => {
+    const { error } = await supabase.from('projects').update(updatedTask).eq('id', updatedTask.id);
+    if (!error) {
+      setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
+    }
   };
-
   return (
     <div className="flex h-screen bg-[#f0f7ff] text-slate-800 font-sans overflow-hidden">
+      {loading && <div className="fixed inset-0 bg-black/20 z-50 flex items-center justify-center"><div className="bg-white p-4 rounded-xl shadow-lg font-bold text-blue-600">Đang lưu file lên Google Drive...</div></div>}
       {/* Sidebar */}
       <aside className={cn(
         "bg-white border-r border-slate-200 transition-all duration-300 flex flex-col z-20",
