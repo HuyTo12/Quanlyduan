@@ -159,15 +159,15 @@ export default function App() {
     fetchTasks();
   }, []);
 
-  // Đẩy file lên Google Drive
-  const uploadToDrive = async (base64: string, projectName: string) => {
+// Đẩy file lên Google Drive
+  const uploadToDrive = async (base64: string, projectName: string, fileName: string) => {
     try {
       const response = await fetch(gasUrl, {
         method: 'POST',
         headers: {
-          'Content-Type': 'text/plain;charset=utf-8', // Dòng thông hành giúp vượt tường lửa Google
+          'Content-Type': 'text/plain;charset=utf-8',
         },
-        body: JSON.stringify({ base64, projectName, date: format(new Date(), 'dd-MM-yyyy') })
+        body: JSON.stringify({ base64, projectName, date: format(new Date(), 'dd-MM-yyyy'), fileName: fileName })
       });
       const result = await response.json();
       
@@ -220,15 +220,19 @@ export default function App() {
     setLoading(true);
     let driveLinks: string[] = [];
 
-    // Nếu có file, đẩy lên Google Drive trước
+// Nếu có file, đẩy lên Google Drive trước
     if (newTask.files && newTask.files.length > 0) {
-      for (const base64 of newTask.files) {
-        // Chỉ upload nếu file là chuỗi base64 (tránh upload lại link cũ)
-        if (base64.startsWith('data:')) {
-          const link = await uploadToDrive(base64, newTask.project);
+      for (const fileData of newTask.files) {
+        // Chỉ upload nếu file là chuỗi base64
+        if (fileData.startsWith('data:')) {
+          const parts = fileData.split("|||"); // Tách dữ liệu và tên file
+          const actualBase64 = parts[0];
+          const fileName = parts[1] || "file_dinh_kem"; // Lấy tên gốc
+          
+          const link = await uploadToDrive(actualBase64, newTask.project, fileName);
           if (link) driveLinks.push(link);
         } else {
-          driveLinks.push(base64);
+          driveLinks.push(fileData);
         }
       }
     }
@@ -521,13 +525,14 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast }: {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
       Array.from(files).forEach((file: File) => {
         const reader = new FileReader();
         reader.onloadend = () => {
-          setFormData(prev => ({ ...prev, files: [...prev.files, reader.result as string] }));
+          // Gắn thêm tên file gốc vào sau chuỗi dữ liệu bằng ký hiệu |||
+          setFormData(prev => ({ ...prev, files: [...prev.files, (reader.result as string) + "|||" + file.name] }));
         };
         reader.readAsDataURL(file);
       });
