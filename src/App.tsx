@@ -160,14 +160,25 @@ export default function App() {
   }, []);
 
 // Đẩy file lên Google Drive
-  const uploadToDrive = async (base64: string, projectName: string, fileName: string) => {
+  const uploadToDrive = async (base64: string, projectName: string, fileName: string, folderId?: string) => {
     try {
       const response = await fetch(gasUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'text/plain;charset=utf-8',
         },
-        body: JSON.stringify({ base64, projectName, date: format(new Date(), 'dd-MM-yyyy'), fileName: fileName })
+        // Thêm folderId vào gói dữ liệu gửi đi
+        body: JSON.stringify({ base64, projectName, date: format(new Date(), 'dd-MM-yyyy'), fileName: fileName, folderId: folderId || "" })
+      });// Đẩy file lên Google Drive
+  const uploadToDrive = async (base64: string, projectName: string, fileName: string, folderId?: string) => {
+    try {
+      const response = await fetch(gasUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8',
+        },
+        // Thêm folderId vào gói dữ liệu gửi đi
+        body: JSON.stringify({ base64, projectName, date: format(new Date(), 'dd-MM-yyyy'), fileName: fileName, folderId: folderId || "" })
       });
       const result = await response.json();
       
@@ -276,12 +287,46 @@ export default function App() {
     }
   };
 
-  // Thay thế hàm updateTask cũ:
+// Thay thế hàm updateTask cũ:
   const updateTask = async (updatedTask: Task) => {
+    setLoading(true); // Bật thông báo Đang tải...
+    let driveLinks: string[] = [];
+    let existingFolderId = "";
+
+    // 1. Tìm xem dự án này đã có link thư mục Drive cũ chưa
+    const oldLink = updatedTask.files.find(f => f.includes('drive.google.com'));
+    if (oldLink) {
+      driveLinks.push(oldLink); // Giữ lại link cũ trên giao diện
+      // Trích xuất đoạn ID thư mục từ đường link Google Drive
+      const match = oldLink.match(/folders\/([a-zA-Z0-9_-]+)/);
+      if (match) existingFolderId = match[1];
+    }
+
+    // 2. Xử lý các file đính kèm mới (nếu có)
+    if (updatedTask.files && updatedTask.files.length > 0) {
+      for (const fileData of updatedTask.files) {
+        if (fileData.startsWith('data:')) { // Chỉ đẩy lên Drive những file vừa mới thêm
+          const parts = fileData.split("|||");
+          const actualBase64 = parts[0];
+          const fileName = parts[1] || "file_dinh_kem";
+          
+          // Gửi file kèm existingFolderId để Google Drive biết chỗ lưu
+          const link = await uploadToDrive(actualBase64, updatedTask.project, fileName, existingFolderId);
+          if (link && !driveLinks.includes(link)) {
+            driveLinks.push(link);
+          }
+        }
+      }
+    }
+
+    updatedTask.files = driveLinks; // Cập nhật danh sách file cuối cùng (chỉ gồm link thư mục)
+
+    // 3. Cập nhật dữ liệu lên Supabase
     const { error } = await supabase.from('projects').update(updatedTask).eq('id', updatedTask.id);
     if (!error) {
       setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
     }
+    setLoading(false); // Tắt thông báo Đang tải...
   };
   return (
     <div className="flex h-screen bg-[#f0f7ff] text-slate-800 font-sans overflow-hidden">
