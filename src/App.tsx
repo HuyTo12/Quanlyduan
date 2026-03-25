@@ -169,16 +169,6 @@ export default function App() {
         },
         // Thêm folderId vào gói dữ liệu gửi đi
         body: JSON.stringify({ base64, projectName, date: format(new Date(), 'dd-MM-yyyy'), fileName: fileName, folderId: folderId || "" })
-      });// Đẩy file lên Google Drive
-  const uploadToDrive = async (base64: string, projectName: string, fileName: string, folderId?: string) => {
-    try {
-      const response = await fetch(gasUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8',
-        },
-        // Thêm folderId vào gói dữ liệu gửi đi
-        body: JSON.stringify({ base64, projectName, date: format(new Date(), 'dd-MM-yyyy'), fileName: fileName, folderId: folderId || "" })
       });
       const result = await response.json();
       
