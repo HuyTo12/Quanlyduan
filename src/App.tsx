@@ -266,18 +266,37 @@ export default function App() {
     if (hasNewFiles) setLoading(false);
   };
 
-  // Thay thế hàm deleteTask cũ:
-  const deleteTask = async (id: string) => {
-    const taskToDelete = tasks.find(t => t.id === id);
-    if (taskToDelete) {
-      const { error } = await supabase.from('projects').delete().eq('id', id);
-      if (!error) {
-        setTasks(prev => prev.filter(t => t.id !== id));
-        showToast('Đã xóa Dự án', 'delete', taskToDelete);
-      }
+  // CÁC HÀM XỬ LÝ XÓA THÔNG MINH
+  const [deleteConfirmTask, setDeleteConfirmTask] = useState<Task | null>(null);
+
+  const executeDelete = async (task: Task, isUnder24h: boolean) => {
+    setDeleteConfirmTask(null);
+    // 1. Gửi lệnh xóa Thư mục trên Google Drive
+    const driveLink = task.files?.find(f => f.includes('drive.google.com'));
+    if (driveLink) {
+      const match = driveLink.match(/folders\/([a-zA-Z0-9_-]+)/);
+      if (match) fetch(gasUrl, { method: 'POST', body: JSON.stringify({ action: 'delete', folderId: match[1] }) }).catch(() => {});
+    }
+    // 2. Xóa dữ liệu trên Supabase
+    const { error } = await supabase.from('projects').delete().eq('id', task.id);
+    if (!error) {
+      setTasks(prev => prev.filter(t => t.id !== task.id));
+      showToast(isUnder24h ? 'Dự án sẽ được giữ trong 5 phút' : 'Dự án sẽ được giữ trong 3 ngày', 'delete');
     }
   };
 
+  const confirmDelete = (task: Task) => {
+    const createdTime = new Date(task.createdAt || new Date()).getTime();
+    const isUnder24h = (new Date().getTime() - createdTime) < 24 * 60 * 60 * 1000;
+    
+    if (isUnder24h) setDeleteConfirmTask(task); // < 24h: Mở bảng hỏi
+    else executeDelete(task, false);            // > 24h: Xóa luôn kèm thông báo 3 ngày
+  };
+
+  const deleteTask = (id: string) => {
+    const task = tasks.find(t => t.id === id);
+    if (task) confirmDelete(task);
+  };
 // Thay thế hàm updateTask cũ:
   const updateTask = async (updatedTask: Task) => {
     const hasNewFiles = updatedTask.files && updatedTask.files.some(f => f.startsWith('data:'));
@@ -322,7 +341,32 @@ export default function App() {
   };
   return (
     <div className="flex h-screen bg-[#f0f7ff] text-slate-800 font-sans overflow-hidden">
-      {loading && <div className="fixed inset-0 bg-black/20 z-50 flex items-center justify-center"><div className="bg-white p-4 rounded-xl shadow-lg font-bold text-blue-600">Đang lưu file lên Google Drive...</div></div>}
+      {/* Thông báo tải ngầm không chặn màn hình */}
+      {loading && (
+        <div className="fixed bottom-6 right-6 z-[100] bg-blue-600 text-white px-6 py-4 rounded-xl shadow-2xl flex flex-col gap-3 animate-in slide-in-from-bottom-8">
+          <div className="flex items-center gap-3">
+            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            <span className="font-bold">Đang tải lên Drive...</span>
+            {/* Bảng xác nhận Xóa (Chỉ hiện khi < 24h) */}
+      {deleteConfirmTask && (
+        <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
+          <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-md w-full text-center space-y-6">
+            <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto"><Trash2 size={32} /></div>
+            <h3 className="text-2xl font-bold text-slate-800">Xác nhận xóa dự án?</h3>
+            <p className="text-slate-500">Dự án này mới tạo trong 24 giờ. Bạn có chắc chắn muốn xóa không?</p>
+            <div className="flex gap-4 pt-4">
+              <button onClick={() => setDeleteConfirmTask(null)} className="flex-1 bg-blue-900 text-white font-bold py-3 rounded-xl hover:bg-blue-800 transition-colors">Hủy</button>
+              <button onClick={() => executeDelete(deleteConfirmTask, true)} className="flex-1 bg-red-500 text-white font-bold py-3 rounded-xl hover:bg-red-600 shadow-lg shadow-red-200 transition-colors">Xóa</button>
+            </div>
+          </div>
+        </div>
+      )}
+          </div>
+          <div className="w-full bg-blue-800/50 rounded-full h-1.5 overflow-hidden">
+            <div className="bg-white h-full w-1/2 animate-[pulse_1s_ease-in-out_infinite]"></div>
+          </div>
+        </div>
+      )}
       {/* Sidebar */}
       <aside className={cn(
         "bg-white border-r border-slate-200 transition-all duration-300 flex flex-col z-20",
@@ -508,6 +552,18 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast }: {
   });
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Lắng nghe lệnh sửa từ trang Tìm Kiếm
+  useEffect(() => {
+    const listener = (e: any) => handleEdit(e.detail);
+    window.addEventListener('TRIGGER_EDIT', listener);
+    return () => window.removeEventListener('TRIGGER_EDIT', listener);
+  }, []);
+  // Cho phép chuyển từ màn hình Tìm Kiếm sang Chỉnh Sửa
+  useEffect(() => {
+    const listener = (e: any) => handleEdit(e.detail);
+    window.addEventListener('TRIGGER_EDIT', listener);
+    return () => window.removeEventListener('TRIGGER_EDIT', listener);
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -690,9 +746,19 @@ const [isDragging, setIsDragging] = useState(false);
                       displayName = "Thư mục Drive đã lưu (Giữ nguyên)"; // Link cũ từ Supabase
                     }
                     return (
-                      <div key={i} className="px-3 py-1.5 bg-blue-100 rounded-lg flex items-center text-blue-600 text-sm font-medium gap-2 shadow-sm">
+                      return (
+                      <div key={i} className="group relative px-3 py-1.5 bg-blue-100 rounded-lg flex items-center text-blue-600 text-sm font-medium gap-2 shadow-sm hover:pr-8 transition-all">
                         <Paperclip size={14} className="shrink-0" />
                         <span className="truncate max-w-[250px]">{displayName}</span>
+                        {/* THÊM MỚI: Nút thùng rác đỏ hiện ra khi đưa chuột vào */}
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) }))}
+                          className="absolute right-2 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity"
+                          title="Xóa file này không tải nữa"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     );
                   })}
@@ -719,6 +785,12 @@ const [isDragging, setIsDragging] = useState(false);
               className="flex-1 bg-slate-200 text-slate-700 p-4 rounded-xl font-bold hover:bg-slate-300 transition-all"
             >
               Hủy Chỉnh Sửa
+              <div className="flex gap-4">
+          {editingId && (
+            <button 
+              type="button"
+              onClick={() => {
+                setEditingId(null);
             </button>
           )}
           <button 
@@ -727,6 +799,20 @@ const [isDragging, setIsDragging] = useState(false);
           >
             {editingId ? 'Lưu Thay Đổi' : 'Giao Việc Ngay'}
           </button>
+              {/* Nút Xóa bên phải nút Lưu */}
+          {editingId && (
+            <button 
+              type="button"
+              onClick={() => {
+                const t = tasks.find(x => x.id === editingId);
+                if (t) onDelete(t.id);
+              }}
+              className="bg-red-500 text-white px-6 rounded-xl font-bold hover:bg-red-600 transition-all flex items-center justify-center shadow-lg shadow-red-200"
+              title="Xóa dự án"
+            >
+              <Trash2 size={24} />
+            </button>
+          )}
         </div>
       </form>
 
@@ -1132,13 +1218,30 @@ function SearchSection({ tasks, selectedId, onClearSelection }: {
                       <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">KPI Points</span>
                       <p className="text-lg font-bold text-blue-900">{KPI_CONFIG[selectedTask.kpiLevel].points} điểm</p>
                     </div>
-                    <div>
+                   <div>
                       <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ghi chú</span>
                       <p className="text-sm text-slate-700 italic">{selectedTask.note || 'Không có ghi chú'}</p>
                     </div>
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* THÊM MỚI: Nút Chỉnh Sửa từ màn hình Tìm Kiếm */}
+            <div className="pt-6 border-t border-blue-50 flex justify-end mt-4">
+              <button 
+                onClick={() => {
+                  if (onClearSelection) onClearSelection();
+                  window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: selectedTask }));
+                  // Tự động bấm sang tab Giao Việc
+                  const tabs = document.querySelectorAll('button');
+                  const giaoViecTab = Array.from(tabs).find(btn => btn.textContent?.includes('Giao việc'));
+                  if (giaoViecTab) giaoViecTab.click();
+                }}
+                className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-lg"
+              >
+                <Edit size={18} /> Chỉnh sửa Dự án này
+              </button>
             </div>
           </div>
         </div>
@@ -1266,6 +1369,12 @@ function TimelineCongViec({ tasks, onSelectTask }: { tasks: Task[], onSelectTask
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-blue-100">
         <div className="p-6 bg-blue-50 border-b border-blue-100 flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-4">
+            {/* Thêm nút lùi/tiến tháng */}
+            <div className="flex items-center gap-1 bg-indigo-100 p-1 rounded-xl">
+              <button onClick={() => setCenterDate(prev => addMonths(prev, -1))} className="p-1.5 hover:bg-indigo-200 rounded-lg text-indigo-700 transition-colors" title="Tháng trước"><ChevronLeft size={16}/></button>
+              <span className="text-xs font-bold text-indigo-800 px-1">Tháng</span>
+              <button onClick={() => setCenterDate(prev => addMonths(prev, 1))} className="p-1.5 hover:bg-indigo-200 rounded-lg text-indigo-700 transition-colors" title="Tháng sau"><ChevronRight size={16}/></button>
+            </div>
             <div className="flex bg-blue-100 p-1 rounded-xl">
               <button
                 onClick={() => setViewMode('day')}
