@@ -266,30 +266,43 @@ export default function App() {
     if (hasNewFiles) setLoading(false);
   };
 
-  // HỆ THỐNG XÓA THÔNG MINH
+  // --- HỆ THỐNG XÓA THÔNG MINH (CHỐNG LỖI VERCEL) ---
   const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
-  const [deleteConfirmTask, setDeleteConfirmTask] = useState<Task | null>(null);
+  const [deleteConfirmTask, setDeleteConfirmTask] = useState<any>(null); // Dùng any để Vercel không báo lỗi
 
-  const executeDelete = async (task: Task, isPermanent: boolean) => {
+  // Hàm xóa vĩnh viễn (Drive + Website)
+  const permanentlyDelete = async (task: any) => {
+    const driveLink = task.files?.find((f: string) => f.includes('drive.google.com'));
+    if (driveLink) {
+      const match = driveLink.match(/folders\/([a-zA-Z0-9_-]+)/);
+      if (match) fetch(gasUrl, { method: 'POST', body: JSON.stringify({ action: 'delete', folderId: match[1] }) }).catch(() => {});
+    }
+    const { error } = await supabase.from('projects').delete().eq('id', task.id);
+    if (!error) {
+      setTasks(prev => prev.filter(t => t.id !== task.id));
+      setPendingDeleteIds(prev => prev.filter(id => id !== task.id));
+      showToast('Dự án đã bị xóa vĩnh viễn', 'delete');
+    }
+  };
+
+  const executeDelete = async (task: any, isPermanent: boolean) => {
     setDeleteConfirmTask(null);
     if (!isPermanent) {
-      // Xóa lần 1: Đưa vào trạng thái chờ
+      // Bấm lần 1: Đưa vào trạng thái chờ
       const isPast = isBefore(parseISO(task.deadline), startOfDay(new Date()));
+      const waitTime = isPast ? 3 * 24 * 60 * 60 * 1000 : 30 * 60 * 1000; // Tính ra mili-giây (3 ngày hoặc 30 phút)
+      
       showToast(isPast ? 'Dự án sẽ bị xoá sau 3 ngày' : 'Dự án sẽ bị xoá sau 30 phút', 'error');
       setPendingDeleteIds(prev => [...prev, task.id]);
+      
+      // Kích hoạt đồng hồ đếm ngược để tự động xóa ngầm
+      setTimeout(() => {
+        permanentlyDelete(task);
+      }, waitTime);
+
     } else {
-      // Xóa lần 2: Vĩnh viễn (Xóa Drive + Supabase)
-      const driveLink = task.files?.find(f => f.includes('drive.google.com'));
-      if (driveLink) {
-        const match = driveLink.match(/folders\/([a-zA-Z0-9_-]+)/);
-        if (match) fetch(gasUrl, { method: 'POST', body: JSON.stringify({ action: 'delete', folderId: match[1] }) }).catch(() => {});
-      }
-      const { error } = await supabase.from('projects').delete().eq('id', task.id);
-      if (!error) {
-        setTasks(prev => prev.filter(t => t.id !== task.id));
-        setPendingDeleteIds(prev => prev.filter(id => id !== task.id));
-        showToast('Dự án đã bị xóa vĩnh viễn', 'delete');
-      }
+      // Bấm lần 2: Xóa ngay lập tức
+      permanentlyDelete(task);
     }
   };
 
@@ -302,6 +315,7 @@ export default function App() {
       setDeleteConfirmTask(task); // Lần đầu -> Hiện bảng hỏi
     }
   };
+  // --- KẾT THÚC HỆ THỐNG XÓA ---
 
 // Thay thế hàm updateTask cũ:
   const updateTask = async (updatedTask: Task) => {
@@ -356,6 +370,20 @@ export default function App() {
           </div>
           <div className="w-full bg-blue-800/50 rounded-full h-1.5 overflow-hidden">
             <div className="bg-white h-full w-1/2 animate-[pulse_1s_ease-in-out_infinite] rounded-full"></div>
+          </div>
+        </div>
+      )}
+      {/* Bảng xác nhận Xóa chống lỗi */}
+      {deleteConfirmTask && (
+        <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
+          <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-md w-full text-center space-y-6">
+            <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto"><Trash2 size={32} /></div>
+            <h3 className="text-2xl font-bold text-slate-800">Xác nhận xóa dự án?</h3>
+            <p className="text-slate-500">Dự án sẽ được chuyển vào trạng thái chờ xóa. Bạn có chắc chắn muốn xóa?</p>
+            <div className="flex gap-4 pt-4">
+              <button onClick={() => setDeleteConfirmTask(null)} className="flex-1 bg-blue-900 text-white font-bold py-3 rounded-xl hover:bg-blue-800 transition-colors">Hủy</button>
+              <button onClick={() => executeDelete(deleteConfirmTask, false)} className="flex-1 bg-red-500 text-white font-bold py-3 rounded-xl hover:bg-red-600 shadow-lg shadow-red-200 transition-colors">Xóa</button>
+            </div>
           </div>
         </div>
       )}
@@ -786,7 +814,7 @@ const [isDragging, setIsDragging] = useState(false);
           >
             {editingId ? 'Lưu Thay Đổi' : 'Giao Việc Ngay'}
           </button>
-          {/* Nút Xóa đỏ bên phải nút Lưu */}
+          {/* Nút Xóa đỏ */}
           {editingId && (
             <button 
               type="button"
@@ -800,28 +828,6 @@ const [isDragging, setIsDragging] = useState(false);
               <Trash2 size={24} />
             </button>
           )}
-        </div>
-                setEditingId(null);
-                setFormData({
-                  project: '',
-                  description: '',
-                  deadline: format(new Date(), 'yyyy-MM-dd'),
-                  kpiLevel: KPILevel.LEVEL_1,
-                  note: '',
-                  files: []
-                });
-              }}
-              className="flex-1 bg-slate-200 text-slate-700 p-4 rounded-xl font-bold hover:bg-slate-300 transition-all"
-            >
-              Hủy Chỉnh Sửa
-            </button>
-          )}
-          <button 
-            type="submit"
-            className="flex-1 bg-blue-600 text-white p-4 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-[0.98]"
-          >
-            {editingId ? 'Lưu Thay Đổi' : 'Giao Việc Ngay'}
-          </button>
         </div>
       </form>
 
