@@ -563,22 +563,51 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast }: {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files) {
-      Array.from(files).forEach((file: File) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          // Gắn thêm tên file gốc vào sau chuỗi dữ liệu bằng ký hiệu |||
-          setFormData(prev => ({ ...prev, files: [...prev.files, (reader.result as string) + "|||" + file.name] }));
-        };
-        reader.readAsDataURL(file);
-      });
-    }
+const [isDragging, setIsDragging] = useState(false);
+
+  const processFiles = (files: FileList) => {
+    if (!files) return;
+    Array.from(files).forEach((file: File) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, files: [...prev.files, (reader.result as string) + "|||" + file.name] }));
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) processFiles(e.target.files);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files) processFiles(e.dataTransfer.files);
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div 
+      className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 relative"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {isDragging && (
+        <div className="fixed inset-0 z-[100] bg-blue-500/20 backdrop-blur-sm border-4 border-dashed border-blue-500 flex items-center justify-center pointer-events-none">
+          <span className="text-3xl font-bold text-blue-700 bg-white px-8 py-4 rounded-full shadow-xl">Thả file vào đây để tải lên</span>
+        </div>
+      )}
       <h2 className="text-3xl font-bold text-center text-blue-900 mb-12">{editingId ? 'Chỉnh Sửa Công Việc' : 'Giao Việc'}</h2>
       
       {/* Form */}
@@ -650,14 +679,23 @@ const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
                 className="absolute inset-0 opacity-0 cursor-pointer"
               />
               <FileUp className="mx-auto text-slate-400 mb-2" size={32} />
-              <p className="text-slate-500 text-sm">Kéo thả hoặc click để tải lên</p>
+              <p className="text-slate-500 text-sm">Kéo thả file vào bất cứ đâu trên màn hình hoặc click vào đây</p>
               {formData.files.length > 0 && (
                 <div className="mt-4 flex flex-wrap gap-2 justify-center">
-                  {formData.files.map((_, i) => (
-                    <div key={i} className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600">
-                      <Paperclip size={16} />
-                    </div>
-                  ))}
+                  {formData.files.map((fileData, i) => {
+                    let displayName = "File đính kèm";
+                    if (fileData.includes("|||")) {
+                      displayName = fileData.split("|||")[1]; // Lấy tên file gốc mới thêm
+                    } else if (fileData.includes("drive.google.com")) {
+                      displayName = "Thư mục Drive đã lưu (Giữ nguyên)"; // Link cũ từ Supabase
+                    }
+                    return (
+                      <div key={i} className="px-3 py-1.5 bg-blue-100 rounded-lg flex items-center text-blue-600 text-sm font-medium gap-2 shadow-sm">
+                        <Paperclip size={14} className="shrink-0" />
+                        <span className="truncate max-w-[250px]">{displayName}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
