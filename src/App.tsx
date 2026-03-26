@@ -368,7 +368,7 @@ export default function App() {
             <p className="text-slate-500">Dự án sẽ được chuyển vào trạng thái chờ xóa theo cấu hình của bạn. Chắc chắn muốn xóa?</p>
             <div className="flex gap-4 pt-4">
               <button onClick={() => setDeleteConfirmTask(null)} className="flex-1 bg-blue-900 text-white font-bold py-3 rounded-xl hover:bg-blue-800 transition-colors">Hủy</button>
-              <button onClick={() => executeDelete(deleteConfirmTask, false)} className="flex-1 bg-red-500 text-white font-bold py-3 rounded-xl hover:bg-red-600 shadow-lg shadow-red-200 transition-colors">Xóa</button>
+              <button onClick={() => deleteConfirmTask && executeDelete(deleteConfirmTask, false)} className="flex-1 bg-red-500 text-white font-bold py-3 rounded-xl hover:bg-red-600 shadow-lg shadow-red-200 transition-colors">Xóa</button>
             </div>
           </div>
         </div>
