@@ -322,7 +322,18 @@ export default function App() {
   };
   return (
     <div className="flex h-screen bg-[#f0f7ff] text-slate-800 font-sans overflow-hidden">
-      {loading && <div className="fixed inset-0 bg-black/20 z-50 flex items-center justify-center"><div className="bg-white p-4 rounded-xl shadow-lg font-bold text-blue-600">Đang lưu file lên Google Drive...</div></div>}
+      {/* Thông báo tải ngầm không chặn màn hình */}
+      {loading && (
+        <div className="fixed bottom-6 right-6 z-[100] bg-blue-600 text-white px-6 py-4 rounded-xl shadow-2xl flex flex-col gap-3 animate-in slide-in-from-bottom-8">
+          <div className="flex items-center gap-3">
+            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            <span className="font-bold text-sm">Đang tải file lên Drive...</span>
+          </div>
+          <div className="w-full bg-blue-800/50 rounded-full h-1.5 overflow-hidden">
+            <div className="bg-white h-full w-1/2 animate-[pulse_1s_ease-in-out_infinite] rounded-full"></div>
+          </div>
+        </div>
+      )}
       {/* Sidebar */}
       <aside className={cn(
         "bg-white border-r border-slate-200 transition-all duration-300 flex flex-col z-20",
@@ -690,9 +701,18 @@ const [isDragging, setIsDragging] = useState(false);
                       displayName = "Thư mục Drive đã lưu (Giữ nguyên)"; // Link cũ từ Supabase
                     }
                     return (
-                      <div key={i} className="px-3 py-1.5 bg-blue-100 rounded-lg flex items-center text-blue-600 text-sm font-medium gap-2 shadow-sm">
+                      <div key={i} className="group relative px-3 py-1.5 bg-blue-100 rounded-lg flex items-center text-blue-600 text-sm font-medium gap-2 shadow-sm hover:pr-8 transition-all">
                         <Paperclip size={14} className="shrink-0" />
                         <span className="truncate max-w-[250px]">{displayName}</span>
+                        {/* Nút thùng rác đỏ hiện ra khi đưa chuột vào */}
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) }))}
+                          className="absolute right-2 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity"
+                          title="Xóa file này không tải nữa"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     );
                   })}
