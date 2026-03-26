@@ -587,6 +587,13 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast }: {
 
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  // Lắng nghe lệnh sửa từ trang Tìm Kiếm
+  useEffect(() => {
+    const listener = (e: any) => handleEdit(e.detail);
+    window.addEventListener('TRIGGER_EDIT', listener);
+    return () => window.removeEventListener('TRIGGER_EDIT', listener);
+  }, []);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.project) return;
@@ -1241,6 +1248,24 @@ function SearchSection({ tasks, selectedId, onClearSelection }: {
                 </div>
               </div>
             </div>
+
+            {/* THÊM MỚI: Nút Chỉnh Sửa từ màn hình Tìm Kiếm */}
+            <div className="pt-6 border-t border-blue-50 flex justify-end mt-4">
+              <button 
+                onClick={() => {
+                  if (onClearSelection) onClearSelection();
+                  window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: selectedTask }));
+                  // Tự động bấm sang tab Giao Việc
+                  const tabs = document.querySelectorAll('button');
+                  const giaoViecTab = Array.from(tabs).find(btn => btn.textContent?.includes('Giao việc'));
+                  if (giaoViecTab) giaoViecTab.click();
+                }}
+                className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-lg active:scale-95"
+              >
+                <Edit size={18} /> Chỉnh sửa Dự án này
+              </button>
+            </div>
+
           </div>
         </div>
       )}
@@ -1618,7 +1643,32 @@ function DanhGiaCongViec({ tasks }: { tasks: Task[] }) {
       
       <div className="bg-white p-4 md:p-8 rounded-3xl shadow-xl border border-blue-100 space-y-8">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-          <h3 className="text-xl font-bold text-blue-800">Biểu đồ KPI tháng {format(selectedMonth, 'MM/yyyy')}</h3>
+          
+          {/* Thêm Cụm Mũi tên và Tiêu đề */}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1 bg-blue-100 p-1 rounded-xl">
+              <button 
+                onClick={() => {
+                  const currentIndex = months.findIndex(m => m.getTime() === selectedMonth.getTime());
+                  if (currentIndex > 0) setSelectedMonth(months[currentIndex - 1]);
+                }}
+                className="p-1.5 hover:bg-blue-200 rounded-lg text-blue-700 transition-colors" title="Tháng trước"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <button 
+                onClick={() => {
+                  const currentIndex = months.findIndex(m => m.getTime() === selectedMonth.getTime());
+                  if (currentIndex < months.length - 1) setSelectedMonth(months[currentIndex + 1]);
+                }}
+                className="p-1.5 hover:bg-blue-200 rounded-lg text-blue-700 transition-colors" title="Tháng sau"
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+            <h3 className="text-xl font-bold text-blue-800">Biểu đồ KPI tháng {format(selectedMonth, 'MM/yyyy')}</h3>
+          </div>
+
           <div className="flex items-center gap-2 overflow-x-auto max-w-full pb-2 scrollbar-hide">
             <select 
               className="px-4 py-2 rounded-xl text-sm font-medium bg-blue-50 text-blue-600 outline-none cursor-pointer"
