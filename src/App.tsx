@@ -266,15 +266,40 @@ export default function App() {
     if (hasNewFiles) setLoading(false);
   };
 
-  // Thay thế hàm deleteTask cũ:
-  const deleteTask = async (id: string) => {
-    const taskToDelete = tasks.find(t => t.id === id);
-    if (taskToDelete) {
-      const { error } = await supabase.from('projects').delete().eq('id', id);
-      if (!error) {
-        setTasks(prev => prev.filter(t => t.id !== id));
-        showToast('Đã xóa Dự án', 'delete', taskToDelete);
+  // HỆ THỐNG XÓA THÔNG MINH
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
+  const [deleteConfirmTask, setDeleteConfirmTask] = useState<Task | null>(null);
+
+  const executeDelete = async (task: Task, isPermanent: boolean) => {
+    setDeleteConfirmTask(null);
+    if (!isPermanent) {
+      // Xóa lần 1: Đưa vào trạng thái chờ
+      const isPast = isBefore(parseISO(task.deadline), startOfDay(new Date()));
+      showToast(isPast ? 'Dự án sẽ bị xoá sau 3 ngày' : 'Dự án sẽ bị xoá sau 30 phút', 'error');
+      setPendingDeleteIds(prev => [...prev, task.id]);
+    } else {
+      // Xóa lần 2: Vĩnh viễn (Xóa Drive + Supabase)
+      const driveLink = task.files?.find(f => f.includes('drive.google.com'));
+      if (driveLink) {
+        const match = driveLink.match(/folders\/([a-zA-Z0-9_-]+)/);
+        if (match) fetch(gasUrl, { method: 'POST', body: JSON.stringify({ action: 'delete', folderId: match[1] }) }).catch(() => {});
       }
+      const { error } = await supabase.from('projects').delete().eq('id', task.id);
+      if (!error) {
+        setTasks(prev => prev.filter(t => t.id !== task.id));
+        setPendingDeleteIds(prev => prev.filter(id => id !== task.id));
+        showToast('Dự án đã bị xóa vĩnh viễn', 'delete');
+      }
+    }
+  };
+
+  const deleteTask = (id: string) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+    if (pendingDeleteIds.includes(id)) {
+      executeDelete(task, true); // Nếu đang chờ xóa -> Bấm xóa tiếp sẽ xóa vĩnh viễn
+    } else {
+      setDeleteConfirmTask(task); // Lần đầu -> Hiện bảng hỏi
     }
   };
 
@@ -331,6 +356,20 @@ export default function App() {
           </div>
           <div className="w-full bg-blue-800/50 rounded-full h-1.5 overflow-hidden">
             <div className="bg-white h-full w-1/2 animate-[pulse_1s_ease-in-out_infinite] rounded-full"></div>
+          </div>
+        </div>
+      )}
+      {/* Bảng xác nhận Xóa */}
+      {deleteConfirmTask && (
+        <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
+          <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-md w-full text-center space-y-6">
+            <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto"><Trash2 size={32} /></div>
+            <h3 className="text-2xl font-bold text-slate-800">Xác nhận xóa dự án?</h3>
+            <p className="text-slate-500">Dự án sẽ được chuyển vào trạng thái chờ xóa theo cấu hình của bạn. Chắc chắn muốn xóa?</p>
+            <div className="flex gap-4 pt-4">
+              <button onClick={() => setDeleteConfirmTask(null)} className="flex-1 bg-blue-900 text-white font-bold py-3 rounded-xl hover:bg-blue-800 transition-colors">Hủy</button>
+              <button onClick={() => executeDelete(deleteConfirmTask, false)} className="flex-1 bg-red-500 text-white font-bold py-3 rounded-xl hover:bg-red-600 shadow-lg shadow-red-200 transition-colors">Xóa</button>
+            </div>
           </div>
         </div>
       )}
@@ -726,6 +765,42 @@ const [isDragging, setIsDragging] = useState(false);
             <button 
               type="button"
               onClick={() => {
+                setEditingId(null);
+                setFormData({
+                  project: '',
+                  description: '',
+                  deadline: format(new Date(), 'yyyy-MM-dd'),
+                  kpiLevel: KPILevel.LEVEL_1,
+                  note: '',
+                  files: []
+                });
+              }}
+              className="flex-1 bg-slate-200 text-slate-700 p-4 rounded-xl font-bold hover:bg-slate-300 transition-all"
+            >
+              Hủy Chỉnh Sửa
+            </button>
+          )}
+          <button 
+            type="submit"
+            className="flex-1 bg-blue-600 text-white p-4 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-[0.98]"
+          >
+            {editingId ? 'Lưu Thay Đổi' : 'Giao Việc Ngay'}
+          </button>
+          {/* Nút Xóa đỏ bên phải nút Lưu */}
+          {editingId && (
+            <button 
+              type="button"
+              onClick={() => {
+                const t = tasks.find(x => x.id === editingId);
+                if (t) onDelete(t.id);
+              }}
+              className="bg-red-500 text-white px-6 rounded-xl font-bold hover:bg-red-600 transition-all flex items-center justify-center shadow-lg shadow-red-200"
+              title="Xóa dự án"
+            >
+              <Trash2 size={24} />
+            </button>
+          )}
+        </div>
                 setEditingId(null);
                 setFormData({
                   project: '',
