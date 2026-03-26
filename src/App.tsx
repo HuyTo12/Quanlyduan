@@ -218,7 +218,8 @@ export default function App() {
 
  // Thay thế hàm addTask cũ:
   const addTask = async (newTask: Omit<Task, 'id' | 'startDate' | 'workingDays' | 'dailyKpiPoints' | 'createdAt' | 'status'>) => {
-    setLoading(true);
+    const hasNewFiles = newTask.files && newTask.files.length > 0;
+    if (hasNewFiles) setLoading(true); // Chỉ bật loading nếu có file
     let driveLinks: string[] = [];
 
 // Nếu có file, đẩy lên Google Drive trước
@@ -262,7 +263,7 @@ export default function App() {
     } else {
       showToast('Lỗi lưu dữ liệu: ' + error.message, 'error');
     }
-    setLoading(false);
+    if (hasNewFiles) setLoading(false);
   };
 
   // Thay thế hàm deleteTask cũ:
@@ -279,7 +280,8 @@ export default function App() {
 
 // Thay thế hàm updateTask cũ:
   const updateTask = async (updatedTask: Task) => {
-    setLoading(true); // Bật thông báo Đang tải...
+    const hasNewFiles = updatedTask.files && updatedTask.files.some(f => f.startsWith('data:'));
+    if (hasNewFiles) setLoading(true); // Chỉ bật loading khi có đính kèm file mới
     let driveLinks: string[] = [];
     let existingFolderId = "";
 
@@ -316,7 +318,7 @@ export default function App() {
     if (!error) {
       setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
     }
-    setLoading(false); // Tắt thông báo Đang tải...
+    if (hasNewFiles) setLoading(false); // Tắt thông báo Đang tải...
   };
   return (
     <div className="flex h-screen bg-[#f0f7ff] text-slate-800 font-sans overflow-hidden">
@@ -710,11 +712,6 @@ const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
             <tbody>
               {tasks
                 .slice()
-                .filter(task => {
-                  const today = startOfDay(new Date());
-                  const deadlineDate = startOfDay(parseISO(task.deadline));
-                  return differenceInDays(today, deadlineDate) <= 3;
-                })
                 .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
                 .map((task, index) => {
                 const isPastDeadline = isBefore(parseISO(task.deadline), startOfDay(new Date()));
