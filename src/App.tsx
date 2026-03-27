@@ -147,8 +147,7 @@ export default function App() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   // --- BẮT ĐẦU PHẦN THÊM MỚI ---
-  const [loading, setLoading] = useState(false);
-
+  const [uploadProgress, setUploadProgress] = useState<{ current: number, total: number, percentage: number } | null>(null);
   // Lấy dữ liệu từ Supabase
   const fetchTasks = async () => {
     const { data, error } = await supabase.from('projects').select('*').order('createdAt', { ascending: false });
@@ -357,18 +356,6 @@ export default function App() {
   };
   return (
     <div className="flex h-screen bg-[#f0f7ff] text-slate-800 font-sans overflow-hidden">
-      {/* Thông báo tải ngầm không chặn màn hình */}
-      {loading && (
-        <div className="fixed bottom-6 right-6 z-[100] bg-blue-600 text-white px-6 py-4 rounded-xl shadow-2xl flex flex-col gap-3 animate-in slide-in-from-bottom-8">
-          <div className="flex items-center gap-3">
-            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-            <span className="font-bold text-sm">Đang tải file lên Drive...</span>
-          </div>
-          <div className="w-full bg-blue-800/50 rounded-full h-1.5 overflow-hidden">
-            <div className="bg-white h-full w-1/2 animate-[pulse_1s_ease-in-out_infinite] rounded-full"></div>
-          </div>
-        </div>
-      )}
       {/* Bảng xác nhận Xóa 2 Lớp */}
       {deleteConfirmTask && (
         <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
@@ -472,6 +459,24 @@ export default function App() {
       <main className="flex-1 overflow-y-auto p-4 md:p-8 relative">
         {/* Toasts */}
         <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
+          
+          {/* Thanh Tiến độ Tải File (Giống thông báo giao việc) */}
+          {uploadProgress && (
+            <div className="px-6 py-4 rounded-xl shadow-lg text-white font-medium flex flex-col gap-3 transition-all duration-300 animate-in slide-in-from-right-8 fade-in bg-blue-600 w-[350px]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span className="text-sm font-bold">Đang tải file lên Drive...</span>
+                </div>
+                <span className="text-xs font-bold bg-blue-800 px-2 py-1 rounded-lg">{uploadProgress.current}/{uploadProgress.total}</span>
+              </div>
+              <div className="w-full bg-blue-900/60 rounded-full h-2 overflow-hidden">
+                <div className="bg-white h-full transition-all duration-300 rounded-full" style={{ width: `${uploadProgress.percentage}%` }}></div>
+              </div>
+              <div className="text-xs text-right opacity-90">{uploadProgress.percentage}% hoàn tất</div>
+            </div>
+          )}
+
           {toasts.map(toast => (
             <div 
               key={toast.id} 
