@@ -215,28 +215,28 @@ export default function App() {
     localStorage.setItem('kpi_tasks', JSON.stringify(tasks));
   }, [tasks]);
 
- // Thay thế hàm addTask cũ:
+ // Thay thế hàm addTask mới có tính %:
   const addTask = async (newTask: Omit<Task, 'id' | 'startDate' | 'workingDays' | 'dailyKpiPoints' | 'createdAt' | 'status'>) => {
-    const hasNewFiles = newTask.files && newTask.files.length > 0;
-    if (hasNewFiles) setLoading(true); // Chỉ bật loading nếu có file
     let driveLinks: string[] = [];
-
-// Nếu có file, đẩy lên Google Drive trước
-    if (newTask.files && newTask.files.length > 0) {
-      for (const fileData of newTask.files) {
-        // Chỉ upload nếu file là chuỗi base64
-        if (fileData.startsWith('data:')) {
-          const parts = fileData.split("|||"); // Tách dữ liệu và tên file
-          const actualBase64 = parts[0];
-          const fileName = parts[1] || "file_dinh_kem"; // Lấy tên gốc
-          
-          const link = await uploadToDrive(actualBase64, newTask.project, fileName);
-          // Chỉ lưu link nếu nó chưa có trong danh sách (để lấy 1 link thư mục duy nhất)
-          if (link && !driveLinks.includes(link)) {
-            driveLinks.push(link);
-          }
+    const filesToUpload = newTask.files?.filter(f => f.startsWith('data:')) || [];
+    
+    // Đẩy lên Google Drive và hiện thanh %
+    if (filesToUpload.length > 0) {
+      setUploadProgress({ current: 0, total: filesToUpload.length, percentage: 0 });
+      for (let i = 0; i < filesToUpload.length; i++) {
+        const fileData = filesToUpload[i];
+        const parts = fileData.split("|||");
+        const actualBase64 = parts[0];
+        const fileName = parts[1] || "file_dinh_kem";
+        
+        const link = await uploadToDrive(actualBase64, newTask.project, fileName);
+        if (link && !driveLinks.includes(link)) {
+          driveLinks.push(link);
         }
+        // Cập nhật % sau mỗi file
+        setUploadProgress({ current: i + 1, total: filesToUpload.length, percentage: Math.round(((i + 1) / filesToUpload.length) * 100) });
       }
+      setTimeout(() => setUploadProgress(null), 1000); // Tải xong đợi 1s rồi tắt thanh %
     }
 
     const deadlineDate = parseISO(newTask.deadline);
@@ -251,18 +251,53 @@ export default function App() {
       dailyKpiPoints: kpiPoints / workingDays.length,
       createdAt: new Date().toISOString(),
       status: TaskStatus.IN_PROGRESS,
-      files: driveLinks // Lưu link Drive vào data
+      files: driveLinks
     };
     
-    // Lưu vào Supabase
     const { error } = await supabase.from('projects').insert([taskRecord]);
     if (!error) {
       setTasks(prev => [taskRecord, ...prev]);
       showToast('Đã giao việc & lưu Cloud thành công', 'success', taskRecord as Task);
-    } else {
-      showToast('Lỗi lưu dữ liệu: ' + error.message, 'error');
     }
-    if (hasNewFiles) setLoading(false);
+  };
+
+  // Thay thế hàm updateTask mới có tính %:
+  const updateTask = async (updatedTask: Task) => {
+    let driveLinks: string[] = [];
+    let existingFolderId = "";
+
+    const oldLink = updatedTask.files.find(f => f.includes('drive.google.com'));
+    if (oldLink) {
+      driveLinks.push(oldLink);
+      const match = oldLink.match(/folders\/([a-zA-Z0-9_-]+)/);
+      if (match) existingFolderId = match[1];
+    }
+
+    const filesToUpload = updatedTask.files?.filter(f => f.startsWith('data:')) || [];
+    
+    // Đẩy file mới lên Drive và hiện thanh %
+    if (filesToUpload.length > 0) {
+      setUploadProgress({ current: 0, total: filesToUpload.length, percentage: 0 });
+      for (let i = 0; i < filesToUpload.length; i++) {
+        const fileData = filesToUpload[i];
+        const parts = fileData.split("|||");
+        const actualBase64 = parts[0];
+        const fileName = parts[1] || "file_dinh_kem";
+        
+        const link = await uploadToDrive(actualBase64, updatedTask.project, fileName, existingFolderId);
+        if (link && !driveLinks.includes(link)) {
+          driveLinks.push(link);
+        }
+        setUploadProgress({ current: i + 1, total: filesToUpload.length, percentage: Math.round(((i + 1) / filesToUpload.length) * 100) });
+      }
+      setTimeout(() => setUploadProgress(null), 1000);
+    }
+
+    updatedTask.files = driveLinks;
+    const { error } = await supabase.from('projects').update(updatedTask).eq('id', updatedTask.id);
+    if (!error) {
+      setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
+    }
   };
 
   // --- HỆ THỐNG XÓA THÔNG MINH (CHỐNG LỖI VERCEL) ---
