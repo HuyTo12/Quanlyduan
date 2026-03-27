@@ -1278,25 +1278,39 @@ function TimelineCongViec({ tasks, onSelectTask }: { tasks: Task[], onSelectTask
 
   const sortedTasks = useMemo(() => {
     const today = startOfDay(new Date());
-    const viewStart = timelineData[0].start;
-    const viewEnd = timelineData[timelineData.length - 1].end;
+    const viewStart = timelineData[0]?.start;
+    const viewEnd = timelineData[timelineData.length - 1]?.end;
+
+    if (!viewStart || !viewEnd) return [];
 
     return tasks
       .filter(task => {
         const deadlineDate = startOfDay(parseISO(task.deadline));
-        // Only show tasks where deadline is within the current view
+        // Chỉ hiện những task có deadline nằm trong khoảng thời gian đang xem
         return deadlineDate >= viewStart && deadlineDate <= viewEnd;
       })
       .sort((a, b) => {
+        // ƯU TIÊN 0: Dự án Đã hoàn thành luôn bị đẩy xuống dưới cùng
         const aCompleted = a.status === TaskStatus.COMPLETED;
         const bCompleted = b.status === TaskStatus.COMPLETED;
         if (aCompleted !== bCompleted) return aCompleted ? 1 : -1;
+
+        const aDeadline = startOfDay(parseISO(a.deadline));
+        const bDeadline = startOfDay(parseISO(b.deadline));
         
-        const aPast = isBefore(startOfDay(parseISO(a.deadline)), today);
-        const bPast = isBefore(startOfDay(parseISO(b.deadline)), today);
-        if (aPast !== bPast) return aPast ? 1 : -1;
-        
-        return b.kpiLevel - a.kpiLevel;
+        // ƯU TIÊN 1: Chia làm 2 nhóm (Đã đến/quá hạn) và (Chưa đến hạn)
+        const aIsDue = aDeadline <= today;
+        const bIsDue = bDeadline <= today;
+
+        if (aIsDue !== bIsDue) return aIsDue ? -1 : 1; // Đưa dự án đến hạn lên trên cùng
+
+        // ƯU TIÊN 2: Sắp xếp theo Mức độ (Mức 5 xuống Mức 1)
+        if (a.kpiLevel !== b.kpiLevel) {
+          return b.kpiLevel - a.kpiLevel; 
+        }
+
+        // ƯU TIÊN 3: Nếu cùng Mức độ, dự án nào Deadline gần hơn sẽ xếp trên
+        return aDeadline.getTime() - bDeadline.getTime();
       });
   }, [tasks, timelineData]);
 
