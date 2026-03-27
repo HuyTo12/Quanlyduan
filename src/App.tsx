@@ -193,36 +193,74 @@ export default function App() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000);
   };
 
+  // THÊM MỚI: Bộ nhớ để lưu các đồng hồ đếm ngược chờ xóa
+  const deleteTimeouts = useRef<{ [key: string]: any }>({});
+
   const handleUndo = (task: Task, toastId: number) => {
-    setTasks(prev => [...prev, task]);
+    // 1. Dừng ngay đồng hồ đếm ngược xóa lại (Chặn không cho nó tự xóa nữa)
+    if (deleteTimeouts.current[task.id]) {
+      clearTimeout(deleteTimeouts.current[task.id]);
+      delete deleteTimeouts.current[task.id];
+    }
+
+    // 2. Phục hồi trạng thái: Bỏ dự án khỏi danh sách "Chờ xóa"
+    setPendingDeleteIds(prev => prev.filter(id => id !== task.id));
+
+    // 3. Phục hồi giao diện (nếu vừa bấm xóa vĩnh viễn và bị ẩn đi)
+    setTasks(prev => {
+      const exists = prev.find(t => t.id === task.id);
+      if (!exists) return [task, ...prev]; // Trả lại dự án lên đầu bảng
+      return prev;
+    });
+
+    // 4. Tắt thông báo cũ và báo thành công
     setToasts(prev => prev.filter(t => t.id !== toastId));
+    showToast('Đã hoàn tác, dự án trở lại bình thường', 'success');
   };
 
-  // --- HỆ THỐNG XÓA THÔNG MINH 2 LỚP ---
+  // --- HỆ THỐNG XÓA THÔNG MINH 2 LỚP (CÓ HOÀN TÁC) ---
   const permanentlyDelete = async (task: any) => {
+    // Xóa thật sự trên Drive
     const driveLink = task.files?.find((f: string) => f.includes('drive.google.com'));
     if (driveLink) {
       const match = driveLink.match(/folders\/([a-zA-Z0-9_-]+)/);
       if (match) fetch(gasUrl, { method: 'POST', body: JSON.stringify({ action: 'delete', folderId: match[1] }) }).catch(() => {});
     }
+    // Xóa thật sự trên Supabase
     const { error } = await supabase.from('projects').delete().eq('id', task.id);
     if (!error) {
       setTasks(prev => prev.filter(t => t.id !== task.id));
       setPendingDeleteIds(prev => prev.filter(id => id !== task.id));
-      showToast('Dự án đã bị xóa vĩnh viễn', 'delete');
     }
   };
 
   const executeDelete = async (task: any, isPermanent: boolean) => {
     setDeleteConfirmTask(null);
+    
     if (!isPermanent) {
+      // LẦN 1: Chuyển vào hàng chờ
       const isPast = isBefore(parseISO(task.deadline), startOfDay(new Date()));
       const waitTime = isPast ? 3 * 24 * 60 * 60 * 1000 : 30 * 60 * 1000;
-      showToast(isPast ? 'Dự án sẽ bị xoá sau 3 ngày' : 'Dự án sẽ bị xoá sau 30 phút', 'error');
+      
+      // Dùng type 'delete' để hiện nút Hoàn tác thay vì 'error'
+      showToast(isPast ? 'Dự án sẽ bị xoá sau 3 ngày' : 'Dự án sẽ bị xoá sau 30 phút', 'delete', task);
       setPendingDeleteIds(prev => [...prev, task.id]);
-      setTimeout(() => permanentlyDelete(task), waitTime);
+      
+      // Hẹn giờ xóa thật sự và cất vào bộ nhớ
+      const timer = setTimeout(() => permanentlyDelete(task), waitTime);
+      deleteTimeouts.current[task.id] = timer;
+      
     } else {
-      permanentlyDelete(task);
+      // LẦN 2: Bấm xóa vĩnh viễn
+      showToast('Đang xóa dự án vĩnh viễn...', 'delete', task);
+      
+      // Xóa ảo trên giao diện ngay lập tức để người dùng thấy nó biến mất
+      setTasks(prev => prev.filter(t => t.id !== task.id));
+      setPendingDeleteIds(prev => prev.filter(id => id !== task.id));
+      
+      // Cho 5 giây hối hận trước khi gửi lệnh xóa đi thật sự
+      const timer = setTimeout(() => permanentlyDelete(task), 5000);
+      deleteTimeouts.current[task.id] = timer;
     }
   };
 
