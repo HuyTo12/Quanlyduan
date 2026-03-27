@@ -1254,11 +1254,16 @@ function SearchSection({ tasks, selectedId, onClearSelection }: {
               <button 
                 onClick={() => {
                   if (onClearSelection) onClearSelection();
-                  window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: selectedTask }));
-                  // Tự động bấm sang tab Giao Việc
+                  
+                  // 1. Tự động bấm sang tab Giao Việc trước
                   const tabs = document.querySelectorAll('button');
                   const giaoViecTab = Array.from(tabs).find(btn => btn.textContent?.includes('Giao việc'));
                   if (giaoViecTab) giaoViecTab.click();
+                  
+                  // 2. Đợi 0.15 giây để tab Giao Việc mở lên hoàn toàn rồi mới gửi dữ liệu qua
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: selectedTask }));
+                  }, 150);
                 }}
                 className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-lg active:scale-95"
               >
