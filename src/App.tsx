@@ -309,11 +309,7 @@ export default function App() {
   const deleteTask = (id: string) => {
     const task = tasks.find(t => t.id === id);
     if (!task) return;
-    if (pendingDeleteIds.includes(id)) {
-      executeDelete(task, true); // Nếu đang chờ xóa -> Bấm xóa tiếp sẽ xóa vĩnh viễn
-    } else {
-      setDeleteConfirmTask(task); // Lần đầu -> Hiện bảng hỏi
-    }
+    setDeleteConfirmTask(task); // Luôn mở bảng hỏi (Bảng sẽ tự biết là hỏi lần 1 hay lần 2)
   };
   // --- KẾT THÚC HỆ THỐNG XÓA ---
 
@@ -373,16 +369,29 @@ export default function App() {
           </div>
         </div>
       )}
-      {/* Bảng xác nhận Xóa chống lỗi */}
+      {/* Bảng xác nhận Xóa 2 Lớp */}
       {deleteConfirmTask && (
         <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
           <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-md w-full text-center space-y-6">
             <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto"><Trash2 size={32} /></div>
-            <h3 className="text-2xl font-bold text-slate-800">Xác nhận xóa dự án?</h3>
-            <p className="text-slate-500">Dự án sẽ được chuyển vào trạng thái chờ xóa. Bạn có chắc chắn muốn xóa?</p>
+            <h3 className="text-2xl font-bold text-slate-800">
+              {pendingDeleteIds.includes(deleteConfirmTask.id) ? 'Xác nhận xóa vĩnh viễn?' : 'Xác nhận xóa dự án?'}
+            </h3>
+            <p className="text-slate-500">
+              {pendingDeleteIds.includes(deleteConfirmTask.id) 
+                ? 'Dự án này sẽ bị xóa hoàn toàn khỏi hệ thống và Drive. KHÔNG THỂ KHÔI PHỤC!' 
+                : 'Dự án sẽ được chuyển vào trạng thái chờ xóa. Bạn có chắc chắn muốn xóa?'}
+            </p>
             <div className="flex gap-4 pt-4">
-              <button onClick={() => setDeleteConfirmTask(null)} className="flex-1 bg-blue-900 text-white font-bold py-3 rounded-xl hover:bg-blue-800 transition-colors">Hủy</button>
-              <button onClick={() => executeDelete(deleteConfirmTask, false)} className="flex-1 bg-red-500 text-white font-bold py-3 rounded-xl hover:bg-red-600 shadow-lg shadow-red-200 transition-colors">Xóa</button>
+              <button onClick={() => setDeleteConfirmTask(null)} className="flex-1 bg-blue-900 text-white font-bold py-3 rounded-xl hover:bg-blue-800 transition-colors">
+                {pendingDeleteIds.includes(deleteConfirmTask.id) ? 'Hủy xóa' : 'Hủy'}
+              </button>
+              <button 
+                onClick={() => executeDelete(deleteConfirmTask, pendingDeleteIds.includes(deleteConfirmTask.id))} 
+                className="flex-1 bg-red-500 text-white font-bold py-3 rounded-xl hover:bg-red-600 shadow-lg shadow-red-200 transition-colors"
+              >
+                {pendingDeleteIds.includes(deleteConfirmTask.id) ? 'Xóa vĩnh viễn' : 'Xóa'}
+              </button>
             </div>
           </div>
         </div>
