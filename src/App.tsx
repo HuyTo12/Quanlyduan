@@ -146,55 +146,51 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  // --- BẮT ĐẦU PHẦN THÊM MỚI ---
+  
+  // BIẾN LƯU % TẢI FILE & XÓA THÔNG MINH
   const [uploadProgress, setUploadProgress] = useState<{ current: number, total: number, percentage: number } | null>(null);
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
+  const [deleteConfirmTask, setDeleteConfirmTask] = useState<any>(null);
+
   // Lấy dữ liệu từ Supabase
   const fetchTasks = async () => {
     const { data, error } = await supabase.from('projects').select('*').order('createdAt', { ascending: false });
     if (!error && data) setTasks(data);
   };
 
+  useEffect(() => { fetchTasks(); }, []);
+
   useEffect(() => {
-    fetchTasks();
+    const savedTasks = localStorage.getItem('kpi_tasks');
+    if (savedTasks) setTasks(JSON.parse(savedTasks));
   }, []);
 
-// Đẩy file lên Google Drive
+  useEffect(() => {
+    localStorage.setItem('kpi_tasks', JSON.stringify(tasks));
+  }, [tasks]);
+
+  // Đẩy file lên Google Drive
   const uploadToDrive = async (base64: string, projectName: string, fileName: string, folderId?: string) => {
     try {
       const response = await fetch(gasUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8',
-        },
-        // Thêm folderId vào gói dữ liệu gửi đi
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ base64, projectName, date: format(new Date(), 'dd-MM-yyyy'), fileName: fileName, folderId: folderId || "" })
       });
       const result = await response.json();
-      
-      if (result.status === 'error') {
-        alert("Lỗi từ Google Drive: " + result.error); // Báo lỗi nếu Google từ chối
-      }
+      if (result.status === 'error') alert("Lỗi từ Google Drive: " + result.error);
       return result.status === 'success' ? result.url : null;
     } catch (e: any) {
       alert("Lỗi kết nối Google Drive! Hãy kiểm tra lại VITE_GAS_URL. Chi tiết: " + e.message);
       return null;
     }
   };
-  // --- KẾT THÚC PHẦN THÊM MỚI ---
 
   const showToast = (message: string, type: 'success' | 'delete' | 'edit' | 'error', task?: Task) => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, message, type, task }]);
-    
-    // Start closing animation at 4.7s
-    setTimeout(() => {
-      setToasts(prev => prev.map(t => t.id === id ? { ...t, isClosing: true } : t));
-    }, 4700);
-
-    // Remove at 5s
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
-    }, 5000);
+    setTimeout(() => setToasts(prev => prev.map(t => t.id === id ? { ...t, isClosing: true } : t)), 4700);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000);
   };
 
   const handleUndo = (task: Task, toastId: number) => {
@@ -202,25 +198,45 @@ export default function App() {
     setToasts(prev => prev.filter(t => t.id !== toastId));
   };
 
-  // Load tasks from localStorage
-  useEffect(() => {
-    const savedTasks = localStorage.getItem('kpi_tasks');
-    if (savedTasks) {
-      setTasks(JSON.parse(savedTasks));
+  // --- HỆ THỐNG XÓA THÔNG MINH 2 LỚP ---
+  const permanentlyDelete = async (task: any) => {
+    const driveLink = task.files?.find((f: string) => f.includes('drive.google.com'));
+    if (driveLink) {
+      const match = driveLink.match(/folders\/([a-zA-Z0-9_-]+)/);
+      if (match) fetch(gasUrl, { method: 'POST', body: JSON.stringify({ action: 'delete', folderId: match[1] }) }).catch(() => {});
     }
-  }, []);
+    const { error } = await supabase.from('projects').delete().eq('id', task.id);
+    if (!error) {
+      setTasks(prev => prev.filter(t => t.id !== task.id));
+      setPendingDeleteIds(prev => prev.filter(id => id !== task.id));
+      showToast('Dự án đã bị xóa vĩnh viễn', 'delete');
+    }
+  };
 
-  // Save tasks to localStorage
-  useEffect(() => {
-    localStorage.setItem('kpi_tasks', JSON.stringify(tasks));
-  }, [tasks]);
+  const executeDelete = async (task: any, isPermanent: boolean) => {
+    setDeleteConfirmTask(null);
+    if (!isPermanent) {
+      const isPast = isBefore(parseISO(task.deadline), startOfDay(new Date()));
+      const waitTime = isPast ? 3 * 24 * 60 * 60 * 1000 : 30 * 60 * 1000;
+      showToast(isPast ? 'Dự án sẽ bị xoá sau 3 ngày' : 'Dự án sẽ bị xoá sau 30 phút', 'error');
+      setPendingDeleteIds(prev => [...prev, task.id]);
+      setTimeout(() => permanentlyDelete(task), waitTime);
+    } else {
+      permanentlyDelete(task);
+    }
+  };
 
- // Thay thế hàm addTask mới có tính %:
+  const deleteTask = (id: string) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+    setDeleteConfirmTask(task);
+  };
+
+  // --- HÀM THÊM / SỬA CÓ TÍNH % TẢI FILE ---
   const addTask = async (newTask: Omit<Task, 'id' | 'startDate' | 'workingDays' | 'dailyKpiPoints' | 'createdAt' | 'status'>) => {
     let driveLinks: string[] = [];
     const filesToUpload = newTask.files?.filter(f => f.startsWith('data:')) || [];
     
-    // Đẩy lên Google Drive và hiện thanh %
     if (filesToUpload.length > 0) {
       setUploadProgress({ current: 0, total: filesToUpload.length, percentage: 0 });
       for (let i = 0; i < filesToUpload.length; i++) {
@@ -230,13 +246,11 @@ export default function App() {
         const fileName = parts[1] || "file_dinh_kem";
         
         const link = await uploadToDrive(actualBase64, newTask.project, fileName);
-        if (link && !driveLinks.includes(link)) {
-          driveLinks.push(link);
-        }
-        // Cập nhật % sau mỗi file
+        if (link && !driveLinks.includes(link)) driveLinks.push(link);
+        
         setUploadProgress({ current: i + 1, total: filesToUpload.length, percentage: Math.round(((i + 1) / filesToUpload.length) * 100) });
       }
-      setTimeout(() => setUploadProgress(null), 1000); // Tải xong đợi 1s rồi tắt thanh %
+      setTimeout(() => setUploadProgress(null), 1000);
     }
 
     const deadlineDate = parseISO(newTask.deadline);
@@ -261,7 +275,6 @@ export default function App() {
     }
   };
 
-  // Thay thế hàm updateTask mới có tính %:
   const updateTask = async (updatedTask: Task) => {
     let driveLinks: string[] = [];
     let existingFolderId = "";
@@ -275,7 +288,6 @@ export default function App() {
 
     const filesToUpload = updatedTask.files?.filter(f => f.startsWith('data:')) || [];
     
-    // Đẩy file mới lên Drive và hiện thanh %
     if (filesToUpload.length > 0) {
       setUploadProgress({ current: 0, total: filesToUpload.length, percentage: 0 });
       for (let i = 0; i < filesToUpload.length; i++) {
@@ -285,9 +297,8 @@ export default function App() {
         const fileName = parts[1] || "file_dinh_kem";
         
         const link = await uploadToDrive(actualBase64, updatedTask.project, fileName, existingFolderId);
-        if (link && !driveLinks.includes(link)) {
-          driveLinks.push(link);
-        }
+        if (link && !driveLinks.includes(link)) driveLinks.push(link);
+        
         setUploadProgress({ current: i + 1, total: filesToUpload.length, percentage: Math.round(((i + 1) / filesToUpload.length) * 100) });
       }
       setTimeout(() => setUploadProgress(null), 1000);
@@ -297,100 +308,13 @@ export default function App() {
     const { error } = await supabase.from('projects').update(updatedTask).eq('id', updatedTask.id);
     if (!error) {
       setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
+      showToast('Đã lưu thay đổi thành công', 'edit', updatedTask);
     }
   };
 
-  // --- HỆ THỐNG XÓA THÔNG MINH (CHỐNG LỖI VERCEL) ---
-  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
-  const [deleteConfirmTask, setDeleteConfirmTask] = useState<any>(null); // Dùng any để Vercel không báo lỗi
-
-  // Hàm xóa vĩnh viễn (Drive + Website)
-  const permanentlyDelete = async (task: any) => {
-    const driveLink = task.files?.find((f: string) => f.includes('drive.google.com'));
-    if (driveLink) {
-      const match = driveLink.match(/folders\/([a-zA-Z0-9_-]+)/);
-      if (match) fetch(gasUrl, { method: 'POST', body: JSON.stringify({ action: 'delete', folderId: match[1] }) }).catch(() => {});
-    }
-    const { error } = await supabase.from('projects').delete().eq('id', task.id);
-    if (!error) {
-      setTasks(prev => prev.filter(t => t.id !== task.id));
-      setPendingDeleteIds(prev => prev.filter(id => id !== task.id));
-      showToast('Dự án đã bị xóa vĩnh viễn', 'delete');
-    }
-  };
-
-  const executeDelete = async (task: any, isPermanent: boolean) => {
-    setDeleteConfirmTask(null);
-    if (!isPermanent) {
-      // Bấm lần 1: Đưa vào trạng thái chờ
-      const isPast = isBefore(parseISO(task.deadline), startOfDay(new Date()));
-      const waitTime = isPast ? 3 * 24 * 60 * 60 * 1000 : 30 * 60 * 1000; // Tính ra mili-giây (3 ngày hoặc 30 phút)
-      
-      showToast(isPast ? 'Dự án sẽ bị xoá sau 3 ngày' : 'Dự án sẽ bị xoá sau 30 phút', 'error');
-      setPendingDeleteIds(prev => [...prev, task.id]);
-      
-      // Kích hoạt đồng hồ đếm ngược để tự động xóa ngầm
-      setTimeout(() => {
-        permanentlyDelete(task);
-      }, waitTime);
-
-    } else {
-      // Bấm lần 2: Xóa ngay lập tức
-      permanentlyDelete(task);
-    }
-  };
-
-  const deleteTask = (id: string) => {
-    const task = tasks.find(t => t.id === id);
-    if (!task) return;
-    setDeleteConfirmTask(task); // Luôn mở bảng hỏi (Bảng sẽ tự biết là hỏi lần 1 hay lần 2)
-  };
-  // --- KẾT THÚC HỆ THỐNG XÓA ---
-
-// Thay thế hàm updateTask cũ:
-  const updateTask = async (updatedTask: Task) => {
-    const hasNewFiles = updatedTask.files && updatedTask.files.some(f => f.startsWith('data:'));
-    if (hasNewFiles) setLoading(true); // Chỉ bật loading khi có đính kèm file mới
-    let driveLinks: string[] = [];
-    let existingFolderId = "";
-
-    // 1. Tìm xem dự án này đã có link thư mục Drive cũ chưa
-    const oldLink = updatedTask.files.find(f => f.includes('drive.google.com'));
-    if (oldLink) {
-      driveLinks.push(oldLink); // Giữ lại link cũ trên giao diện
-      // Trích xuất đoạn ID thư mục từ đường link Google Drive
-      const match = oldLink.match(/folders\/([a-zA-Z0-9_-]+)/);
-      if (match) existingFolderId = match[1];
-    }
-
-    // 2. Xử lý các file đính kèm mới (nếu có)
-    if (updatedTask.files && updatedTask.files.length > 0) {
-      for (const fileData of updatedTask.files) {
-        if (fileData.startsWith('data:')) { // Chỉ đẩy lên Drive những file vừa mới thêm
-          const parts = fileData.split("|||");
-          const actualBase64 = parts[0];
-          const fileName = parts[1] || "file_dinh_kem";
-          
-          // Gửi file kèm existingFolderId để Google Drive biết chỗ lưu
-          const link = await uploadToDrive(actualBase64, updatedTask.project, fileName, existingFolderId);
-          if (link && !driveLinks.includes(link)) {
-            driveLinks.push(link);
-          }
-        }
-      }
-    }
-
-    updatedTask.files = driveLinks; // Cập nhật danh sách file cuối cùng (chỉ gồm link thư mục)
-
-    // 3. Cập nhật dữ liệu lên Supabase
-    const { error } = await supabase.from('projects').update(updatedTask).eq('id', updatedTask.id);
-    if (!error) {
-      setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
-    }
-    if (hasNewFiles) setLoading(false); // Tắt thông báo Đang tải...
-  };
   return (
     <div className="flex h-screen bg-[#f0f7ff] text-slate-800 font-sans overflow-hidden">
+      
       {/* Bảng xác nhận Xóa 2 Lớp */}
       {deleteConfirmTask && (
         <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
@@ -418,25 +342,9 @@ export default function App() {
           </div>
         </div>
       )}
-      {/* Bảng xác nhận Xóa */}
-      {deleteConfirmTask && (
-        <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
-          <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-md w-full text-center space-y-6">
-            <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto"><Trash2 size={32} /></div>
-            <h3 className="text-2xl font-bold text-slate-800">Xác nhận xóa dự án?</h3>
-            <p className="text-slate-500">Dự án sẽ được chuyển vào trạng thái chờ xóa theo cấu hình của bạn. Chắc chắn muốn xóa?</p>
-            <div className="flex gap-4 pt-4">
-              <button onClick={() => setDeleteConfirmTask(null)} className="flex-1 bg-blue-900 text-white font-bold py-3 rounded-xl hover:bg-blue-800 transition-colors">Hủy</button>
-              <button onClick={() => deleteConfirmTask && executeDelete(deleteConfirmTask, false)} className="flex-1 bg-red-500 text-white font-bold py-3 rounded-xl hover:bg-red-600 shadow-lg shadow-red-200 transition-colors">Xóa</button>
-            </div>
-          </div>
-        </div>
-      )}
+
       {/* Sidebar */}
-      <aside className={cn(
-        "bg-white border-r border-slate-200 transition-all duration-300 flex flex-col z-20",
-        isSidebarOpen ? "w-64" : "w-20"
-      )}>
+      <aside className={cn("bg-white border-r border-slate-200 transition-all duration-300 flex flex-col z-20", isSidebarOpen ? "w-64" : "w-20")}>
         <div className="p-6 flex items-center gap-3 border-b border-slate-100">
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shrink-0">
             <LayoutDashboard size={20} />
@@ -445,57 +353,23 @@ export default function App() {
         </div>
 
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          <SidebarItem 
-            icon={<Plus size={20} />} 
-            label="Giao việc" 
-            active={activeSection === 'giao-viec'} 
-            onClick={() => setActiveSection('giao-viec')}
-            collapsed={!isSidebarOpen}
-          />
-          <SidebarItem 
-            icon={<CalendarDays size={20} />} 
-            label="Công việc hàng ngày" 
-            active={activeSection === 'cong-viec-hang-ngay'} 
-            onClick={() => setActiveSection('cong-viec-hang-ngay')}
-            collapsed={!isSidebarOpen}
-          />
-          <SidebarItem 
-            icon={<CalendarRange size={20} />} 
-            label="Timeline công việc" 
-            active={activeSection === 'timeline'} 
-            onClick={() => setActiveSection('timeline')}
-            collapsed={!isSidebarOpen}
-          />
-          <SidebarItem 
-            icon={<BarChart3 size={20} />} 
-            label="Đánh giá công việc" 
-            active={activeSection === 'danh-gia'} 
-            onClick={() => setActiveSection('danh-gia')}
-            collapsed={!isSidebarOpen}
-          />
-          <SidebarItem 
-            icon={<Search size={20} />} 
-            label="Tìm kiếm" 
-            active={activeSection === 'search'} 
-            onClick={() => setActiveSection('search')}
-            collapsed={!isSidebarOpen}
-          />
+          <SidebarItem icon={<Plus size={20} />} label="Giao việc" active={activeSection === 'giao-viec'} onClick={() => setActiveSection('giao-viec')} collapsed={!isSidebarOpen} />
+          <SidebarItem icon={<CalendarDays size={20} />} label="Công việc hàng ngày" active={activeSection === 'cong-viec-hang-ngay'} onClick={() => setActiveSection('cong-viec-hang-ngay')} collapsed={!isSidebarOpen} />
+          <SidebarItem icon={<CalendarRange size={20} />} label="Timeline công việc" active={activeSection === 'timeline'} onClick={() => setActiveSection('timeline')} collapsed={!isSidebarOpen} />
+          <SidebarItem icon={<BarChart3 size={20} />} label="Đánh giá công việc" active={activeSection === 'danh-gia'} onClick={() => setActiveSection('danh-gia')} collapsed={!isSidebarOpen} />
+          <SidebarItem icon={<Search size={20} />} label="Tìm kiếm" active={activeSection === 'search'} onClick={() => setActiveSection('search')} collapsed={!isSidebarOpen} />
         </nav>
 
-        <button 
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="p-4 border-t border-slate-100 flex items-center justify-center hover:bg-slate-50 transition-colors"
-        >
+        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-4 border-t border-slate-100 flex items-center justify-center hover:bg-slate-50 transition-colors">
           {isSidebarOpen ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
         </button>
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto p-4 md:p-8 relative">
-        {/* Toasts */}
         <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
           
-          {/* Thanh Tiến độ Tải File (Giống thông báo giao việc) */}
+          {/* Thanh Tiến độ Tải File */}
           {uploadProgress && (
             <div className="px-6 py-4 rounded-xl shadow-lg text-white font-medium flex flex-col gap-3 transition-all duration-300 animate-in slide-in-from-right-8 fade-in bg-blue-600 w-[350px]">
               <div className="flex items-center justify-between">
@@ -513,85 +387,34 @@ export default function App() {
           )}
 
           {toasts.map(toast => (
-            <div 
-              key={toast.id} 
-              className={cn(
-                "px-6 py-4 rounded-xl shadow-lg text-white font-medium flex items-center gap-4 transition-all duration-300",
-                toast.isClosing ? "translate-x-full opacity-0" : "animate-in slide-in-from-right-8 fade-in",
-                (toast.type === 'success' || toast.type === 'edit') ? "bg-emerald-500" : "bg-red-500"
-              )}
-            >
+            <div key={toast.id} className={cn("px-6 py-4 rounded-xl shadow-lg text-white font-medium flex items-center gap-4 transition-all duration-300", toast.isClosing ? "translate-x-full opacity-0" : "animate-in slide-in-from-right-8 fade-in", (toast.type === 'success' || toast.type === 'edit') ? "bg-emerald-500" : "bg-red-500")}>
               <div className="flex items-center gap-3">
                 {toast.type === 'success' && <CheckCircle2 size={20} />}
                 {toast.type === 'edit' && <Edit size={20} />}
                 {toast.type === 'delete' && <Trash2 size={20} />}
                 {toast.type === 'error' && <AlertCircle size={20} />}
-                <span 
-                  className={(toast.type === 'success' || toast.type === 'edit') ? "cursor-pointer hover:underline" : ""}
-                  onClick={() => {
-                    if (toast.type === 'success' || toast.type === 'edit') {
-                      setActiveSection('cong-viec-hang-ngay');
-                    }
-                  }}
-                >
+                <span className={(toast.type === 'success' || toast.type === 'edit') ? "cursor-pointer hover:underline" : ""} onClick={() => { if (toast.type === 'success' || toast.type === 'edit') setActiveSection('cong-viec-hang-ngay'); }}>
                   {toast.message}
                 </span>
               </div>
               {toast.type === 'delete' && toast.task && (
-                <button 
-                  onClick={() => handleUndo(toast.task!, toast.id)}
-                  className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition-colors"
-                >
-                  Hoàn tác
-                </button>
+                <button onClick={() => handleUndo(toast.task!, toast.id)} className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition-colors">Hoàn tác</button>
               )}
             </div>
           ))}
         </div>
 
         <div className="max-w-6xl mx-auto">
-          {activeSection === 'giao-viec' && (
-            <GiaoViec 
-              tasks={tasks} 
-              onAdd={addTask} 
-              onDelete={deleteTask} 
-              onUpdate={updateTask} 
-              showToast={showToast}
-            />
-          )}
-          {activeSection === 'cong-viec-hang-ngay' && (
-            <CongViecHangNgay 
-              tasks={tasks} 
-              onUpdate={updateTask} 
-            />
-          )}
-          {activeSection === 'timeline' && (
-            <TimelineCongViec 
-              tasks={tasks} 
-              onSelectTask={(id) => {
-                setSelectedTaskId(id);
-                setActiveSection('search');
-              }}
-            />
-          )}
-          {activeSection === 'danh-gia' && (
-            <DanhGiaCongViec 
-              tasks={tasks} 
-            />
-          )}
-          {activeSection === 'search' && (
-            <SearchSection 
-              tasks={tasks} 
-              selectedId={selectedTaskId}
-              onClearSelection={() => setSelectedTaskId(null)}
-            />
-          )}
+          {activeSection === 'giao-viec' && <GiaoViec tasks={tasks} onAdd={addTask} onDelete={deleteTask} onUpdate={updateTask} showToast={showToast} />}
+          {activeSection === 'cong-viec-hang-ngay' && <CongViecHangNgay tasks={tasks} onUpdate={updateTask} />}
+          {activeSection === 'timeline' && <TimelineCongViec tasks={tasks} onSelectTask={(id) => { setSelectedTaskId(id); setActiveSection('search'); }} />}
+          {activeSection === 'danh-gia' && <DanhGiaCongViec tasks={tasks} />}
+          {activeSection === 'search' && <SearchSection tasks={tasks} selectedId={selectedTaskId} onClearSelection={() => setSelectedTaskId(null)} />}
         </div>
       </main>
     </div>
   );
 }
-
 function SidebarItem({ icon, label, active, onClick, collapsed }: { 
   icon: React.ReactNode; 
   label: string; 
