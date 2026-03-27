@@ -600,7 +600,7 @@ const [isDragging, setIsDragging] = useState(false);
               value={formData.description}
               onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
               placeholder="Chi tiết công việc..."
-              rows={3}
+              rows={6}
               className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
             />
           </div>
