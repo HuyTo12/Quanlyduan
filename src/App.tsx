@@ -436,17 +436,13 @@ export default function App() {
                 {toast.type === 'edit' && <Edit size={20} />}
                 {toast.type === 'delete' && <Trash2 size={20} />}
                 {toast.type === 'error' && <AlertCircle size={20} />}
+                {toast.type === 'cancel' && <AlertCircle size={20} />}
                 <span className={(toast.type === 'success' || toast.type === 'edit') ? "cursor-pointer hover:underline" : ""} onClick={() => { if (toast.type === 'success' || toast.type === 'edit') setActiveSection('cong-viec-hang-ngay'); }}>
                   {toast.message}
                 </span>
               </div>
               {toast.type === 'delete' && toast.task && (
-                <button 
-                  onClick={() => handleUndo(toast.task!, toast.id)}
-                  className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition-colors whitespace-nowrap"
-                >
-                  Hoàn tác
-                </button>
+                <button onClick={() => handleUndo(toast.task!, toast.id)} className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition-colors whitespace-nowrap">Hoàn tác</button>
               )}
               {toast.type === 'cancel' && toast.task && (
                 <button 
@@ -460,6 +456,8 @@ export default function App() {
                 </button>
               )}
             </div>
+          ))}
+        </div>
 
         <div className="max-w-6xl mx-auto">
           {activeSection === 'giao-viec' && <GiaoViec tasks={tasks} onAdd={addTask} onDelete={deleteTask} onUpdate={updateTask} showToast={showToast} />}
