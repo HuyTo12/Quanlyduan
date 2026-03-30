@@ -443,6 +443,7 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
+      {/* Main Content */}
       <main className="flex-1 overflow-y-auto p-4 md:p-8 relative">
         <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
           
@@ -463,14 +464,15 @@ export default function App() {
             </div>
           )}
 
-          {tasks.map(task => (
-                <div 
-                  key={task.id} 
-                  onDoubleClick={() => onDoubleClickTask && onDoubleClickTask(task)}
-                  className="bg-white border border-slate-100 p-4 rounded-2xl hover:shadow-lg hover:border-blue-200 transition-all flex flex-col gap-4 group cursor-pointer"
-                  title="Nháy đúp chuột để Sửa hoặc Xóa"
-                >
-                  {/* Nội dung bên trong dự án... */}
+          {toasts.map(toast => (
+            <div 
+              key={toast.id} 
+              className={cn(
+                "px-6 py-4 rounded-xl shadow-lg text-white font-medium flex items-center gap-4 transition-all duration-300",
+                toast.isClosing ? "translate-x-full opacity-0" : "animate-in slide-in-from-right-8 fade-in",
+                (toast.type === 'success' || toast.type === 'edit') ? "bg-emerald-500" : toast.type === 'cancel' ? "bg-slate-500" : "bg-red-500"
+              )}
+            >
               <div className="flex items-center gap-3">
                 {toast.type === 'success' && <CheckCircle2 size={20} />}
                 {toast.type === 'edit' && <Edit size={20} />}
@@ -504,7 +506,7 @@ export default function App() {
           {activeSection === 'cong-viec-hang-ngay' && <CongViecHangNgay tasks={tasks} onUpdate={updateTask} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'timeline' && <TimelineCongViec tasks={tasks} onSelectTask={(id) => { setSelectedTaskId(id); setActiveSection('search'); }} />}
           {activeSection === 'danh-gia' && <DanhGiaCongViec tasks={tasks} />}
-         {activeSection === 'search' && <SearchSection tasks={tasks} selectedId={selectedTaskId} onClearSelection={() => setSelectedTaskId(null)} onDelete={deleteTask} />}
+          {activeSection === 'search' && <SearchSection tasks={tasks} selectedId={selectedTaskId} onClearSelection={() => setSelectedTaskId(null)} onDelete={deleteTask} />}
         </div>
       </main>
     </div>
@@ -833,14 +835,18 @@ const [isDragging, setIsDragging] = useState(false);
                 const isPastDeadline = isBefore(parseISO(task.deadline), startOfDay(new Date()));
                 const isCompleted = task.status === TaskStatus.COMPLETED;
                 return (
-                  <tr key={task.id} className={cn(
-                    "transition-colors",
-                    isCompleted ? "bg-slate-100 text-slate-400" : (
-                      isPastDeadline 
-                        ? (index % 2 === 0 ? "bg-slate-100 text-slate-500" : "bg-slate-50 text-slate-500")
-                        : (index % 2 === 0 ? "bg-blue-50/50" : "bg-white")
-                    )
-                  )}>
+                  <tr 
+                    key={task.id} 
+                    onDoubleClick={() => onDoubleClickTask && onDoubleClickTask(task)}
+                    title="Nháy đúp chuột để Sửa hoặc Xóa"
+                    className={cn(
+                      "transition-colors cursor-pointer hover:opacity-80 shadow-sm",
+                      isCompleted ? "bg-slate-100 text-slate-400" : (
+                        isPastDeadline 
+                          ? (index % 2 === 0 ? "bg-slate-100 text-slate-500" : "bg-slate-50 text-slate-500")
+                          : (index % 2 === 0 ? "bg-blue-50/50" : "bg-white")
+                      )
+                    )}>
                     <td className="p-4 text-sm align-top">
                       <button 
                         onClick={() => handleEdit(task)}
