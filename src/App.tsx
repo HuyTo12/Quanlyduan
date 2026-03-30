@@ -348,9 +348,50 @@ export default function App() {
     }
   };
 
+  const [doubleClickTask, setDoubleClickTask] = useState<Task | null>(null);
+
   return (
     <div className="flex h-screen bg-[#f0f7ff] text-slate-800 font-sans overflow-hidden">
       
+      {/* Bảng chọn Sửa/Xóa khi Double Click */}
+      {doubleClickTask && (
+        <div className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
+          <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center space-y-4">
+            <h3 className="text-2xl font-bold text-slate-800">Tùy chọn Dự án</h3>
+            <p className="text-slate-500 text-sm mb-4">Bạn muốn thao tác gì với dự án này?</p>
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={() => {
+                  setActiveSection('giao-viec');
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: doubleClickTask }));
+                  }, 150);
+                  setDoubleClickTask(null);
+                }} 
+                className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-colors flex justify-center items-center gap-2"
+              >
+                <Edit size={18} /> Chỉnh sửa Dự án
+              </button>
+              <button 
+                onClick={() => {
+                  deleteTask(doubleClickTask.id);
+                  setDoubleClickTask(null);
+                }} 
+                className="w-full bg-red-500 text-white font-bold py-3 rounded-xl hover:bg-red-600 shadow-lg shadow-red-200 transition-colors flex justify-center items-center gap-2"
+              >
+                <Trash2 size={18} /> Xóa Dự án
+              </button>
+              <button 
+                onClick={() => setDoubleClickTask(null)} 
+                className="w-full bg-slate-100 text-slate-600 font-bold py-3 rounded-xl hover:bg-slate-200 transition-colors mt-2"
+              >
+                Hủy bỏ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Bảng xác nhận Xóa 2 Lớp */}
       {deleteConfirmTask && (
         <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
@@ -422,15 +463,14 @@ export default function App() {
             </div>
           )}
 
-          {toasts.map(toast => (
-            <div 
-              key={toast.id} 
-              className={cn(
-                "px-6 py-4 rounded-xl shadow-lg text-white font-medium flex items-center gap-4 transition-all duration-300",
-                toast.isClosing ? "translate-x-full opacity-0" : "animate-in slide-in-from-right-8 fade-in",
-                (toast.type === 'success' || toast.type === 'edit') ? "bg-emerald-500" : toast.type === 'cancel' ? "bg-slate-500" : "bg-red-500"
-              )}
-            >
+          {tasks.map(task => (
+                <div 
+                  key={task.id} 
+                  onDoubleClick={() => onDoubleClickTask && onDoubleClickTask(task)}
+                  className="bg-white border border-slate-100 p-4 rounded-2xl hover:shadow-lg hover:border-blue-200 transition-all flex flex-col gap-4 group cursor-pointer"
+                  title="Nháy đúp chuột để Sửa hoặc Xóa"
+                >
+                  {/* Nội dung bên trong dự án... */}
               <div className="flex items-center gap-3">
                 {toast.type === 'success' && <CheckCircle2 size={20} />}
                 {toast.type === 'edit' && <Edit size={20} />}
@@ -460,8 +500,8 @@ export default function App() {
         </div>
 
         <div className="max-w-6xl mx-auto">
-          {activeSection === 'giao-viec' && <GiaoViec tasks={tasks} onAdd={addTask} onDelete={deleteTask} onUpdate={updateTask} showToast={showToast} />}
-          {activeSection === 'cong-viec-hang-ngay' && <CongViecHangNgay tasks={tasks} onUpdate={updateTask} />}
+          {activeSection === 'giao-viec' && <GiaoViec tasks={tasks} onAdd={addTask} onDelete={deleteTask} onUpdate={updateTask} showToast={showToast} onDoubleClickTask={setDoubleClickTask} />}
+          {activeSection === 'cong-viec-hang-ngay' && <CongViecHangNgay tasks={tasks} onUpdate={updateTask} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'timeline' && <TimelineCongViec tasks={tasks} onSelectTask={(id) => { setSelectedTaskId(id); setActiveSection('search'); }} />}
           {activeSection === 'danh-gia' && <DanhGiaCongViec tasks={tasks} />}
          {activeSection === 'search' && <SearchSection tasks={tasks} selectedId={selectedTaskId} onClearSelection={() => setSelectedTaskId(null)} onDelete={deleteTask} />}
@@ -496,12 +536,13 @@ function SidebarItem({ icon, label, active, onClick, collapsed }: {
 }
 
 // --- Section: Giao Việc ---
-function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast }: { 
+function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTask }: { 
   tasks: Task[], 
   onAdd: (task: any) => void, 
   onDelete: (id: string) => void,
   onUpdate: (task: Task) => void,
-  showToast: (message: string, type: 'success' | 'delete' | 'edit' | 'error' | 'cancel', task?: Task) => void
+  showToast: (message: string, type: 'success' | 'delete' | 'edit' | 'error' | 'cancel', task?: Task) => void,
+  onDoubleClickTask?: (task: Task) => void
 }) {
   const [formData, setFormData] = useState({
     project: '',
@@ -855,7 +896,7 @@ const [isDragging, setIsDragging] = useState(false);
 }
 
 // --- Section: Công Việc Hàng Ngày ---
-function CongViecHangNgay({ tasks, onUpdate }: { tasks: Task[], onUpdate: (task: Task) => void }) {
+function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[], onUpdate: (task: Task) => void, onDoubleClickTask?: (task: Task) => void }) {
   const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()));
   const today = startOfDay(new Date());
   
@@ -996,10 +1037,14 @@ function CongViecHangNgay({ tasks, onUpdate }: { tasks: Task[], onUpdate: (task:
                   }
 
                   return (
-                    <tr key={task.id} className={cn(
-                      "transition-colors",
-                      rowBgClass
-                    )}>
+                    <tr 
+                      key={task.id} 
+                      onDoubleClick={() => onDoubleClickTask && onDoubleClickTask(task)}
+                      title="Nháy đúp chuột để Sửa hoặc Xóa"
+                      className={cn(
+                        "transition-colors cursor-pointer hover:opacity-80 shadow-sm",
+                        rowBgClass
+                      )}>
                       <td className="p-4 text-sm align-top">
                         <button 
                           onClick={() => toggleStatus(task)}
