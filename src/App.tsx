@@ -503,7 +503,7 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast }: {
   onAdd: (task: any) => void, 
   onDelete: (id: string) => void,
   onUpdate: (task: Task) => void,
-  showToast: (message: string, type: any, task?: Task) => void
+  showToast: (message: string, type: 'success' | 'delete' | 'edit' | 'error' | 'cancel', task?: Task) => void
 }) {
   const [formData, setFormData] = useState({
     project: '',
