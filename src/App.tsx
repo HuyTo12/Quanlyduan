@@ -446,7 +446,7 @@ export default function App() {
           {activeSection === 'cong-viec-hang-ngay' && <CongViecHangNgay tasks={tasks} onUpdate={updateTask} />}
           {activeSection === 'timeline' && <TimelineCongViec tasks={tasks} onSelectTask={(id) => { setSelectedTaskId(id); setActiveSection('search'); }} />}
           {activeSection === 'danh-gia' && <DanhGiaCongViec tasks={tasks} />}
-          {activeSection === 'search' && <SearchSection tasks={tasks} selectedId={selectedTaskId} onClearSelection={() => setSelectedTaskId(null)} />}
+         {activeSection === 'search' && <SearchSection tasks={tasks} selectedId={selectedTaskId} onClearSelection={() => setSelectedTaskId(null)} onDelete={deleteTask} />}
         </div>
       </main>
     </div>
@@ -1031,10 +1031,11 @@ function CongViecHangNgay({ tasks, onUpdate }: { tasks: Task[], onUpdate: (task:
 }
 
 // --- Section: Tìm Kiếm ---
-function SearchSection({ tasks, selectedId, onClearSelection }: { 
+function SearchSection({ tasks, selectedId, onClearSelection, onDelete }: { 
   tasks: Task[], 
   selectedId?: string | null,
-  onClearSelection?: () => void
+  onClearSelection?: () => void,
+  onDelete: (id: string) => void
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -1158,25 +1159,30 @@ function SearchSection({ tasks, selectedId, onClearSelection }: {
               </div>
             </div>
 
-            {/* THÊM MỚI: Nút Chỉnh Sửa từ màn hình Tìm Kiếm */}
-            <div className="pt-6 border-t border-blue-50 flex justify-end mt-4">
+           {/* THÊM MỚI: Nút Chỉnh Sửa và Nút Xóa từ màn hình Tìm Kiếm */}
+            <div className="pt-6 border-t border-blue-50 flex justify-end mt-4 gap-4">
               <button 
                 onClick={() => {
                   if (onClearSelection) onClearSelection();
-                  
-                  // 1. Tự động bấm sang tab Giao Việc trước
                   const tabs = document.querySelectorAll('button');
                   const giaoViecTab = Array.from(tabs).find(btn => btn.textContent?.includes('Giao việc'));
                   if (giaoViecTab) giaoViecTab.click();
-                  
-                  // 2. Đợi 0.15 giây để tab Giao Việc mở lên hoàn toàn rồi mới gửi dữ liệu qua
                   setTimeout(() => {
                     window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: selectedTask }));
                   }, 150);
                 }}
-                className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-lg active:scale-95"
+                className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 active:scale-95"
               >
                 <Edit size={18} /> Chỉnh sửa Dự án này
+              </button>
+              <button 
+                onClick={() => {
+                  onDelete(selectedTask.id);
+                }}
+                className="bg-red-500 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-red-600 transition-colors shadow-lg shadow-red-200 active:scale-95"
+                title="Xóa dự án này"
+              >
+                <Trash2 size={18} /> Xóa
               </button>
             </div>
 
