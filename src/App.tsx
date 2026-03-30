@@ -346,7 +346,6 @@ export default function App() {
     const { error } = await supabase.from('projects').update(updatedTask).eq('id', updatedTask.id);
     if (!error) {
       setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
-      showToast('Đã lưu thay đổi thành công', 'edit', updatedTask);
     }
   };
 
