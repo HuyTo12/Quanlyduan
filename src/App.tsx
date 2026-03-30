@@ -135,11 +135,10 @@ type Section = 'giao-viec' | 'cong-viec-hang-ngay' | 'timeline' | 'danh-gia' | '
 type Toast = {
   id: number;
   message: string;
-  type: 'success' | 'delete' | 'edit' | 'error';
+  type: 'success' | 'delete' | 'edit' | 'error' | 'cancel';
   task?: Task;
   isClosing?: boolean;
 };
-
 export default function App() {
   const [activeSection, setActiveSection] = useState<Section>('giao-viec');
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -186,7 +185,7 @@ export default function App() {
     }
   };
 
-  const showToast = (message: string, type: 'success' | 'delete' | 'edit' | 'error', task?: Task) => {
+  const showToast = (message: string, type: 'success' | 'delete' | 'edit' | 'error' | 'cancel', task?: Task) => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, message, type, task }]);
     setTimeout(() => setToasts(prev => prev.map(t => t.id === id ? { ...t, isClosing: true } : t)), 4700);
@@ -424,7 +423,14 @@ export default function App() {
           )}
 
           {toasts.map(toast => (
-            <div key={toast.id} className={cn("px-6 py-4 rounded-xl shadow-lg text-white font-medium flex items-center gap-4 transition-all duration-300", toast.isClosing ? "translate-x-full opacity-0" : "animate-in slide-in-from-right-8 fade-in", (toast.type === 'success' || toast.type === 'edit') ? "bg-emerald-500" : "bg-red-500")}>
+            <div 
+              key={toast.id} 
+              className={cn(
+                "px-6 py-4 rounded-xl shadow-lg text-white font-medium flex items-center gap-4 transition-all duration-300",
+                toast.isClosing ? "translate-x-full opacity-0" : "animate-in slide-in-from-right-8 fade-in",
+                (toast.type === 'success' || toast.type === 'edit') ? "bg-emerald-500" : toast.type === 'cancel' ? "bg-slate-500" : "bg-red-500"
+              )}
+            >
               <div className="flex items-center gap-3">
                 {toast.type === 'success' && <CheckCircle2 size={20} />}
                 {toast.type === 'edit' && <Edit size={20} />}
@@ -435,11 +441,25 @@ export default function App() {
                 </span>
               </div>
               {toast.type === 'delete' && toast.task && (
-                <button onClick={() => handleUndo(toast.task!, toast.id)} className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition-colors">Hoàn tác</button>
+                <button 
+                  onClick={() => handleUndo(toast.task!, toast.id)}
+                  className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition-colors whitespace-nowrap"
+                >
+                  Hoàn tác
+                </button>
+              )}
+              {toast.type === 'cancel' && toast.task && (
+                <button 
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: toast.task }));
+                    setToasts(prev => prev.filter(t => t.id !== toast.id));
+                  }}
+                  className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition-colors whitespace-nowrap font-bold"
+                >
+                  Quay lại chỉnh sửa
+                </button>
               )}
             </div>
-          ))}
-        </div>
 
         <div className="max-w-6xl mx-auto">
           {activeSection === 'giao-viec' && <GiaoViec tasks={tasks} onAdd={addTask} onDelete={deleteTask} onUpdate={updateTask} showToast={showToast} />}
@@ -483,7 +503,7 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast }: {
   onAdd: (task: any) => void, 
   onDelete: (id: string) => void,
   onUpdate: (task: Task) => void,
-  showToast: (message: string, type: 'success' | 'delete' | 'edit' | 'error', task?: Task) => void
+  showToast: (message: string, type: any, task?: Task) => void
 }) {
   const [formData, setFormData] = useState({
     project: '',
@@ -709,6 +729,7 @@ const [isDragging, setIsDragging] = useState(false);
             <button 
               type="button"
               onClick={() => {
+                const t = tasks.find(x => x.id === editingId);
                 setEditingId(null);
                 setFormData({
                   project: '',
@@ -718,6 +739,7 @@ const [isDragging, setIsDragging] = useState(false);
                   note: '',
                   files: []
                 });
+                if (t) showToast('Đã hủy chỉnh sửa', 'cancel', t);
               }}
               className="flex-1 bg-slate-200 text-slate-700 p-4 rounded-xl font-bold hover:bg-slate-300 transition-all"
             >
