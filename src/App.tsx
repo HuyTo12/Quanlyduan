@@ -1307,15 +1307,11 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
 
   const handlePrev = () => {
-    // Nếu đang xem Ngày thì lùi 1 ngày, xem Tuần thì lùi 7 ngày, xem Tháng thì lùi 30 ngày
-    const daysToMove = viewMode === 'day' ? 1 : viewMode === 'week' ? 7 : 30;
-    setCurrentDate(prev => subDays(prev, daysToMove));
+    setCurrentDate(prev => subDays(prev, viewMode === 'month' ? 30 : 7));
   };
 
   const handleNext = () => {
-    // Nếu đang xem Ngày thì tiến 1 ngày, xem Tuần thì tiến 7 ngày, xem Tháng thì tiến 30 ngày
-    const daysToMove = viewMode === 'day' ? 1 : viewMode === 'week' ? 7 : 30;
-    setCurrentDate(prev => addDays(prev, daysToMove));
+    setCurrentDate(prev => addDays(prev, viewMode === 'month' ? 30 : 7));
   };
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
