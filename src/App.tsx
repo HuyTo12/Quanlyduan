@@ -1307,11 +1307,15 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
 
   const handlePrev = () => {
-    setCenterDate(prev => subDays(prev, viewMode === 'day' ? 7 : 14));
+    // Nếu đang xem Ngày thì lùi 1 ngày, xem Tuần thì lùi 7 ngày, xem Tháng thì lùi 30 ngày
+    const daysToMove = viewMode === 'day' ? 1 : viewMode === 'week' ? 7 : 30;
+    setCurrentDate(prev => subDays(prev, daysToMove));
   };
 
   const handleNext = () => {
-    setCenterDate(prev => addDays(prev, viewMode === 'day' ? 7 : 14));
+    // Nếu đang xem Ngày thì tiến 1 ngày, xem Tuần thì tiến 7 ngày, xem Tháng thì tiến 30 ngày
+    const daysToMove = viewMode === 'day' ? 1 : viewMode === 'week' ? 7 : 30;
+    setCurrentDate(prev => addDays(prev, daysToMove));
   };
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1399,31 +1403,34 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
     return tasks
       .filter(task => {
         const deadlineDate = startOfDay(parseISO(task.deadline));
-        // Chỉ hiện những task có deadline nằm trong khoảng thời gian đang xem
+        // Chỉ hiện dự án có deadline trong khoảng thời gian đang xem
         return deadlineDate >= viewStart && deadlineDate <= viewEnd;
       })
       .sort((a, b) => {
-        // ƯU TIÊN 0: Dự án Đã hoàn thành luôn bị đẩy xuống dưới cùng
-        const aCompleted = a.status === TaskStatus.COMPLETED;
-        const bCompleted = b.status === TaskStatus.COMPLETED;
-        if (aCompleted !== bCompleted) return aCompleted ? 1 : -1;
-
         const aDeadline = startOfDay(parseISO(a.deadline));
         const bDeadline = startOfDay(parseISO(b.deadline));
         
-        // ƯU TIÊN 1: Chia làm 2 nhóm (Đã đến/quá hạn) và (Chưa đến hạn)
-        const aIsDue = aDeadline <= today;
-        const bIsDue = bDeadline <= today;
+        // 1. Kiểm tra xem dự án có deadline đúng ngày hôm nay không
+        const aIsToday = isSameDay(aDeadline, today);
+        const bIsToday = isSameDay(bDeadline, today);
 
-        if (aIsDue !== bIsDue) return aIsDue ? -1 : 1; // Đưa dự án đến hạn lên trên cùng
+        // ƯU TIÊN 1: Dự án có deadline HÔM NAY lên trên cùng
+        if (aIsToday && !bIsToday) return -1;
+        if (!aIsToday && bIsToday) return 1;
 
-        // ƯU TIÊN 2: Sắp xếp theo Mức độ (Mức 5 xuống Mức 1)
-        if (a.kpiLevel !== b.kpiLevel) {
-          return b.kpiLevel - a.kpiLevel; 
+        // ƯU TIÊN 2: Nếu cùng là hôm nay, xếp theo KPI 5 -> 1
+        if (aIsToday && bIsToday) {
+          return b.kpiLevel - a.kpiLevel;
         }
 
-        // ƯU TIÊN 3: Nếu cùng Mức độ, dự án nào Deadline gần hơn sẽ xếp trên
-        return aDeadline.getTime() - bDeadline.getTime();
+        // ƯU TIÊN 3: Các dự án KHÁC (chưa đến ngày hoặc quá hạn)
+        // Sắp xếp theo ngày Deadline gần nhất lên trước
+        if (aDeadline.getTime() !== bDeadline.getTime()) {
+          return aDeadline.getTime() - bDeadline.getTime();
+        }
+
+        // ƯU TIÊN 4: Nếu cùng ngày deadline, xếp theo KPI 5 -> 1
+        return b.kpiLevel - a.kpiLevel;
       });
   }, [tasks, timelineData]);
 
