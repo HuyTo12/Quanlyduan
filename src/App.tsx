@@ -1306,29 +1306,38 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
   const [centerDate, setCenterDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
 
-  // HỆ THỐNG KÉO THẢ CUỘN CHUỘT (DRAG TO SCROLL)
+  // HỆ THỐNG KÉO THẢ CUỘN CHUỘT (Dùng useRef để xử lý ngầm, không gây giật lag)
   const scrollRef = React.useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [startX, setStartX] = useState(0);
-  const [scrollLeft, setScrollLeft] = useState(0);
+  const isDragging = React.useRef(false);
+  const startX = React.useRef(0);
+  const scrollLeft = React.useRef(0);
 
   const onMouseDown = (e: React.MouseEvent) => {
     if (!scrollRef.current) return;
-    setIsDragging(true);
-    setStartX(e.pageX - scrollRef.current.offsetLeft);
-    setScrollLeft(scrollRef.current.scrollLeft);
+    isDragging.current = true;
+    scrollRef.current.style.cursor = 'grabbing'; // Đổi tay nắm lại
+    startX.current = e.pageX - scrollRef.current.offsetLeft;
+    scrollLeft.current = scrollRef.current.scrollLeft;
   };
-  const onMouseLeave = () => setIsDragging(false);
-  const onMouseUp = () => setIsDragging(false);
+  
+  const onMouseLeave = () => { 
+    isDragging.current = false; 
+    if (scrollRef.current) scrollRef.current.style.cursor = 'grab'; // Thả tay ra
+  };
+  
+  const onMouseUp = () => { 
+    isDragging.current = false; 
+    if (scrollRef.current) scrollRef.current.style.cursor = 'grab';
+  };
+  
   const onMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || !scrollRef.current) return;
-    e.preventDefault();
+    if (!isDragging.current || !scrollRef.current) return;
+    e.preventDefault(); // Ngăn vô tình bôi đen chữ
     const x = e.pageX - scrollRef.current.offsetLeft;
-    const walk = (x - startX) * 1.5; // Tốc độ cuộn
-    scrollRef.current.scrollLeft = scrollLeft - walk;
+    const walk = (x - startX.current) * 1.5; // Tốc độ cuộn (nhân 1.5 lần)
+    scrollRef.current.scrollLeft = scrollLeft.current - walk;
   };
 
-  // NÚT CHUYỂN TRÁI PHẢI (Ngày qua 7 ngày, Tuần qua 2 tuần = 14 ngày)
   const handlePrev = () => {
     setCenterDate(prev => subDays(prev, viewMode === 'day' ? 7 : 14));
   };
@@ -1347,7 +1356,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
     if (viewMode === 'week') {
       const result = [];
       const centerWeekStart = startOfWeek(centerDate, { weekStartsOn: 1 });
-      let current = subDays(centerWeekStart, 14); // 2 weeks before
+      let current = subDays(centerWeekStart, 14); 
       
       for (let i = 0; i < 5; i++) {
         const wStart = current;
@@ -1411,7 +1420,6 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
     return groups;
   }, [timelineData]);
 
-  // THUẬT TOÁN SẮP XẾP TIMELINE THÔNG MINH
   const sortedTasks = useMemo(() => {
     const today = startOfDay(new Date());
     const viewStart = timelineData[0]?.start;
@@ -1431,27 +1439,22 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
         const aCompletedOrExpired = a.status === TaskStatus.COMPLETED || isBefore(aDeadline, today);
         const bCompletedOrExpired = b.status === TaskStatus.COMPLETED || isBefore(bDeadline, today);
 
-        // 1. Đẩy các Dự án HOÀN THÀNH hoặc HẾT HẠN xuống dưới cùng
         if (aCompletedOrExpired !== bCompletedOrExpired) {
           return aCompletedOrExpired ? 1 : -1;
         }
 
-        // 2. Với các dự án ĐANG HOẠT ĐỘNG (chưa xong, chưa hết hạn)
         if (!aCompletedOrExpired && !bCompletedOrExpired) {
           const aIsToday = isSameDay(aDeadline, today);
           const bIsToday = isSameDay(bDeadline, today);
 
-          // Ưu tiên: Hôm nay lên trên cùng
           if (aIsToday && !bIsToday) return -1;
           if (!aIsToday && bIsToday) return 1;
         }
 
-        // 3. Sắp xếp các dự án còn lại theo Ngày Deadline (Gần -> Xa)
         if (aDeadline.getTime() !== bDeadline.getTime()) {
           return aDeadline.getTime() - bDeadline.getTime();
         }
 
-        // 4. Nếu trùng ngày thì xếp theo Mức KPI (5 -> 1)
         return b.kpiLevel - a.kpiLevel;
       });
   }, [tasks, timelineData]);
@@ -1516,10 +1519,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
           onMouseLeave={onMouseLeave}
           onMouseUp={onMouseUp}
           onMouseMove={onMouseMove}
-          className={cn(
-            "overflow-x-auto select-none", 
-            isDragging ? "cursor-grabbing" : "cursor-grab"
-          )}
+          className="overflow-x-auto select-none cursor-grab"
         >
           <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
@@ -1604,7 +1604,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                             )}>
                               <div 
                                 onDoubleClick={(e) => {
-                                  e.stopPropagation(); // Ngăn xung đột với thao tác kéo thả
+                                  e.stopPropagation();
                                   if (onDoubleClickTask) onDoubleClickTask(task);
                                 }}
                                 className="h-10 mx-0 rounded-none flex items-center justify-center text-[10px] text-white font-bold px-2 shadow-sm pointer-events-auto cursor-pointer hover:opacity-80 transition-opacity overflow-hidden whitespace-nowrap"
