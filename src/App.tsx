@@ -1307,11 +1307,11 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
 
   const handlePrev = () => {
-    setCurrentDate(prev => subDays(prev, viewMode === 'month' ? 30 : 7));
+    setCurrentDate(prev => subDays(prev, viewMode === 'day' ? 30 : 7));
   };
 
   const handleNext = () => {
-    setCurrentDate(prev => addDays(prev, viewMode === 'month' ? 30 : 7));
+    setCurrentDate(prev => addDays(prev, viewMode === 'day' ? 30 : 7));
   };
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
