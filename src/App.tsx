@@ -1075,9 +1075,9 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
                     rowBgClass = index % 2 === 0 ? "bg-slate-100 text-slate-500" : "bg-slate-50 text-slate-500";
                   } 
                   
-                  // Nếu bị cảnh báo -> Tô VIỀN ĐỎ XUNG QUANH (dùng outline để không làm xô lệch bảng)
+                  // Nếu bị cảnh báo -> Đổ nền Gradient nhạt sang đậm (trái sang phải)
                   if (isCurrentRed) {
-                    rowBgClass += " outline outline-2 outline-red-500 outline-offset-[-2px] relative z-10"; 
+                    rowBgClass = "bg-gradient-to-r from-red-50 via-red-100 to-red-200 text-red-950 font-medium relative z-10"; 
                   }
 
                   return (
