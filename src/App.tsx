@@ -1308,11 +1308,11 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
 
   // NÚT CHUYỂN TRÁI PHẢI (Ngày qua 1 ngày, Tuần qua 1 tuần = 7 ngày)
   const handlePrev = () => {
-    setCenterDate(prev => subDays(prev, viewMode === 'day' ? 1 : 7));
+    setCenterDate(prev => subDays(prev, viewMode === 'day' ? 7 : 30));
   };
 
   const handleNext = () => {
-    setCenterDate(prev => addDays(prev, viewMode === 'day' ? 1 : 7));
+    setCenterDate(prev => addDays(prev, viewMode === 'day' ? 7 : 30));
   };
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
