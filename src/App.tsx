@@ -1306,37 +1306,63 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
   const [centerDate, setCenterDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
 
-  // HỆ THỐNG KÉO THẢ CUỘN CHUỘT (Dùng useRef để xử lý ngầm, không gây giật lag)
+  // HỆ THỐNG KÉO THẢ 4 HƯỚNG (Native DOM Events - Chống giật lag và xung đột)
   const scrollRef = React.useRef<HTMLDivElement>(null);
-  const isDragging = React.useRef(false);
-  const startX = React.useRef(0);
-  const scrollLeft = React.useRef(0);
 
-  const onMouseDown = (e: React.MouseEvent) => {
-    if (!scrollRef.current) return;
-    isDragging.current = true;
-    scrollRef.current.style.cursor = 'grabbing'; // Đổi tay nắm lại
-    startX.current = e.pageX - scrollRef.current.offsetLeft;
-    scrollLeft.current = scrollRef.current.scrollLeft;
-  };
-  
-  const onMouseLeave = () => { 
-    isDragging.current = false; 
-    if (scrollRef.current) scrollRef.current.style.cursor = 'grab'; // Thả tay ra
-  };
-  
-  const onMouseUp = () => { 
-    isDragging.current = false; 
-    if (scrollRef.current) scrollRef.current.style.cursor = 'grab';
-  };
-  
-  const onMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging.current || !scrollRef.current) return;
-    e.preventDefault(); // Ngăn vô tình bôi đen chữ
-    const x = e.pageX - scrollRef.current.offsetLeft;
-    const walk = (x - startX.current) * 1.5; // Tốc độ cuộn (nhân 1.5 lần)
-    scrollRef.current.scrollLeft = scrollLeft.current - walk;
-  };
+  React.useEffect(() => {
+    const slider = scrollRef.current;
+    if (!slider) return;
+
+    let isDown = false;
+    let startX: number;
+    let startY: number;
+    let scrollLeft: number;
+    let scrollTop: number;
+
+    const mouseDown = (e: MouseEvent) => {
+      isDown = true;
+      slider.style.cursor = 'grabbing'; // Bàn tay nắm lại
+      startX = e.pageX - slider.offsetLeft;
+      startY = e.pageY - slider.offsetTop;
+      scrollLeft = slider.scrollLeft;
+      scrollTop = slider.scrollTop;
+    };
+
+    const mouseLeave = () => {
+      isDown = false;
+      slider.style.cursor = 'grab'; // Bàn tay mở ra
+    };
+
+    const mouseUp = () => {
+      isDown = false;
+      slider.style.cursor = 'grab';
+    };
+
+    const mouseMove = (e: MouseEvent) => {
+      if (!isDown) return;
+      e.preventDefault(); // Chặn tình trạng bôi đen chữ làm kẹt chuột
+      const x = e.pageX - slider.offsetLeft;
+      const y = e.pageY - slider.offsetTop;
+      const walkX = (x - startX) * 1.5; // Tốc độ cuộn ngang
+      const walkY = (y - startY) * 1.5; // Tốc độ cuộn dọc
+      slider.scrollLeft = scrollLeft - walkX;
+      slider.scrollTop = scrollTop - walkY;
+    };
+
+    // Gắn "cảm biến" chuột trực tiếp vào trình duyệt
+    slider.addEventListener('mousedown', mouseDown);
+    slider.addEventListener('mouseleave', mouseLeave);
+    slider.addEventListener('mouseup', mouseUp);
+    slider.addEventListener('mousemove', mouseMove);
+
+    return () => {
+      // Gỡ "cảm biến" khi chuyển sang trang khác
+      slider.removeEventListener('mousedown', mouseDown);
+      slider.removeEventListener('mouseleave', mouseLeave);
+      slider.removeEventListener('mouseup', mouseUp);
+      slider.removeEventListener('mousemove', mouseMove);
+    };
+  }, []);
 
   const handlePrev = () => {
     setCenterDate(prev => subDays(prev, viewMode === 'day' ? 7 : 14));
@@ -1512,29 +1538,25 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
           </div>
         </div>
         
-        {/* KHU VỰC ÁP DỤNG KÉO THẢ CHUỘT */}
+        {/* KHU VỰC ÁP DỤNG KÉO THẢ CHUỘT (Cả 4 Hướng) */}
         <div 
           ref={scrollRef}
-          onMouseDown={onMouseDown}
-          onMouseLeave={onMouseLeave}
-          onMouseUp={onMouseUp}
-          onMouseMove={onMouseMove}
-          className="overflow-x-auto select-none cursor-grab"
+          className="overflow-auto max-h-[65vh] select-none cursor-grab"
         >
           <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-blue-700 text-white">
-                <th className="p-2 border-r border-blue-600 sticky left-0 z-20 bg-blue-700 w-16" rowSpan={2}>STT</th>
-                <th className="p-2 border-r border-blue-600 sticky left-16 z-20 bg-blue-700 w-48" rowSpan={2}>Dự án</th>
+                <th className="p-2 border-r border-blue-600 sticky left-0 top-0 z-30 bg-blue-700 w-16" rowSpan={2}>STT</th>
+                <th className="p-2 border-r border-blue-600 sticky left-16 top-0 z-30 bg-blue-700 w-48" rowSpan={2}>Dự án</th>
                 {monthGroups.map((group, i) => (
-                  <th key={i} colSpan={group.colSpan} className="p-2 text-center border-b border-r border-blue-600 font-bold">
+                  <th key={i} colSpan={group.colSpan} className="p-2 text-center border-b border-r border-blue-600 font-bold sticky top-0 z-20 bg-blue-700">
                     {group.label}
                   </th>
                 ))}
               </tr>
               <tr className="bg-blue-600 text-white">
                 {timelineData.map((item, i) => (
-                  <th key={i} className={cn("p-2 font-semibold text-sm text-center border-r border-blue-500/30 pointer-events-none", item.isCurrent && "bg-blue-800")}>
+                  <th key={i} className={cn("p-2 font-semibold text-sm text-center border-r border-blue-500/30 pointer-events-none sticky top-10 z-20 bg-blue-600", item.isCurrent && "bg-blue-800")}>
                     {item.label}
                   </th>
                 ))}
@@ -1645,7 +1667,6 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
     </div>
   );
 }
-
 // --- Section: Đánh Giá Công Việc ---
 function DanhGiaCongViec({ tasks }: { tasks: Task[] }) {
   // Generate months from Jan 2026 to Dec 2030
