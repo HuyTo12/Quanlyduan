@@ -1306,7 +1306,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
   const [centerDate, setCenterDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
 
-  // NÚT CHUYỂN TRÁI PHẢI (Ngày qua 1 ngày, Tuần qua 7 ngày)
+  // NÚT CHUYỂN TRÁI PHẢI (Ngày qua 1 ngày, Tuần qua 1 tuần = 7 ngày)
   const handlePrev = () => {
     setCenterDate(prev => subDays(prev, viewMode === 'day' ? 1 : 7));
   };
@@ -1325,7 +1325,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
     if (viewMode === 'week') {
       const result = [];
       const centerWeekStart = startOfWeek(centerDate, { weekStartsOn: 1 });
-      let current = subDays(centerWeekStart, 14); // Hiển thị khoảng 5 tuần quanh ngày chọn
+      let current = subDays(centerWeekStart, 14); 
       
       for (let i = 0; i < 5; i++) {
         const wStart = current;
@@ -1351,7 +1351,6 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
       }
       return result;
     } else {
-      // Chế độ Ngày: Hiện 14 ngày quanh ngày chọn (không tính T7, CN)
       const result = [];
       let current = subDays(centerDate, 7);
       while (result.length < 14) {
@@ -1390,7 +1389,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
     return groups;
   }, [timelineData]);
 
-  // THUẬT TOÁN SẮP XẾP TIMELINE CHUẨN: Hôm nay lên đầu -> Đang chạy -> Đã xong/Quá hạn xuống cuối
+  // THUẬT TOÁN SẮP XẾP: Hôm nay -> Tương lai -> Xong/Quá hạn
   const sortedTasks = useMemo(() => {
     const today = startOfDay(new Date());
     const viewStart = timelineData[0]?.start;
@@ -1407,29 +1406,25 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
         const aDeadline = startOfDay(parseISO(a.deadline));
         const bDeadline = startOfDay(parseISO(b.deadline));
         
-        // Trạng thái Inactive (Hoàn thành hoặc Quá hạn)
-        const aInactive = a.status === TaskStatus.COMPLETED || isBefore(aDeadline, today);
-        const bInactive = b.status === TaskStatus.COMPLETED || isBefore(bDeadline, today);
+        const aCompletedOrExpired = a.status === TaskStatus.COMPLETED || isBefore(aDeadline, today);
+        const bCompletedOrExpired = b.status === TaskStatus.COMPLETED || isBefore(bDeadline, today);
 
-        // 1. Đẩy các dự án Inactive xuống cuối bảng
-        if (aInactive !== bInactive) {
-          return aInactive ? 1 : -1;
+        if (aCompletedOrExpired !== bCompletedOrExpired) {
+          return aCompletedOrExpired ? 1 : -1;
         }
 
-        // 2. Với các dự án đang hoạt động: Ưu tiên "Deadline Hôm Nay" lên đầu
-        if (!aInactive && !bInactive) {
+        if (!aCompletedOrExpired && !bCompletedOrExpired) {
           const aIsToday = isSameDay(aDeadline, today);
           const bIsToday = isSameDay(bDeadline, today);
+
           if (aIsToday && !bIsToday) return -1;
           if (!aIsToday && bIsToday) return 1;
         }
 
-        // 3. Sắp xếp theo ngày Deadline (Gần nhất lên trước)
         if (aDeadline.getTime() !== bDeadline.getTime()) {
           return aDeadline.getTime() - bDeadline.getTime();
         }
 
-        // 4. Nếu trùng ngày, xếp theo mức KPI (5 xuống 1)
         return b.kpiLevel - a.kpiLevel;
       });
   }, [tasks, timelineData]);
@@ -1465,21 +1460,19 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
               <button 
                 onClick={handlePrev}
                 className="p-2 rounded-full hover:bg-blue-100 transition-colors"
-                title={viewMode === 'day' ? "Lùi 1 ngày" : "Lùi 1 tuần"}
               >
                 <ChevronLeft size={20} className="text-blue-700" />
               </button>
               <button 
                 onClick={handleNext}
                 className="p-2 rounded-full hover:bg-blue-100 transition-colors"
-                title={viewMode === 'day' ? "Tiến 1 ngày" : "Tiến 1 tuần"}
               >
                 <ChevronRight size={20} className="text-blue-700" />
               </button>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-sm font-semibold text-blue-900">Chọn mốc ngày:</label>
+            <label className="text-sm font-semibold text-blue-900">Chọn ngày:</label>
             <input 
               type="date" 
               value={format(centerDate, 'yyyy-MM-dd')}
@@ -1489,22 +1482,22 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
           </div>
         </div>
         
-        {/* KHU VỰC HIỂN THỊ: Đã mở rộng và sử dụng thanh cuộn chuẩn của trình duyệt */}
-        <div className="overflow-auto h-[75vh] w-full">
-          <table className="w-full text-left border-collapse min-w-[1500px]">
+        {/* KHU VỰC BẢNG TIMELINE GỐC (Chỉ cuộn ngang tự nhiên, không giới hạn chiều cao) */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-blue-700 text-white">
-                <th className="p-2 border-r border-blue-600 sticky left-0 top-0 z-30 bg-blue-700 w-16" rowSpan={2}>STT</th>
-                <th className="p-2 border-r border-blue-600 sticky left-16 top-0 z-30 bg-blue-700 w-48" rowSpan={2}>Dự án</th>
+                <th className="p-2 border-r border-blue-600 sticky left-0 z-20 bg-blue-700 w-16" rowSpan={2}>STT</th>
+                <th className="p-2 border-r border-blue-600 sticky left-16 z-20 bg-blue-700 w-48" rowSpan={2}>Dự án</th>
                 {monthGroups.map((group, i) => (
-                  <th key={i} colSpan={group.colSpan} className="p-2 text-center border-b border-r border-blue-600 font-bold sticky top-0 z-20 bg-blue-700">
+                  <th key={i} colSpan={group.colSpan} className="p-2 text-center border-b border-r border-blue-600 font-bold">
                     {group.label}
                   </th>
                 ))}
               </tr>
               <tr className="bg-blue-600 text-white">
                 {timelineData.map((item, i) => (
-                  <th key={i} className={cn("p-2 font-semibold text-sm text-center border-r border-blue-500/30 sticky top-10 z-20 bg-blue-600", item.isCurrent && "bg-blue-800")}>
+                  <th key={i} className={cn("p-2 font-semibold text-sm text-center border-r border-blue-500/30", item.isCurrent && "bg-blue-800")}>
                     {item.label}
                   </th>
                 ))}
@@ -1574,7 +1567,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                             )}>
                               <div 
                                 onDoubleClick={() => onDoubleClickTask && onDoubleClickTask(task)}
-                                className="h-10 mx-0 rounded-none flex items-center justify-center text-[10px] text-white font-bold px-2 shadow-sm cursor-pointer hover:scale-[1.02] transition-transform overflow-hidden whitespace-nowrap"
+                                className="h-10 mx-0 rounded-none flex items-center justify-center text-[10px] text-white font-bold px-2 shadow-sm cursor-pointer hover:opacity-80 transition-opacity overflow-hidden whitespace-nowrap"
                                 style={{ backgroundColor: isInactive ? '#cbd5e1' : KPI_CONFIG[task.kpiLevel].color }}
                                 title={`${task.project} (${format(taskStart, 'dd/MM')} - ${format(taskEnd, 'dd/MM/yyyy')})`}
                               >
