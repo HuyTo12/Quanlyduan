@@ -1061,12 +1061,11 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
                   const isCompleted = task.status === TaskStatus.COMPLETED;
                   
                   let isCurrentRed = false;
-                  // Chỉ cảnh báo khi còn 1 ngày hoặc đúng ngày deadline (daysToDeadline <= 1 và >= 0)
+                  // Chỉ cảnh báo khi còn 1 ngày hoặc đúng ngày deadline
                   if (!isPastDeadline && daysToDeadline <= 1 && daysToDeadline >= 0 && (task.kpiLevel === KPILevel.LEVEL_4 || task.kpiLevel === KPILevel.LEVEL_5)) {
                     isCurrentRed = true;
                   }
 
-                  // Giữ nguyên màu nền xen kẽ (Zebra) để không bị mất độ sang trọng
                   let rowBgClass = index % 2 === 0 ? "bg-blue-50/50" : "bg-white";
                   
                   if (isCompleted) {
@@ -1075,9 +1074,9 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
                     rowBgClass = index % 2 === 0 ? "bg-slate-100 text-slate-500" : "bg-slate-50 text-slate-500";
                   } 
                   
-                  // Nếu bị cảnh báo -> Đổ nền Gradient nhạt sang đậm (trái sang phải)
+                  // THAY ĐỔI: Dùng nền Gradient chuyển sắc từ nhạt (trên) xuống đậm (dưới)
                   if (isCurrentRed) {
-                    rowBgClass = "bg-gradient-to-r from-red-50 via-red-100 to-red-200 text-red-950 font-medium relative z-10"; 
+                    rowBgClass = "bg-gradient-to-b from-red-50 to-red-200 text-red-900 border-y border-red-300 relative z-10 shadow-sm"; 
                   }
 
                   return (
