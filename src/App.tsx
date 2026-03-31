@@ -349,6 +349,7 @@ export default function App() {
   };
 
   const [doubleClickTask, setDoubleClickTask] = useState<Task | null>(null);
+  const [timelineActionTask, setTimelineActionTask] = useState<Task | null>(null);
 
   return (
     <div className="flex h-screen bg-[#f0f7ff] text-slate-800 font-sans overflow-hidden">
@@ -391,7 +392,45 @@ export default function App() {
           </div>
         </div>
       )}
-
+{/* Bảng chọn khi Double Click ở Timeline */}
+      {timelineActionTask && (
+        <div className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
+          <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center space-y-4">
+            <h3 className="text-2xl font-bold text-slate-800">Tùy chọn Dự án</h3>
+            <p className="text-slate-500 text-sm mb-4">Bạn muốn thao tác gì với dự án này?</p>
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={() => {
+                  setSelectedTaskId(timelineActionTask.id);
+                  setActiveSection('search');
+                  setTimelineActionTask(null);
+                }} 
+                className="w-full bg-emerald-500 text-white font-bold py-3 rounded-xl hover:bg-emerald-600 shadow-lg shadow-emerald-200 transition-colors flex justify-center items-center gap-2"
+              >
+                <Search size={18} /> Xem Dự án
+              </button>
+              <button 
+                onClick={() => {
+                  setActiveSection('giao-viec');
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: timelineActionTask }));
+                  }, 150);
+                  setTimelineActionTask(null);
+                }} 
+                className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-colors flex justify-center items-center gap-2"
+              >
+                <Edit size={18} /> Chỉnh sửa Dự án
+              </button>
+              <button 
+                onClick={() => setTimelineActionTask(null)} 
+                className="w-full bg-slate-100 text-slate-600 font-bold py-3 rounded-xl hover:bg-slate-200 transition-colors mt-2"
+              >
+                Hủy bỏ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Bảng xác nhận Xóa 2 Lớp */}
       {deleteConfirmTask && (
         <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
@@ -504,7 +543,7 @@ export default function App() {
         <div className="max-w-6xl mx-auto">
           {activeSection === 'giao-viec' && <GiaoViec tasks={tasks} onAdd={addTask} onDelete={deleteTask} onUpdate={updateTask} showToast={showToast} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'cong-viec-hang-ngay' && <CongViecHangNgay tasks={tasks} onUpdate={updateTask} onDoubleClickTask={setDoubleClickTask} />}
-          {activeSection === 'timeline' && <TimelineCongViec tasks={tasks} onSelectTask={(id) => { setSelectedTaskId(id); setActiveSection('search'); }} />}
+          {activeSection === 'timeline' && <TimelineCongViec tasks={tasks} onSelectTask={(id) => { setSelectedTaskId(id); setActiveSection('search'); }} onDoubleClickTask={setTimelineActionTask} />}
           {activeSection === 'danh-gia' && <DanhGiaCongViec tasks={tasks} />}
           {activeSection === 'search' && <SearchSection tasks={tasks} selectedId={selectedTaskId} onClearSelection={() => setSelectedTaskId(null)} onDelete={deleteTask} />}
         </div>
@@ -615,9 +654,12 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
       note: task.note,
       files: task.files
     });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Tìm đúng khu vực chứa nội dung để cuộn lên mượt mà
+    const mainContent = document.querySelector('main');
+    if (mainContent) {
+      mainContent.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
-
 const [isDragging, setIsDragging] = useState(false);
 
   const processFiles = (files: FileList) => {
@@ -1019,27 +1061,23 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
                   const isCompleted = task.status === TaskStatus.COMPLETED;
                   
                   let isCurrentRed = false;
-                  if (!isPastDeadline && daysToDeadline <= 2 && (task.kpiLevel === KPILevel.LEVEL_4 || task.kpiLevel === KPILevel.LEVEL_5)) {
+                  // Chỉ cảnh báo khi còn 1 ngày hoặc đúng ngày deadline (daysToDeadline <= 1 và >= 0)
+                  if (!isPastDeadline && daysToDeadline <= 1 && daysToDeadline >= 0 && (task.kpiLevel === KPILevel.LEVEL_4 || task.kpiLevel === KPILevel.LEVEL_5)) {
                     isCurrentRed = true;
                   }
 
+                  // Giữ nguyên màu nền xen kẽ (Zebra) để không bị mất độ sang trọng
                   let rowBgClass = index % 2 === 0 ? "bg-blue-50/50" : "bg-white";
+                  
                   if (isCompleted) {
                     rowBgClass = "bg-slate-100 text-slate-400";
-                    isPrevRed = false;
                   } else if (isPastDeadline) {
                     rowBgClass = index % 2 === 0 ? "bg-slate-100 text-slate-500" : "bg-slate-50 text-slate-500";
-                    isPrevRed = false;
-                  } else if (isCurrentRed) {
-                    if (isPrevRed) {
-                      redToggle = !redToggle;
-                    } else {
-                      redToggle = false;
-                    }
-                    rowBgClass = redToggle ? "bg-red-200 text-red-900" : "bg-red-100 text-red-900";
-                    isPrevRed = true;
-                  } else {
-                    isPrevRed = false;
+                  } 
+                  
+                  // Nếu bị cảnh báo -> Tô VIỀN ĐỎ XUNG QUANH (dùng outline để không làm xô lệch bảng)
+                  if (isCurrentRed) {
+                    rowBgClass += " outline outline-2 outline-red-500 outline-offset-[-2px] relative z-10"; 
                   }
 
                   return (
@@ -1265,7 +1303,7 @@ function SearchSection({ tasks, selectedId, onClearSelection, onDelete }: {
 }
 
 // --- Section: Timeline Công Việc ---
-function TimelineCongViec({ tasks, onSelectTask }: { tasks: Task[], onSelectTask: (id: string) => void }) {
+function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: Task[], onSelectTask: (id: string) => void, onDoubleClickTask?: (task: Task) => void }) {
   const [centerDate, setCenterDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
 
@@ -1525,7 +1563,7 @@ function TimelineCongViec({ tasks, onSelectTask }: { tasks: Task[], onSelectTask
                                 : (item.month % 2 === 0 ? "bg-slate-50/50" : "bg-transparent")
                             )}>
                               <div 
-                                onDoubleClick={() => onSelectTask(task.id)}
+                                onDoubleClick={() => onDoubleClickTask && onDoubleClickTask(task)}
                                 className="h-10 mx-0 rounded-none flex items-center justify-center text-[10px] text-white font-bold px-2 shadow-sm cursor-pointer overflow-hidden whitespace-nowrap"
                                 style={{ backgroundColor: isInactive ? '#cbd5e1' : KPI_CONFIG[task.kpiLevel].color }}
                                 title={`${task.project} (${format(taskStart, 'dd/MM')} - ${format(taskEnd, 'dd/MM/yyyy')})`}
