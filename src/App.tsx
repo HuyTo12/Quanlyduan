@@ -1306,7 +1306,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
   const [centerDate, setCenterDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
 
-  // HỆ THỐNG KÉO THẢ 4 HƯỚNG (Native DOM Events - Chống giật lag và xung đột)
+  // HỆ THỐNG KÉO THẢ 4 HƯỚNG
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -1321,7 +1321,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
 
     const mouseDown = (e: MouseEvent) => {
       isDown = true;
-      slider.style.cursor = 'grabbing'; // Bàn tay nắm lại
+      slider.style.cursor = 'grabbing';
       startX = e.pageX - slider.offsetLeft;
       startY = e.pageY - slider.offsetTop;
       scrollLeft = slider.scrollLeft;
@@ -1330,7 +1330,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
 
     const mouseLeave = () => {
       isDown = false;
-      slider.style.cursor = 'grab'; // Bàn tay mở ra
+      slider.style.cursor = 'grab';
     };
 
     const mouseUp = () => {
@@ -1340,7 +1340,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
 
     const mouseMove = (e: MouseEvent) => {
       if (!isDown) return;
-      e.preventDefault(); // Chặn tình trạng bôi đen chữ làm kẹt chuột
+      e.preventDefault(); 
       const x = e.pageX - slider.offsetLeft;
       const y = e.pageY - slider.offsetTop;
       const walkX = (x - startX) * 1.5; // Tốc độ cuộn ngang
@@ -1349,14 +1349,12 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
       slider.scrollTop = scrollTop - walkY;
     };
 
-    // Gắn "cảm biến" chuột trực tiếp vào trình duyệt
     slider.addEventListener('mousedown', mouseDown);
     slider.addEventListener('mouseleave', mouseLeave);
     slider.addEventListener('mouseup', mouseUp);
     slider.addEventListener('mousemove', mouseMove);
 
     return () => {
-      // Gỡ "cảm biến" khi chuyển sang trang khác
       slider.removeEventListener('mousedown', mouseDown);
       slider.removeEventListener('mouseleave', mouseLeave);
       slider.removeEventListener('mouseup', mouseUp);
@@ -1538,12 +1536,14 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
           </div>
         </div>
         
-        {/* KHU VỰC ÁP DỤNG KÉO THẢ CHUỘT (Cả 4 Hướng) */}
+        {/* KHU VỰC ÁP DỤNG KÉO THẢ CHUỘT ĐÃ ĐƯỢC MỞ RỘNG */}
+        {/* Đổi h-[75vh] để bảng cao hơn, to hơn rất nhiều */}
         <div 
           ref={scrollRef}
-          className="overflow-auto max-h-[65vh] select-none cursor-grab"
+          className="overflow-auto h-[75vh] w-full select-none cursor-grab"
         >
-          <table className="w-full text-left border-collapse min-w-[800px]">
+          {/* Đổi min-w-[1500px] để bảng dài ra, ép trình duyệt tạo khoảng trống kéo sang ngang */}
+          <table className="w-full text-left border-collapse min-w-[1500px]">
             <thead>
               <tr className="bg-blue-700 text-white">
                 <th className="p-2 border-r border-blue-600 sticky left-0 top-0 z-30 bg-blue-700 w-16" rowSpan={2}>STT</th>
