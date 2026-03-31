@@ -1312,7 +1312,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
   };
 
   const handleNext = () => {
-    setCenterDate(prev => addDays(prev, viewMode === 'day' ? 1 : 14));
+    setCenterDate(prev => addDays(prev, viewMode === 'day' ? 1 : 7));
   };
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
