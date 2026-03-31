@@ -840,7 +840,7 @@ const [isDragging, setIsDragging] = useState(false);
                     onDoubleClick={() => onDoubleClickTask && onDoubleClickTask(task)}
                     title="Nháy đúp chuột để Sửa hoặc Xóa"
                     className={cn(
-                      "transition-colors cursor-pointer hover:opacity-80 shadow-sm",
+                      "transition-colors",
                       isCompleted ? "bg-slate-100 text-slate-400" : (
                         isPastDeadline 
                           ? (index % 2 === 0 ? "bg-slate-100 text-slate-500" : "bg-slate-50 text-slate-500")
@@ -1048,7 +1048,7 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
                       onDoubleClick={() => onDoubleClickTask && onDoubleClickTask(task)}
                       title="Nháy đúp chuột để Sửa hoặc Xóa"
                       className={cn(
-                        "transition-colors cursor-pointer hover:opacity-80 shadow-sm",
+                        "transition-colors",
                         rowBgClass
                       )}>
                       <td className="p-4 text-sm align-top">
