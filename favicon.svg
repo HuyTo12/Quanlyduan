@@ -4,23 +4,30 @@
   <defs>
     <style>
       .st0 {
+        stroke-width: 1.72px;
+      }
+
+      .st0, .st1 {
         fill: none;
         stroke: #fff;
         stroke-linecap: round;
         stroke-linejoin: round;
-        stroke-width: 1.89px;
       }
 
       .st1 {
+        stroke-width: 1.72px;
+      }
+
+      .st2 {
         fill: #155dfc;
       }
     </style>
   </defs>
-  <rect class="st1" x="2" y="2" width="60" height="60" rx="11.25" ry="11.25"/>
+  <rect class="st2" x="2" y="2" width="60" height="60" rx="11.25" ry="11.25"/>
   <g>
-    <rect class="st0" x="15.5" y="15.5" width="14.23" height="18.43"/>
-    <rect class="st0" x="34.27" y="30.07" width="14.23" height="18.43"/>
-    <rect class="st0" x="34.27" y="15.5" width="14.23" height="10.66"/>
-    <rect class="st0" x="15.5" y="37.84" width="14.23" height="10.66"/>
+    <rect class="st1" x="15.5" y="15.5" width="12.97" height="16.79"/>
+    <rect class="st0" x="15.5" y="38.79" width="12.97" height="9.71"/>
+    <rect class="st1" x="35.53" y="31.71" width="12.97" height="16.79" transform="translate(84.03 80.21) rotate(180)"/>
+    <rect class="st0" x="35.53" y="15.5" width="12.97" height="9.71" transform="translate(84.03 40.71) rotate(180)"/>
   </g>
 </svg>
