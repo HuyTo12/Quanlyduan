@@ -1414,36 +1414,33 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
     return tasks
       .filter(task => {
         const deadlineDate = startOfDay(parseISO(task.deadline));
-        // Chỉ hiện dự án có deadline trong khoảng thời gian đang xem
         return deadlineDate >= viewStart && deadlineDate <= viewEnd;
       })
       .sort((a, b) => {
         const aDeadline = startOfDay(parseISO(a.deadline));
         const bDeadline = startOfDay(parseISO(b.deadline));
         
-        // Kiểm tra trạng thái Inactive (Hoàn thành hoặc Quá hạn)
+        // Trạng thái không hoạt động (Xong hoặc Quá hạn)
         const aInactive = a.status === TaskStatus.COMPLETED || isBefore(aDeadline, today);
         const bInactive = b.status === TaskStatus.COMPLETED || isBefore(bDeadline, today);
 
-        // ƯU TIÊN 1: Đẩy tất cả dự án Hoàn thành/Quá hạn xuống cuối cùng
+        // NHÓM CUỐI: Đẩy dự án Xong/Quá hạn xuống đáy
         if (aInactive !== bInactive) return aInactive ? 1 : -1;
 
-        // Nếu cả hai cùng đang hoạt động (Active):
         if (!aInactive && !bInactive) {
-          const aIsToday = isSameDay(aDeadline, today);
-          const bIsToday = isSameDay(bDeadline, today);
+          // NHÓM ĐẦU: Kiểm tra xem hôm nay có phải ngày đang làm việc của dự án không
+          const aWorkingToday = a.workingDays.some(d => isSameDay(parseISO(d), today));
+          const bWorkingToday = b.workingDays.some(d => isSameDay(parseISO(d), today));
 
-          // ƯU TIÊN 2: Dự án của HÔM NAY lên trên các dự án tương lai
-          if (aIsToday && !bIsToday) return -1;
-          if (!aIsToday && bIsToday) return 1;
+          if (aWorkingToday !== bWorkingToday) return aWorkingToday ? -1 : 1;
         }
 
-        // ƯU TIÊN 3: Sắp xếp theo ngày Deadline gần nhất lên trước
+        // NHÓM GIỮA: Sắp xếp theo Deadline gần nhất
         if (aDeadline.getTime() !== bDeadline.getTime()) {
           return aDeadline.getTime() - bDeadline.getTime();
         }
 
-        // ƯU TIÊN 4: Nếu cùng ngày, xếp theo mức KPI (5 -> 1)
+        // ƯU TIÊN CUỐI: KPI (5 -> 1)
         return b.kpiLevel - a.kpiLevel;
       });
   }, [tasks, timelineData]);
