@@ -1404,7 +1404,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
   }, [timelineData]);
 
   // THUẬT TOÁN SẮP XẾP TIMELINE THÔNG MINH
-  const sortedTasks = useMemo(() => {
+ const sortedTasks = useMemo(() => {
     const today = startOfDay(new Date());
     const viewStart = timelineData[0]?.start;
     const viewEnd = timelineData[timelineData.length - 1]?.end;
@@ -1414,31 +1414,36 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
     return tasks
       .filter(task => {
         const deadlineDate = startOfDay(parseISO(task.deadline));
+        // Chỉ hiện dự án có deadline trong khoảng thời gian đang xem
         return deadlineDate >= viewStart && deadlineDate <= viewEnd;
       })
       .sort((a, b) => {
         const aDeadline = startOfDay(parseISO(a.deadline));
         const bDeadline = startOfDay(parseISO(b.deadline));
         
-        const aCompletedOrExpired = a.status === TaskStatus.COMPLETED || isBefore(aDeadline, today);
-        const bCompletedOrExpired = b.status === TaskStatus.COMPLETED || isBefore(bDeadline, today);
+        // Kiểm tra trạng thái Inactive (Hoàn thành hoặc Quá hạn)
+        const aInactive = a.status === TaskStatus.COMPLETED || isBefore(aDeadline, today);
+        const bInactive = b.status === TaskStatus.COMPLETED || isBefore(bDeadline, today);
 
-        if (aCompletedOrExpired !== bCompletedOrExpired) {
-          return aCompletedOrExpired ? 1 : -1;
-        }
+        // ƯU TIÊN 1: Đẩy tất cả dự án Hoàn thành/Quá hạn xuống cuối cùng
+        if (aInactive !== bInactive) return aInactive ? 1 : -1;
 
-        if (!aCompletedOrExpired && !bCompletedOrExpired) {
+        // Nếu cả hai cùng đang hoạt động (Active):
+        if (!aInactive && !bInactive) {
           const aIsToday = isSameDay(aDeadline, today);
           const bIsToday = isSameDay(bDeadline, today);
 
+          // ƯU TIÊN 2: Dự án của HÔM NAY lên trên các dự án tương lai
           if (aIsToday && !bIsToday) return -1;
           if (!aIsToday && bIsToday) return 1;
         }
 
+        // ƯU TIÊN 3: Sắp xếp theo ngày Deadline gần nhất lên trước
         if (aDeadline.getTime() !== bDeadline.getTime()) {
           return aDeadline.getTime() - bDeadline.getTime();
         }
 
+        // ƯU TIÊN 4: Nếu cùng ngày, xếp theo mức KPI (5 -> 1)
         return b.kpiLevel - a.kpiLevel;
       });
   }, [tasks, timelineData]);
