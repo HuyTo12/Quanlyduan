@@ -985,11 +985,25 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
   };
   
   const currentTasks = useMemo(() => {
+    const today = startOfDay(new Date());
     return tasks
       .filter(task => {
         return task.workingDays.some(day => isSameDay(parseISO(day), selectedDate));
       })
-      .sort((a, b) => a.kpiLevel - b.kpiLevel);
+      .sort((a, b) => {
+        const aDeadline = startOfDay(parseISO(a.deadline));
+        const bDeadline = startOfDay(parseISO(b.deadline));
+        
+        // Kiểm tra xem dự án đã Hoàn thành hoặc Hết hạn chưa
+        const aInactive = a.status === TaskStatus.COMPLETED || isBefore(aDeadline, today);
+        const bInactive = b.status === TaskStatus.COMPLETED || isBefore(bDeadline, today);
+
+        // ƯU TIÊN 1: Đẩy các dự án đã xong hoặc hết hạn xuống cuối bảng (Inactive)
+        if (aInactive !== bInactive) return aInactive ? 1 : -1;
+
+        // ƯU TIÊN 2: Nếu cùng đang hoạt động, xếp theo mức KPI từ cao đến thấp (5 -> 1)
+        return b.kpiLevel - a.kpiLevel;
+      });
   }, [tasks, selectedDate]);
 
   const toggleStatus = (task: Task) => {
