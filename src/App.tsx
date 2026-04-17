@@ -595,6 +595,7 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
   });
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Lắng nghe lệnh sửa từ trang Tìm Kiếm
   useEffect(() => {
@@ -654,13 +655,7 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
       note: task.note,
       files: task.files
     });
-    // Tìm đúng khu vực chứa nội dung để cuộn lên mượt mà
-    const mainContent = document.querySelector('main');
-    if (mainContent) {
-      mainContent.scrollTo({ top: 0, behavior: 'smooth' });
-    }
   };
-const [isDragging, setIsDragging] = useState(false);
 
   const processFiles = (files: FileList) => {
     if (!files) return;
@@ -708,14 +703,13 @@ const [isDragging, setIsDragging] = useState(false);
 
       <h2 className="text-3xl font-bold text-center text-blue-900 mb-12">Quản Lý Giao Việc</h2>
       
-      {/* FORM GIAO VIỆC (Mặc định hiện để thêm mới) */}
+      {/* FORM THÊM MỚI (Luôn hiện ở trên bảng) */}
       {!editingId && (
         <div className="bg-white p-6 md:p-8 rounded-3xl shadow-xl border border-blue-100 mb-12 animate-in fade-in slide-in-from-top-4">
            <h3 className="text-xl font-bold text-blue-900 mb-6 flex items-center gap-2">
              <PlusCircle size={24} /> Thêm Dự Án Mới
            </h3>
            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Nội dung form giống hệt cũ nhưng được tinh gọn để thêm mới */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-base font-semibold text-slate-600">Dự án</label>
@@ -796,7 +790,7 @@ const [isDragging, setIsDragging] = useState(false);
         </div>
       )}
 
-      {/* BẢNG DANH SÁCH (Giữ nguyên cấu trúc cũ) */}
+      {/* BẢNG DANH SÁCH */}
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-blue-100">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -846,6 +840,7 @@ const [isDragging, setIsDragging] = useState(false);
       </div>
     </div>
   );
+}
 
 // --- Section: Công Việc Hàng Ngày ---
 function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[], onUpdate: (task: Task) => void, onDoubleClickTask?: (task: Task) => void }) {
