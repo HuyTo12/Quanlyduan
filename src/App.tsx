@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { PlusCircle, X, Edit, Trash2, CheckCircle2, AlertCircle, FileUp, Paperclip, Search, Calendar, Clock, Layout, ListTodo, BarChart3, ChevronLeft, ChevronRight, Filter, Download, ExternalLink, Eye } from 'lucide-react';
+import { PlusCircle, X, Edit, Trash2, CheckCircle2, AlertCircle, FileUp, Paperclip, Search, Calendar, Clock, Layout, LayoutDashboard, ListTodo, BarChart3, ChevronLeft, ChevronRight, Filter, Download, ExternalLink, Eye } from 'lucide-react';
 import { 
   format, 
   addDays, 
