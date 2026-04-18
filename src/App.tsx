@@ -554,6 +554,7 @@ export default function App() {
           task={globalEditTask} 
           onClose={() => setGlobalEditTask(null)} 
           onUpdate={updateTask} 
+          onDelete={deleteTask} 
           showToast={showToast} 
         />
       )}
@@ -1645,10 +1646,11 @@ function DanhGiaCongViec({ tasks }: { tasks: Task[] }) {
 }
 
 // --- BẢNG CHỈNH SỬA TOÀN CẦU (GLOBAL MODAL) ---
-function GlobalEditModal({ task, onClose, onUpdate, showToast }: { 
+function GlobalEditModal({ task, onClose, onUpdate, onDelete, showToast }: { 
   task: Task, 
   onClose: () => void, 
   onUpdate: (task: Task) => void, 
+  onDelete: (id: string) => void, // Đã bổ sung hàm Xóa vào đây
   showToast: any
 }) {
   const [editFormData, setEditFormData] = useState({
@@ -1665,7 +1667,7 @@ function GlobalEditModal({ task, onClose, onUpdate, showToast }: {
     if (!editFormData.project) return;
     const deadlineDate = parseISO(editFormData.deadline);
     if (isWeekend(deadlineDate)) {
-      showToast('Không giao Deadline vào ngày nghỉ', 'error');
+      showToast('Không thể giao Deadline vào ngày nghỉ (Thứ 7, Chủ nhật)', 'error');
       return;
     }
     const { startDate, workingDays } = calculateTaskDates(deadlineDate, editFormData.kpiLevel);
@@ -1759,12 +1761,27 @@ function GlobalEditModal({ task, onClose, onUpdate, showToast }: {
             </div>
           </form>
         </div>
+        
+        {/* THANH FOOTER ĐÃ ĐƯỢC BỔ SUNG NÚT XÓA BÊN PHẢI */}
         <div className="px-8 py-5 border-t border-slate-100 bg-slate-50 rounded-b-3xl flex gap-4 mt-auto">
           <button type="button" onClick={onClose} className="flex-1 bg-white border border-slate-300 text-slate-700 p-4 text-base rounded-xl font-bold hover:bg-slate-100 transition-all">
             Hủy
           </button>
           <button form="global-edit-form" type="submit" className="flex-[2] bg-blue-600 text-white p-4 text-base rounded-xl font-bold hover:bg-blue-700 shadow-md transition-all">
             Lưu Thay Đổi
+          </button>
+          
+          {/* NÚT XÓA MỚI */}
+          <button 
+            type="button" 
+            onClick={() => {
+              onDelete(task.id); // Gọi lệnh Xóa dự án
+              onClose();         // Tự động đóng Bảng Sửa lại
+            }} 
+            className="bg-red-50 text-red-500 px-6 rounded-xl hover:bg-red-500 hover:text-white transition-all flex items-center justify-center border border-red-100" 
+            title="Xóa dự án"
+          >
+            <Trash2 size={24} />
           </button>
         </div>
       </div>
