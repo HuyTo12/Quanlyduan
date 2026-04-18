@@ -1061,19 +1061,14 @@ function SearchSection({ tasks, selectedId, onClearSelection, onDelete }: {
            {/* THÊM MỚI: Nút Chỉnh Sửa và Nút Xóa từ màn hình Tìm Kiếm */}
             <div className="pt-6 border-t border-blue-50 flex justify-end mt-4 gap-4">
               <button 
-                onClick={() => {
-                  if (onClearSelection) onClearSelection();
-                  const tabs = document.querySelectorAll('button');
-                  const giaoViecTab = Array.from(tabs).find(btn => btn.textContent?.includes('Giao việc'));
-                  if (giaoViecTab) giaoViecTab.click();
-                  setTimeout(() => {
-                    window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: selectedTask }));
-                  }, 150);
-                }}
-                className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 active:scale-95"
-              >
-                <Edit size={18} /> Chỉnh sửa Dự án này
-              </button>
+  onClick={() => {
+    window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: task }));
+  }}
+  className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 rounded-lg transition-all"
+  title="Chỉnh sửa"
+>
+  <Edit size={18} />
+</button>
               <button 
                 onClick={() => {
                   onDelete(selectedTask.id);
