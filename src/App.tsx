@@ -369,14 +369,14 @@ export default function App() {
             <p className="text-slate-500 text-sm mb-4">Bạn muốn thao tác gì với dự án này?</p>
             <div className="flex flex-col gap-3">
               <button 
-                    window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: doubleClickTask }));
-                  }, 150);
-                  setDoubleClickTask(null);
-                }} 
-                className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-colors flex justify-center items-center gap-2"
-              >
-                <Edit size={18} /> Chỉnh sửa Dự án
-              </button>
+  onClick={() => {
+    window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: doubleClickTask }));
+    setDoubleClickTask(null);
+  }}
+  className="flex-1 bg-blue-600 text-white p-3 rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-sm"
+>
+  <Edit size={20} /> Chỉnh sửa
+</button>
               <button 
                 onClick={() => {
                   deleteTask(doubleClickTask.id);
