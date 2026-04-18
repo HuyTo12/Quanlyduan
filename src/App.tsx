@@ -413,15 +413,15 @@ export default function App() {
               >
                 <Search size={18} /> Xem Dự án
               </button>
-              <button
-                    window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: timelineActionTask }));
-                  }, 150);
-                  setTimelineActionTask(null);
-                }} 
-                className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-colors flex justify-center items-center gap-2"
-              >
-                <Edit size={18} /> Chỉnh sửa Dự án
-              </button>
+              <button 
+  onClick={() => {
+    window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: timelineActionTask }));
+    setTimelineActionTask(null);
+  }}
+  className="flex-1 bg-blue-600 text-white p-3 rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-sm"
+>
+  <Edit size={20} /> Chỉnh sửa
+</button>
               <button 
                 onClick={() => setTimelineActionTask(null)} 
                 className="w-full bg-slate-100 text-slate-600 font-bold py-3 rounded-xl hover:bg-slate-200 transition-colors mt-2"
