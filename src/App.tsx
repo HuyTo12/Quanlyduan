@@ -485,7 +485,7 @@ export default function App() {
       {/* Main Content */}
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto p-4 md:p-8 relative">
-        <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
+        <div className="fixed top-4 right-4 z-[999] flex flex-col gap-2">
           
           {/* Thanh Tiến độ Tải File */}
           {uploadProgress && (
@@ -599,6 +599,15 @@ function GiaoViec({ tasks, onAdd, onDelete, onDoubleClickTask }: {
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.project) return;
+
+    // --- Bổ sung kiểm tra ngày nghỉ ---
+    const deadlineDate = parseISO(formData.deadline);
+    if (isWeekend(deadlineDate)) {
+      showToast('Không thể giao Deadline vào ngày nghỉ (Thứ 7, Chủ nhật)', 'error');
+      return;
+    }
+    // ----------------------------------
+
     onAdd(formData);
     setFormData({ project: '', description: '', deadline: format(new Date(), 'yyyy-MM-dd'), kpiLevel: KPILevel.LEVEL_1, note: '', files: [] });
   };
