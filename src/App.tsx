@@ -585,7 +585,6 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
   showToast: (message: string, type: 'success' | 'delete' | 'edit' | 'error' | 'cancel', task?: Task) => void,
   onDoubleClickTask?: (task: Task) => void
 }) {
-  // BỘ NHỚ 1: Dành riêng cho việc Thêm Mới (Không bị ảnh hưởng khi Sửa)
   const [formData, setFormData] = useState({
     project: '',
     description: '',
@@ -595,7 +594,6 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
     files: [] as string[]
   });
 
-  // BỘ NHỚ 2: Dành riêng cho Modal Chỉnh Sửa
   const [editFormData, setEditFormData] = useState({
     project: '',
     description: '',
@@ -614,7 +612,6 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
     return () => window.removeEventListener('TRIGGER_EDIT', listener);
   }, []);
 
-  // Xử lý Lưu khi Thêm Mới
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.project) return;
@@ -636,7 +633,6 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
     });
   };
 
-  // Xử lý Lưu khi Chỉnh Sửa
   const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editFormData.project || !editingId) return;
@@ -661,11 +657,10 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
       };
       onUpdate(updatedTask);
       showToast('Đã chỉnh sửa thành công', 'edit', updatedTask);
-      setEditingId(null); // Chỉ đóng Modal, không chạm vào formData của Thêm mới
+      setEditingId(null);
     }
   };
 
-  // Hàm mở Modal Sửa
   const handleEdit = (task: Task) => {
     setEditingId(task.id);
     setEditFormData({
@@ -678,7 +673,6 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
     });
   };
 
-  // Xử lý File chung cho cả 2 bộ nhớ
   const processFiles = (files: FileList) => {
     if (!files) return;
     Array.from(files).forEach((file: File) => {
@@ -730,7 +724,7 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
       
       <h2 className="text-3xl font-bold text-center text-blue-900 mb-12">Quản Lý Giao Việc</h2>
       
-      {/* 1. KHUNG FORM THÊM MỚI (Luôn hiển thị, không bị ảnh hưởng khi sửa) */}
+      {/* 1. KHUNG FORM THÊM MỚI */}
       <form onSubmit={handleAddSubmit} className="bg-white p-6 md:p-8 rounded-3xl shadow-xl border border-blue-100 space-y-6">
         <h3 className="text-xl font-bold text-blue-900 mb-2 border-b border-blue-100 pb-4">Thêm Dự Án Mới</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -790,61 +784,69 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
         </button>
       </form>
 
-      {/* 2. MODAL CHỈNH SỬA (Chỉn chu, font đồng bộ, size +10%) */}
+      {/* 2. MODAL CHỈNH SỬA (Mở rộng +20% chiều ngang, +10% chiều dọc, sắp xếp lại 3 cột) */}
       {editingId && (
-        <div className="fixed inset-0 z-[40] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[40] flex items-center justify-center p-4 sm:p-8">
           <div className="absolute inset-0 bg-slate-800/30 backdrop-blur-[2px] transition-opacity" onClick={() => setEditingId(null)}></div>
           
-          <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl relative z-10 flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
-            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 rounded-t-3xl">
-              <h3 className="text-xl font-bold text-blue-900">Chỉnh Sửa Công Việc</h3>
+          {/* Đổi width: max-w-[1100px], Height: min-h-[75vh] max-h-[95vh] */}
+          <div className="bg-white w-full max-w-[1100px] rounded-3xl shadow-2xl relative z-10 flex flex-col min-h-[75vh] max-h-[95vh] animate-in zoom-in-95 duration-200">
+            <div className="px-8 py-5 border-b border-slate-100 bg-slate-50 rounded-t-3xl">
+              <h3 className="text-2xl font-bold text-blue-900">Chỉnh Sửa Công Việc</h3>
             </div>
 
-            <div className="p-6 overflow-y-auto">
-              <form id="edit-form" onSubmit={handleEditSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-base font-semibold text-slate-600">Dự án</label>
-                    <input type="text" required value={editFormData.project} onChange={e => setEditFormData(prev => ({ ...prev, project: e.target.value }))} className="w-full p-3 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+            <div className="p-8 overflow-y-auto flex-1">
+              <form id="edit-form" onSubmit={handleEditSubmit} className="space-y-8">
+                {/* Đổi bố cục sang 3 cột thay vì 2 cột để dàn ngang đẹp hơn */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                  
+                  {/* Hàng 1 */}
+                  <div className="space-y-3 md:col-span-2">
+                    <label className="text-base font-bold text-slate-600">Dự án</label>
+                    <input type="text" required value={editFormData.project} onChange={e => setEditFormData(prev => ({ ...prev, project: e.target.value }))} className="w-full p-4 text-lg rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-base font-semibold text-slate-600">Deadline</label>
-                    <input type="date" required value={editFormData.deadline} onChange={e => setEditFormData(prev => ({ ...prev, deadline: e.target.value }))} className="w-full p-3 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <div className="space-y-3 md:col-span-1">
+                    <label className="text-base font-bold text-slate-600">Deadline</label>
+                    <input type="date" required value={editFormData.deadline} onChange={e => setEditFormData(prev => ({ ...prev, deadline: e.target.value }))} className="w-full p-4 text-lg rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
                   </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <label className="text-base font-semibold text-slate-600">Mô tả chi tiết</label>
-                    <textarea value={editFormData.description} onChange={e => setEditFormData(prev => ({ ...prev, description: e.target.value }))} rows={4} className="w-full p-3 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-base font-semibold text-slate-600">Đánh giá KPI</label>
-                    <select value={editFormData.kpiLevel} onChange={e => setEditFormData(prev => ({ ...prev, kpiLevel: parseInt(e.target.value) }))} className="w-full p-3 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none">
+                  
+                  {/* Hàng 2 */}
+                  <div className="space-y-3 md:col-span-1">
+                    <label className="text-base font-bold text-slate-600">Đánh giá KPI</label>
+                    <select value={editFormData.kpiLevel} onChange={e => setEditFormData(prev => ({ ...prev, kpiLevel: parseInt(e.target.value) }))} className="w-full p-4 text-lg rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none">
                       {Object.entries(KPI_CONFIG).map(([level, config]) => (
                         <option key={level} value={level}>{config.label}</option>
                       ))}
                     </select>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-base font-semibold text-slate-600">Ghi chú</label>
-                    <input type="text" value={editFormData.note} onChange={e => setEditFormData(prev => ({ ...prev, note: e.target.value }))} className="w-full p-3 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <div className="space-y-3 md:col-span-2">
+                    <label className="text-base font-bold text-slate-600">Ghi chú</label>
+                    <input type="text" value={editFormData.note} onChange={e => setEditFormData(prev => ({ ...prev, note: e.target.value }))} className="w-full p-4 text-lg rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
                   </div>
                   
-                  {/* Khu vực file đính kèm */}
-                  <div className="md:col-span-2 space-y-2">
-                    <label className="text-base font-semibold text-slate-600">File đính kèm</label>
-                    <div className="border-2 border-dashed border-slate-200 rounded-2xl p-4 text-center hover:border-blue-400 transition-colors relative">
+                  {/* Hàng 3 */}
+                  <div className="space-y-3 md:col-span-3">
+                    <label className="text-base font-bold text-slate-600">Mô tả chi tiết</label>
+                    <textarea value={editFormData.description} onChange={e => setEditFormData(prev => ({ ...prev, description: e.target.value }))} rows={5} className="w-full p-4 text-lg rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                  </div>
+                  
+                  {/* Hàng 4 - File đính kèm */}
+                  <div className="md:col-span-3 space-y-3">
+                    <label className="text-base font-bold text-slate-600">File đính kèm</label>
+                    <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors relative">
                       <input type="file" multiple onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
-                      <p className="text-slate-500 text-sm">Click để tải thêm file</p>
+                      <p className="text-slate-500 text-base">Click hoặc Kéo thả file để tải thêm</p>
                       {editFormData.files.length > 0 && (
-                        <div className="mt-4 flex flex-wrap gap-2 justify-center">
+                        <div className="mt-4 flex flex-wrap gap-3 justify-center">
                           {editFormData.files.map((fileData, i) => {
                             let displayName = "File đính kèm";
                             if (fileData.includes("|||")) displayName = fileData.split("|||")[1];
                             else if (fileData.includes("drive.google.com")) displayName = "Thư mục Drive đã lưu";
                             return (
-                              <div key={i} className="group relative px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-lg flex items-center text-blue-600 text-sm gap-2 hover:pr-8 transition-all">
-                                <span className="truncate max-w-[200px]">{displayName}</span>
+                              <div key={i} className="group relative px-4 py-2 bg-blue-50 border border-blue-100 rounded-xl flex items-center text-blue-600 text-sm gap-2 hover:pr-8 transition-all">
+                                <span className="truncate max-w-[250px]">{displayName}</span>
                                 <button type="button" onClick={() => setEditFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) }))} className="absolute right-2 opacity-0 group-hover:opacity-100 text-red-500">
-                                  <Trash2 size={16} />
+                                  <Trash2 size={18} />
                                 </button>
                               </div>
                             );
@@ -857,23 +859,22 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
               </form>
             </div>
 
-            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 rounded-b-3xl flex gap-4">
-              {/* Nút Hủy chỉ đóng Modal, không làm mất chữ ở Form thêm mới */}
-              <button type="button" onClick={() => setEditingId(null)} className="flex-1 bg-white border border-slate-300 text-slate-700 p-3 text-base rounded-xl font-bold hover:bg-slate-100 transition-all">
+            <div className="px-8 py-5 border-t border-slate-100 bg-slate-50 rounded-b-3xl flex gap-6 mt-auto">
+              <button type="button" onClick={() => setEditingId(null)} className="flex-1 bg-white border border-slate-300 text-slate-700 p-4 text-lg rounded-xl font-bold hover:bg-slate-100 transition-all shadow-sm">
                 Hủy
               </button>
-              <button form="edit-form" type="submit" className="flex-[2] bg-blue-600 text-white p-3 text-base rounded-xl font-bold hover:bg-blue-700 shadow-md transition-all">
+              <button form="edit-form" type="submit" className="flex-[2] bg-blue-600 text-white p-4 text-lg rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-[0.98]">
                 Lưu Thay Đổi
               </button>
-              <button type="button" onClick={() => { const t = tasks.find(x => x.id === editingId); if (t) onDelete(t.id); setEditingId(null); }} className="bg-red-50 text-red-500 px-6 rounded-xl hover:bg-red-500 hover:text-white transition-all flex items-center justify-center border border-red-100" title="Xóa dự án">
-                <Trash2 size={20} />
+              <button type="button" onClick={() => { const t = tasks.find(x => x.id === editingId); if (t) onDelete(t.id); setEditingId(null); }} className="bg-red-50 text-red-500 px-8 rounded-xl hover:bg-red-500 hover:text-white transition-all flex items-center justify-center border border-red-100 shadow-sm" title="Xóa dự án">
+                <Trash2 size={24} />
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 3. BẢNG DANH SÁCH (Giữ nguyên) */}
+      {/* 3. BẢNG DANH SÁCH */}
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-blue-100">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -911,7 +912,12 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
                       )
                     )}>
                     <td className="p-4 text-sm align-top">
-                      <button onClick={() => handleEdit(task)} className="text-blue-400 hover:text-blue-600 transition-colors">
+                      {/* Thêm type="button" và e.preventDefault() để chống giật trang */}
+                      <button 
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleEdit(task); }} 
+                        className="text-blue-400 hover:text-blue-600 transition-colors"
+                      >
                         <Edit size={18} />
                       </button>
                     </td>
@@ -927,7 +933,7 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
                     </td>
                     <td className="p-4 text-sm align-top max-w-[200px]"><ExpandableText text={task.note || ''} /></td>
                     <td className="p-4 text-sm align-top">
-                      <button onClick={() => onDelete(task.id)} className="text-red-400 hover:text-red-600 transition-colors">
+                      <button type="button" onClick={() => onDelete(task.id)} className="text-red-400 hover:text-red-600 transition-colors">
                         <Trash2 size={18} />
                       </button>
                     </td>
