@@ -349,6 +349,13 @@ export default function App() {
   };
 
   const [doubleClickTask, setDoubleClickTask] = useState<Task | null>(null);
+  // BẬT TẮT BẢNG CHỈNH SỬA TOÀN CẦU
+  const [globalEditTask, setGlobalEditTask] = useState<Task | null>(null);
+  useEffect(() => {
+    const listener = (e: any) => setGlobalEditTask(e.detail);
+    window.addEventListener('TRIGGER_EDIT', listener);
+    return () => window.removeEventListener('TRIGGER_EDIT', listener);
+  }, []);
   const [timelineActionTask, setTimelineActionTask] = useState<Task | null>(null);
 
   return (
@@ -362,9 +369,6 @@ export default function App() {
             <p className="text-slate-500 text-sm mb-4">Bạn muốn thao tác gì với dự án này?</p>
             <div className="flex flex-col gap-3">
               <button 
-                onClick={() => {
-                  setActiveSection('giao-viec');
-                  setTimeout(() => {
                     window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: doubleClickTask }));
                   }, 150);
                   setDoubleClickTask(null);
@@ -409,10 +413,7 @@ export default function App() {
               >
                 <Search size={18} /> Xem Dự án
               </button>
-              <button 
-                onClick={() => {
-                  setActiveSection('giao-viec');
-                  setTimeout(() => {
+              <button
                     window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: timelineActionTask }));
                   }, 150);
                   setTimelineActionTask(null);
@@ -547,6 +548,15 @@ export default function App() {
           {activeSection === 'danh-gia' && <DanhGiaCongViec tasks={tasks} />}
           {activeSection === 'search' && <SearchSection tasks={tasks} selectedId={selectedTaskId} onClearSelection={() => setSelectedTaskId(null)} onDelete={deleteTask} />}
         </div>
+        {/* KHUNG MODAL TOÀN CẦU SẼ HIỆN LÊN Ở ĐÂY */}
+      {globalEditTask && (
+        <GlobalEditModal 
+          task={globalEditTask} 
+          onClose={() => setGlobalEditTask(null)} 
+          onUpdate={updateTask} 
+          showToast={showToast} 
+        />
+      )}
       </main>
     </div>
   );
@@ -577,92 +587,20 @@ function SidebarItem({ icon, label, active, onClick, collapsed }: {
 }
 
 // --- Section: Giao Việc ---
-function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTask }: { 
+function GiaoViec({ tasks, onAdd, onDelete, onDoubleClickTask }: { 
   tasks: Task[], 
   onAdd: (task: any) => void, 
   onDelete: (id: string) => void,
-  onUpdate: (task: Task) => void,
-  showToast: (message: string, type: 'success' | 'delete' | 'edit' | 'error' | 'cancel', task?: Task) => void,
   onDoubleClickTask?: (task: Task) => void
 }) {
-  const [formData, setFormData] = useState({
-    project: '',
-    description: '',
-    deadline: format(new Date(), 'yyyy-MM-dd'),
-    kpiLevel: KPILevel.LEVEL_1,
-    note: '',
-    files: [] as string[]
-  });
-
-  const [editFormData, setEditFormData] = useState({
-    project: '',
-    description: '',
-    deadline: format(new Date(), 'yyyy-MM-dd'),
-    kpiLevel: KPILevel.LEVEL_1,
-    note: '',
-    files: [] as string[]
-  });
-
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState({ project: '', description: '', deadline: format(new Date(), 'yyyy-MM-dd'), kpiLevel: KPILevel.LEVEL_1, note: '', files: [] as string[] });
   const [isDragging, setIsDragging] = useState(false);
-
-  useEffect(() => {
-    const listener = (e: any) => handleEdit(e.detail);
-    window.addEventListener('TRIGGER_EDIT', listener);
-    return () => window.removeEventListener('TRIGGER_EDIT', listener);
-  }, []);
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.project) return;
-    const deadlineDate = parseISO(formData.deadline);
-    if (isWeekend(deadlineDate)) {
-      showToast('Không giao Deadline vào ngày nghỉ', 'error');
-      return;
-    }
     onAdd(formData);
     setFormData({ project: '', description: '', deadline: format(new Date(), 'yyyy-MM-dd'), kpiLevel: KPILevel.LEVEL_1, note: '', files: [] });
-  };
-
-  const handleEditSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editFormData.project || !editingId) return;
-    const deadlineDate = parseISO(editFormData.deadline);
-    if (isWeekend(deadlineDate)) {
-      showToast('Không giao Deadline vào ngày nghỉ', 'error');
-      return;
-    }
-    const originalTask = tasks.find(t => t.id === editingId);
-    if (originalTask) {
-      const { startDate, workingDays } = calculateTaskDates(deadlineDate, editFormData.kpiLevel);
-      const kpiPoints = KPI_CONFIG[editFormData.kpiLevel].points;
-      const updatedTask: Task = {
-        ...originalTask,
-        ...editFormData,
-        startDate: startDate.toISOString(),
-        workingDays: workingDays.map(d => d.toISOString()),
-        dailyKpiPoints: kpiPoints / workingDays.length,
-      };
-      onUpdate(updatedTask);
-      showToast('Đã chỉnh sửa thành công', 'edit', updatedTask);
-      setEditingId(null); 
-    }
-  };
-
-  const handleEdit = (task: Task) => {
-    setEditingId(task.id);
-    setEditFormData({
-      project: task.project,
-      description: task.description,
-      deadline: task.deadline,
-      kpiLevel: task.kpiLevel,
-      note: task.note || '',
-      files: task.files || []
-    });
-  };
-
-  const handleCancel = () => {
-    setEditingId(null);
   };
 
   const processFiles = (files: FileList) => {
@@ -671,11 +609,7 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
       const reader = new FileReader();
       reader.onloadend = () => {
         const fileString = (reader.result as string) + "|||" + file.name;
-        if (editingId) {
-          setEditFormData(prev => ({ ...prev, files: [...prev.files, fileString] }));
-        } else {
-          setFormData(prev => ({ ...prev, files: [...prev.files, fileString] }));
-        }
+        setFormData(prev => ({ ...prev, files: [...prev.files, fileString] }));
       };
       reader.readAsDataURL(file);
     });
@@ -693,218 +627,91 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
           <span className="text-3xl font-bold text-blue-700 bg-white px-8 py-4 rounded-full shadow-xl">Thả file vào đây để tải lên</span>
         </div>
       )}
-      
       <h2 className="text-3xl font-bold text-center text-blue-900 mb-12">Quản Lý Giao Việc</h2>
       
-      {/* 1. KHUNG FORM THÊM MỚI */}
       <form onSubmit={handleAddSubmit} className="bg-white p-6 md:p-8 rounded-3xl shadow-xl border border-blue-100 space-y-6">
         <h3 className="text-xl font-bold text-blue-900 mb-2 border-b border-blue-100 pb-4">Thêm Dự Án Mới</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <label className="text-base font-semibold text-slate-600">Dự án</label>
-            <input type="text" required value={formData.project} onChange={e => setFormData(prev => ({ ...prev, project: e.target.value }))} placeholder="Tên dự án..." className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-base" />
+            <input type="text" required value={formData.project} onChange={e => setFormData(prev => ({ ...prev, project: e.target.value }))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base" />
           </div>
           <div className="space-y-2">
             <label className="text-base font-semibold text-slate-600">Deadline</label>
-            <input type="date" required min={format(new Date(), 'yyyy-MM-dd')} value={formData.deadline} onChange={e => setFormData(prev => ({ ...prev, deadline: e.target.value }))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-base" />
+            <input type="date" required min={format(new Date(), 'yyyy-MM-dd')} value={formData.deadline} onChange={e => setFormData(prev => ({ ...prev, deadline: e.target.value }))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base" />
           </div>
           <div className="space-y-2 md:col-span-2">
-            <label className="text-base font-semibold text-slate-600">Mô tả và thông tin</label>
-            <textarea value={formData.description} onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))} placeholder="Chi tiết công việc..." rows={4} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-base" />
+            <label className="text-base font-semibold text-slate-600">Mô tả chi tiết</label>
+            <textarea value={formData.description} onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))} rows={4} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base" />
           </div>
           <div className="space-y-2">
             <label className="text-base font-semibold text-slate-600">Đánh giá KPI</label>
-            <select value={formData.kpiLevel} onChange={e => setFormData(prev => ({ ...prev, kpiLevel: parseInt(e.target.value) }))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-base">
-              {Object.entries(KPI_CONFIG).map(([level, config]) => (
-                <option key={level} value={level}>{config.label} ({config.displayHours} - {config.points}đ)</option>
-              ))}
+            <select value={formData.kpiLevel} onChange={e => setFormData(prev => ({ ...prev, kpiLevel: parseInt(e.target.value) }))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base">
+              {Object.entries(KPI_CONFIG).map(([level, config]) => <option key={level} value={level}>{config.label}</option>)}
             </select>
           </div>
           <div className="space-y-2">
             <label className="text-base font-semibold text-slate-600">Ghi chú</label>
-            <input type="text" value={formData.note} onChange={e => setFormData(prev => ({ ...prev, note: e.target.value }))} placeholder="Ghi chú thêm..." className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-base" />
+            <input type="text" value={formData.note} onChange={e => setFormData(prev => ({ ...prev, note: e.target.value }))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-base" />
           </div>
           <div className="md:col-span-2 space-y-2">
-            <label className="text-base font-semibold text-slate-600">Hình ảnh và file đính kèm</label>
-            <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors cursor-pointer relative">
+            <label className="text-base font-semibold text-slate-600">File đính kèm</label>
+            <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:border-blue-400 cursor-pointer relative">
               <input type="file" multiple onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
               <FileUp className="mx-auto text-slate-400 mb-2" size={32} />
-              <p className="text-slate-500 text-sm">Kéo thả file vào bất cứ đâu trên màn hình hoặc click vào đây</p>
+              <p className="text-slate-500 text-sm">Kéo thả file vào đây</p>
               {formData.files.length > 0 && (
                 <div className="mt-4 flex flex-wrap gap-2 justify-center">
-                  {formData.files.map((fileData, i) => {
-                    let displayName = "File đính kèm";
-                    if (fileData.includes("|||")) displayName = fileData.split("|||")[1];
-                    else if (fileData.includes("drive.google.com")) displayName = "Thư mục Drive đã lưu";
-                    return (
-                      <div key={i} className="group relative px-3 py-1.5 bg-blue-100 rounded-lg flex items-center text-blue-600 text-sm font-medium gap-2 shadow-sm hover:pr-8 transition-all">
-                        <Paperclip size={14} className="shrink-0" />
-                        <span className="truncate max-w-[250px]">{displayName}</span>
-                        <button type="button" onClick={() => setFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) }))} className="absolute right-2 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity">
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    );
-                  })}
+                  {formData.files.map((f, i) => (
+                    <div key={i} className="px-3 py-1.5 bg-blue-100 rounded-lg flex items-center text-blue-600 text-sm font-medium gap-2">
+                      <Paperclip size={14} /><span className="truncate max-w-[200px]">{f.includes("|||") ? f.split("|||")[1] : "File"}</span>
+                      <button type="button" onClick={() => setFormData(p => ({...p, files: p.files.filter((_, idx) => idx !== i)}))} className="text-red-500"><Trash2 size={16} /></button>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
           </div>
         </div>
-        <button type="submit" className="w-full bg-blue-600 text-white p-4 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-[0.98]">
-          Giao Việc Ngay
-        </button>
+        <button type="submit" className="w-full bg-blue-600 text-white p-4 rounded-xl font-bold hover:bg-blue-700 shadow-lg">Giao Việc Ngay</button>
       </form>
 
-      {/* 2. MODAL CHỈNH SỬA (Nền mờ đen chuẩn, Size +20% rộng, +10% cao) */}
-      {editingId && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-          {/* Lớp nền đen mờ giống với hộp thoại Xóa */}
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={handleCancel}></div>
-          
-          {/* Khung Modal mở rộng (max-w-5xl, min-h-[65vh]) */}
-          <div className="bg-white w-full max-w-5xl min-h-[65vh] rounded-3xl shadow-2xl relative z-10 flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
-            <div className="px-8 py-5 border-b border-slate-100 bg-slate-50 rounded-t-3xl">
-              <h3 className="text-2xl font-bold text-blue-900">Chỉnh Sửa Công Việc</h3>
-            </div>
-
-            <div className="p-8 overflow-y-auto flex-1">
-              <form id="edit-form" onSubmit={handleEditSubmit} className="space-y-6">
-                {/* Sắp xếp lại lưới 3 cột cho không gian rộng hơn */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
-                  <div className="md:col-span-2 space-y-2">
-                    <label className="text-base font-semibold text-slate-600">Dự án</label>
-                    <input type="text" required value={editFormData.project} onChange={e => setEditFormData(prev => ({ ...prev, project: e.target.value }))} className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
-                  </div>
-                  <div className="md:col-span-1 space-y-2">
-                    <label className="text-base font-semibold text-slate-600">Deadline</label>
-                    <input type="date" required value={editFormData.deadline} onChange={e => setEditFormData(prev => ({ ...prev, deadline: e.target.value }))} className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
-                  </div>
-                  
-                  <div className="md:col-span-3 space-y-2">
-                    <label className="text-base font-semibold text-slate-600">Mô tả chi tiết</label>
-                    <textarea value={editFormData.description} onChange={e => setEditFormData(prev => ({ ...prev, description: e.target.value }))} rows={5} className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
-                  </div>
-
-                  <div className="md:col-span-1 space-y-2">
-                    <label className="text-base font-semibold text-slate-600">Đánh giá KPI</label>
-                    <select value={editFormData.kpiLevel} onChange={e => setEditFormData(prev => ({ ...prev, kpiLevel: parseInt(e.target.value) }))} className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none">
-                      {Object.entries(KPI_CONFIG).map(([level, config]) => (
-                        <option key={level} value={level}>{config.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="md:col-span-2 space-y-2">
-                    <label className="text-base font-semibold text-slate-600">Ghi chú</label>
-                    <input type="text" value={editFormData.note} onChange={e => setEditFormData(prev => ({ ...prev, note: e.target.value }))} className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
-                  </div>
-                  
-                  <div className="md:col-span-3 space-y-2">
-                    <label className="text-base font-semibold text-slate-600">File đính kèm</label>
-                    <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors relative">
-                      <input type="file" multiple onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
-                      <p className="text-slate-500 text-sm">Click để tải thêm file</p>
-                      {editFormData.files.length > 0 && (
-                        <div className="mt-4 flex flex-wrap gap-2 justify-center">
-                          {editFormData.files.map((fileData, i) => {
-                            let displayName = "File đính kèm";
-                            if (fileData.includes("|||")) displayName = fileData.split("|||")[1];
-                            else if (fileData.includes("drive.google.com")) displayName = "Thư mục Drive đã lưu";
-                            return (
-                              <div key={i} className="group relative px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-lg flex items-center text-blue-600 text-sm gap-2 hover:pr-8 transition-all">
-                                <span className="truncate max-w-[300px]">{displayName}</span>
-                                <button type="button" onClick={() => setEditFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) }))} className="absolute right-2 opacity-0 group-hover:opacity-100 text-red-500">
-                                  <Trash2 size={16} />
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </form>
-            </div>
-
-            <div className="px-8 py-5 border-t border-slate-100 bg-slate-50 rounded-b-3xl flex gap-4 mt-auto">
-              <button type="button" onClick={handleCancel} className="flex-1 bg-white border border-slate-300 text-slate-700 p-4 text-base rounded-xl font-bold hover:bg-slate-100 transition-all">
-                Hủy
-              </button>
-              <button form="edit-form" type="submit" className="flex-[2] bg-blue-600 text-white p-4 text-base rounded-xl font-bold hover:bg-blue-700 shadow-md transition-all">
-                Lưu Thay Đổi
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 3. BẢNG DANH SÁCH (Giữ nguyên) */}
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-blue-100">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-blue-600 text-white">
-                <th className="p-4 font-semibold text-base w-16">Sửa</th>
-                <th className="p-4 font-semibold text-base w-16">STT</th>
-                <th className="p-4 font-semibold text-base min-w-[150px]">Dự án</th>
-                <th className="p-4 font-semibold text-base max-w-[300px]">Mô tả</th>
-                <th className="p-4 font-semibold text-base w-24">File</th>
-                <th className="p-4 font-semibold text-base w-32 whitespace-nowrap">Deadline</th>
-                <th className="p-4 font-semibold text-base w-24 whitespace-nowrap">KPI</th>
-                <th className="p-4 font-semibold text-base max-w-[200px]">Ghi chú</th>
-                <th className="p-4 font-semibold text-base w-16">Xóa</th>
+                <th className="p-4 font-semibold w-16">Sửa</th>
+                <th className="p-4 font-semibold w-16">STT</th>
+                <th className="p-4 font-semibold min-w-[150px]">Dự án</th>
+                <th className="p-4 font-semibold max-w-[300px]">Mô tả</th>
+                <th className="p-4 font-semibold w-24">File</th>
+                <th className="p-4 font-semibold w-32">Deadline</th>
+                <th className="p-4 font-semibold w-24">KPI</th>
+                <th className="p-4 font-semibold max-w-[200px]">Ghi chú</th>
+                <th className="p-4 font-semibold w-16">Xóa</th>
               </tr>
             </thead>
             <tbody>
-              {tasks
-                .slice()
-                .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-                .map((task, index) => {
-                const isPastDeadline = isBefore(parseISO(task.deadline), startOfDay(new Date()));
-                const isCompleted = task.status === TaskStatus.COMPLETED;
+              {tasks.slice().sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()).map((task, index) => {
+                const isPast = isBefore(parseISO(task.deadline), startOfDay(new Date()));
+                const isDone = task.status === TaskStatus.COMPLETED;
                 return (
-                  <tr 
-                    key={task.id} 
-                    onDoubleClick={() => onDoubleClickTask && onDoubleClickTask(task)}
-                    title="Nháy đúp chuột để Sửa hoặc Xóa"
-                    className={cn(
-                      "transition-colors",
-                      isCompleted ? "bg-slate-100 text-slate-400" : (
-                        isPastDeadline 
-                          ? (index % 2 === 0 ? "bg-slate-100 text-slate-500" : "bg-slate-50 text-slate-500")
-                          : (index % 2 === 0 ? "bg-blue-50/50" : "bg-white")
-                      )
-                    )}>
-                    <td className="p-4 text-sm align-top">
-                      <button onClick={() => handleEdit(task)} className="text-blue-400 hover:text-blue-600 transition-colors">
-                        <Edit size={18} />
-                      </button>
+                  <tr key={task.id} onDoubleClick={() => onDoubleClickTask && onDoubleClickTask(task)} className={cn("transition-colors", isDone ? "bg-slate-100 text-slate-400" : (isPast ? (index % 2 === 0 ? "bg-slate-100" : "bg-slate-50") : (index % 2 === 0 ? "bg-blue-50/50" : "bg-white")))}>
+                    <td className="p-4">
+                      <button onClick={() => window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: task }))} className="text-blue-400 hover:text-blue-600"><Edit size={18} /></button>
                     </td>
-                    <td className="p-4 text-sm font-medium">{index + 1}</td>
-                    <td className="p-4 text-sm align-top"><ExpandableText text={task.project} isProject /></td>
-                    <td className="p-4 text-sm align-top max-w-[300px]"><ExpandableText text={task.description} /></td>
-                    <td className="p-4 text-sm align-top"><ExpandableFiles files={task.files} /></td>
-                    <td className="p-4 text-sm font-medium align-top whitespace-nowrap">{format(parseISO(task.deadline), 'dd/MM/yyyy')}</td>
-                    <td className="p-4 text-sm align-top whitespace-nowrap">
-                      <span className={cn("px-3 py-1 rounded-full text-white text-xs font-bold", (isPastDeadline || isCompleted) && "opacity-60")} style={{ backgroundColor: isCompleted ? '#94a3b8' : KPI_CONFIG[task.kpiLevel].color }}>
-                        {KPI_CONFIG[task.kpiLevel].label}
-                      </span>
-                    </td>
-                    <td className="p-4 text-sm align-top max-w-[200px]"><ExpandableText text={task.note || ''} /></td>
-                    <td className="p-4 text-sm align-top">
-                      <button onClick={() => onDelete(task.id)} className="text-red-400 hover:text-red-600 transition-colors">
-                        <Trash2 size={18} />
-                      </button>
-                    </td>
+                    <td className="p-4 font-medium">{index + 1}</td>
+                    <td className="p-4"><ExpandableText text={task.project} isProject /></td>
+                    <td className="p-4"><ExpandableText text={task.description} /></td>
+                    <td className="p-4"><ExpandableFiles files={task.files} /></td>
+                    <td className="p-4 font-medium">{format(parseISO(task.deadline), 'dd/MM/yyyy')}</td>
+                    <td className="p-4"><span className="px-3 py-1 rounded-full text-white text-xs font-bold" style={{ backgroundColor: isDone ? '#94a3b8' : KPI_CONFIG[task.kpiLevel].color }}>{KPI_CONFIG[task.kpiLevel].label}</span></td>
+                    <td className="p-4"><ExpandableText text={task.note || ''} /></td>
+                    <td className="p-4"><button onClick={() => onDelete(task.id)} className="text-red-400 hover:text-red-600"><Trash2 size={18} /></button></td>
                   </tr>
                 );
               })}
-              {tasks.length === 0 && (
-                <tr>
-                  <td colSpan={9} className="p-12 text-center text-slate-400 italic">Chưa có công việc nào được giao</td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
@@ -1767,6 +1574,134 @@ function DanhGiaCongViec({ tasks }: { tasks: Task[] }) {
               <BarChart3 size={24} />
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- BẢNG CHỈNH SỬA TOÀN CẦU (GLOBAL MODAL) ---
+function GlobalEditModal({ task, onClose, onUpdate, showToast }: { 
+  task: Task, 
+  onClose: () => void, 
+  onUpdate: (task: Task) => void, 
+  showToast: any
+}) {
+  const [editFormData, setEditFormData] = useState({
+    project: task.project,
+    description: task.description,
+    deadline: task.deadline,
+    kpiLevel: task.kpiLevel,
+    note: task.note || '',
+    files: task.files || []
+  });
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editFormData.project) return;
+    const deadlineDate = parseISO(editFormData.deadline);
+    if (isWeekend(deadlineDate)) {
+      showToast('Không giao Deadline vào ngày nghỉ', 'error');
+      return;
+    }
+    const { startDate, workingDays } = calculateTaskDates(deadlineDate, editFormData.kpiLevel);
+    const kpiPoints = KPI_CONFIG[editFormData.kpiLevel].points;
+    const updatedTask: Task = {
+      ...task,
+      ...editFormData,
+      startDate: startDate.toISOString(),
+      workingDays: workingDays.map(d => d.toISOString()),
+      dailyKpiPoints: kpiPoints / workingDays.length,
+    };
+    onUpdate(updatedTask);
+    showToast('Đã chỉnh sửa thành công', 'edit', updatedTask);
+    onClose();
+  };
+
+  const processFiles = (files: FileList) => {
+    if (!files) return;
+    Array.from(files).forEach((file: File) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const fileString = (reader.result as string) + "|||" + file.name;
+        setEditFormData(prev => ({ ...prev, files: [...prev.files, fileString] }));
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) processFiles(e.target.files);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={onClose}></div>
+      <div className="bg-white w-full max-w-5xl min-h-[65vh] rounded-3xl shadow-2xl relative z-10 flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+        <div className="px-8 py-5 border-b border-slate-100 bg-slate-50 rounded-t-3xl">
+          <h3 className="text-2xl font-bold text-blue-900">Chỉnh Sửa Công Việc</h3>
+        </div>
+        <div className="p-8 overflow-y-auto flex-1">
+          <form id="global-edit-form" onSubmit={handleEditSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+              <div className="md:col-span-2 space-y-2">
+                <label className="text-base font-semibold text-slate-600">Dự án</label>
+                <input type="text" required value={editFormData.project} onChange={e => setEditFormData(prev => ({ ...prev, project: e.target.value }))} className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+              </div>
+              <div className="md:col-span-1 space-y-2">
+                <label className="text-base font-semibold text-slate-600">Deadline</label>
+                <input type="date" required value={editFormData.deadline} onChange={e => setEditFormData(prev => ({ ...prev, deadline: e.target.value }))} className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+              </div>
+              <div className="md:col-span-3 space-y-2">
+                <label className="text-base font-semibold text-slate-600">Mô tả chi tiết</label>
+                <textarea value={editFormData.description} onChange={e => setEditFormData(prev => ({ ...prev, description: e.target.value }))} rows={5} className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+              </div>
+              <div className="md:col-span-1 space-y-2">
+                <label className="text-base font-semibold text-slate-600">Đánh giá KPI</label>
+                <select value={editFormData.kpiLevel} onChange={e => setEditFormData(prev => ({ ...prev, kpiLevel: parseInt(e.target.value) }))} className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none">
+                  {Object.entries(KPI_CONFIG).map(([level, config]) => (
+                    <option key={level} value={level}>{config.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="md:col-span-2 space-y-2">
+                <label className="text-base font-semibold text-slate-600">Ghi chú</label>
+                <input type="text" value={editFormData.note} onChange={e => setEditFormData(prev => ({ ...prev, note: e.target.value }))} className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+              </div>
+              <div className="md:col-span-3 space-y-2">
+                <label className="text-base font-semibold text-slate-600">File đính kèm</label>
+                <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors relative">
+                  <input type="file" multiple onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
+                  <p className="text-slate-500 text-sm">Click để tải thêm file</p>
+                  {editFormData.files.length > 0 && (
+                    <div className="mt-4 flex flex-wrap gap-2 justify-center">
+                      {editFormData.files.map((fileData, i) => {
+                        let displayName = "File đính kèm";
+                        if (fileData.includes("|||")) displayName = fileData.split("|||")[1];
+                        else if (fileData.includes("drive.google.com")) displayName = "Thư mục Drive đã lưu";
+                        return (
+                          <div key={i} className="group relative px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-lg flex items-center text-blue-600 text-sm gap-2 hover:pr-8 transition-all">
+                            <span className="truncate max-w-[300px]">{displayName}</span>
+                            <button type="button" onClick={() => setEditFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) }))} className="absolute right-2 opacity-0 group-hover:opacity-100 text-red-500">
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div className="px-8 py-5 border-t border-slate-100 bg-slate-50 rounded-b-3xl flex gap-4 mt-auto">
+          <button type="button" onClick={onClose} className="flex-1 bg-white border border-slate-300 text-slate-700 p-4 text-base rounded-xl font-bold hover:bg-slate-100 transition-all">
+            Hủy
+          </button>
+          <button form="global-edit-form" type="submit" className="flex-[2] bg-blue-600 text-white p-4 text-base rounded-xl font-bold hover:bg-blue-700 shadow-md transition-all">
+            Lưu Thay Đổi
+          </button>
         </div>
       </div>
     </div>
