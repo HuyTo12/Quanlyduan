@@ -1058,20 +1058,22 @@ function SearchSection({ tasks, selectedId, onClearSelection, onDelete }: {
               </div>
             </div>
 
-           {/* THÊM MỚI: Nút Chỉnh Sửa và Nút Xóa từ màn hình Tìm Kiếm */}
+            {/* Nút Chỉnh Sửa và Nút Xóa (Đã sửa lỗi biến 'selectedTask' và thiết kế lại) */}
             <div className="pt-6 border-t border-blue-50 flex justify-end mt-4 gap-4">
               <button 
-  onClick={() => {
-    window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: task }));
-  }}
-  className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 rounded-lg transition-all"
-  title="Chỉnh sửa"
->
-  <Edit size={18} />
-</button>
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: selectedTask }));
+                }}
+                className="bg-blue-100 text-blue-700 px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-200 transition-colors shadow-sm active:scale-95"
+                title="Chỉnh sửa dự án này"
+              >
+                <Edit size={18} /> Chỉnh sửa
+              </button>
+              
               <button 
                 onClick={() => {
                   onDelete(selectedTask.id);
+                  setSelectedTask(null); // Đóng bảng sau khi xóa
                 }}
                 className="bg-red-500 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-red-600 transition-colors shadow-lg shadow-red-200 active:scale-95"
                 title="Xóa dự án này"
