@@ -615,39 +615,27 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.project) return;
-
     const deadlineDate = parseISO(formData.deadline);
     if (isWeekend(deadlineDate)) {
       showToast('Không giao Deadline vào ngày nghỉ', 'error');
       return;
     }
-
     onAdd(formData);
-    setFormData({
-      project: '',
-      description: '',
-      deadline: format(new Date(), 'yyyy-MM-dd'),
-      kpiLevel: KPILevel.LEVEL_1,
-      note: '',
-      files: []
-    });
+    setFormData({ project: '', description: '', deadline: format(new Date(), 'yyyy-MM-dd'), kpiLevel: KPILevel.LEVEL_1, note: '', files: [] });
   };
 
   const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editFormData.project || !editingId) return;
-
     const deadlineDate = parseISO(editFormData.deadline);
     if (isWeekend(deadlineDate)) {
       showToast('Không giao Deadline vào ngày nghỉ', 'error');
       return;
     }
-
     const originalTask = tasks.find(t => t.id === editingId);
     if (originalTask) {
       const { startDate, workingDays } = calculateTaskDates(deadlineDate, editFormData.kpiLevel);
       const kpiPoints = KPI_CONFIG[editFormData.kpiLevel].points;
-
       const updatedTask: Task = {
         ...originalTask,
         ...editFormData,
@@ -657,7 +645,7 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
       };
       onUpdate(updatedTask);
       showToast('Đã chỉnh sửa thành công', 'edit', updatedTask);
-      setEditingId(null);
+      setEditingId(null); 
     }
   };
 
@@ -671,6 +659,10 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
       note: task.note || '',
       files: task.files || []
     });
+  };
+
+  const handleCancel = () => {
+    setEditingId(null);
   };
 
   const processFiles = (files: FileList) => {
@@ -689,33 +681,13 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
     });
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) processFiles(e.target.files);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (e.dataTransfer.files) processFiles(e.dataTransfer.files);
-  };
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files) processFiles(e.target.files); };
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
+  const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragging(false); };
+  const handleDrop = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files) processFiles(e.dataTransfer.files); };
 
   return (
-    <div 
-      className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 relative"
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 relative" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
       {isDragging && (
         <div className="fixed inset-0 z-[100] bg-blue-500/20 backdrop-blur-sm border-4 border-dashed border-blue-500 flex items-center justify-center pointer-events-none">
           <span className="text-3xl font-bold text-blue-700 bg-white px-8 py-4 rounded-full shadow-xl">Thả file vào đây để tải lên</span>
@@ -784,69 +756,65 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
         </button>
       </form>
 
-      {/* 2. MODAL CHỈNH SỬA (Mở rộng +20% chiều ngang, +10% chiều dọc, sắp xếp lại 3 cột) */}
+      {/* 2. MODAL CHỈNH SỬA (Nền mờ đen chuẩn, Size +20% rộng, +10% cao) */}
       {editingId && (
-        <div className="fixed inset-0 z-[40] flex items-center justify-center p-4 sm:p-8">
-          <div className="absolute inset-0 bg-slate-800/30 backdrop-blur-[2px] transition-opacity" onClick={() => setEditingId(null)}></div>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          {/* Lớp nền đen mờ giống với hộp thoại Xóa */}
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={handleCancel}></div>
           
-          {/* Đổi width: max-w-[1100px], Height: min-h-[75vh] max-h-[95vh] */}
-          <div className="bg-white w-full max-w-[1100px] rounded-3xl shadow-2xl relative z-10 flex flex-col min-h-[75vh] max-h-[95vh] animate-in zoom-in-95 duration-200">
+          {/* Khung Modal mở rộng (max-w-5xl, min-h-[65vh]) */}
+          <div className="bg-white w-full max-w-5xl min-h-[65vh] rounded-3xl shadow-2xl relative z-10 flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
             <div className="px-8 py-5 border-b border-slate-100 bg-slate-50 rounded-t-3xl">
               <h3 className="text-2xl font-bold text-blue-900">Chỉnh Sửa Công Việc</h3>
             </div>
 
             <div className="p-8 overflow-y-auto flex-1">
-              <form id="edit-form" onSubmit={handleEditSubmit} className="space-y-8">
-                {/* Đổi bố cục sang 3 cột thay vì 2 cột để dàn ngang đẹp hơn */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                  
-                  {/* Hàng 1 */}
-                  <div className="space-y-3 md:col-span-2">
-                    <label className="text-base font-bold text-slate-600">Dự án</label>
-                    <input type="text" required value={editFormData.project} onChange={e => setEditFormData(prev => ({ ...prev, project: e.target.value }))} className="w-full p-4 text-lg rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+              <form id="edit-form" onSubmit={handleEditSubmit} className="space-y-6">
+                {/* Sắp xếp lại lưới 3 cột cho không gian rộng hơn */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+                  <div className="md:col-span-2 space-y-2">
+                    <label className="text-base font-semibold text-slate-600">Dự án</label>
+                    <input type="text" required value={editFormData.project} onChange={e => setEditFormData(prev => ({ ...prev, project: e.target.value }))} className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
                   </div>
-                  <div className="space-y-3 md:col-span-1">
-                    <label className="text-base font-bold text-slate-600">Deadline</label>
-                    <input type="date" required value={editFormData.deadline} onChange={e => setEditFormData(prev => ({ ...prev, deadline: e.target.value }))} className="w-full p-4 text-lg rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <div className="md:col-span-1 space-y-2">
+                    <label className="text-base font-semibold text-slate-600">Deadline</label>
+                    <input type="date" required value={editFormData.deadline} onChange={e => setEditFormData(prev => ({ ...prev, deadline: e.target.value }))} className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
                   </div>
                   
-                  {/* Hàng 2 */}
-                  <div className="space-y-3 md:col-span-1">
-                    <label className="text-base font-bold text-slate-600">Đánh giá KPI</label>
-                    <select value={editFormData.kpiLevel} onChange={e => setEditFormData(prev => ({ ...prev, kpiLevel: parseInt(e.target.value) }))} className="w-full p-4 text-lg rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none">
+                  <div className="md:col-span-3 space-y-2">
+                    <label className="text-base font-semibold text-slate-600">Mô tả chi tiết</label>
+                    <textarea value={editFormData.description} onChange={e => setEditFormData(prev => ({ ...prev, description: e.target.value }))} rows={5} className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                  </div>
+
+                  <div className="md:col-span-1 space-y-2">
+                    <label className="text-base font-semibold text-slate-600">Đánh giá KPI</label>
+                    <select value={editFormData.kpiLevel} onChange={e => setEditFormData(prev => ({ ...prev, kpiLevel: parseInt(e.target.value) }))} className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none">
                       {Object.entries(KPI_CONFIG).map(([level, config]) => (
                         <option key={level} value={level}>{config.label}</option>
                       ))}
                     </select>
                   </div>
-                  <div className="space-y-3 md:col-span-2">
-                    <label className="text-base font-bold text-slate-600">Ghi chú</label>
-                    <input type="text" value={editFormData.note} onChange={e => setEditFormData(prev => ({ ...prev, note: e.target.value }))} className="w-full p-4 text-lg rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <div className="md:col-span-2 space-y-2">
+                    <label className="text-base font-semibold text-slate-600">Ghi chú</label>
+                    <input type="text" value={editFormData.note} onChange={e => setEditFormData(prev => ({ ...prev, note: e.target.value }))} className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
                   </div>
                   
-                  {/* Hàng 3 */}
-                  <div className="space-y-3 md:col-span-3">
-                    <label className="text-base font-bold text-slate-600">Mô tả chi tiết</label>
-                    <textarea value={editFormData.description} onChange={e => setEditFormData(prev => ({ ...prev, description: e.target.value }))} rows={5} className="w-full p-4 text-lg rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
-                  </div>
-                  
-                  {/* Hàng 4 - File đính kèm */}
-                  <div className="md:col-span-3 space-y-3">
-                    <label className="text-base font-bold text-slate-600">File đính kèm</label>
+                  <div className="md:col-span-3 space-y-2">
+                    <label className="text-base font-semibold text-slate-600">File đính kèm</label>
                     <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors relative">
                       <input type="file" multiple onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
-                      <p className="text-slate-500 text-base">Click hoặc Kéo thả file để tải thêm</p>
+                      <p className="text-slate-500 text-sm">Click để tải thêm file</p>
                       {editFormData.files.length > 0 && (
-                        <div className="mt-4 flex flex-wrap gap-3 justify-center">
+                        <div className="mt-4 flex flex-wrap gap-2 justify-center">
                           {editFormData.files.map((fileData, i) => {
                             let displayName = "File đính kèm";
                             if (fileData.includes("|||")) displayName = fileData.split("|||")[1];
                             else if (fileData.includes("drive.google.com")) displayName = "Thư mục Drive đã lưu";
                             return (
-                              <div key={i} className="group relative px-4 py-2 bg-blue-50 border border-blue-100 rounded-xl flex items-center text-blue-600 text-sm gap-2 hover:pr-8 transition-all">
-                                <span className="truncate max-w-[250px]">{displayName}</span>
+                              <div key={i} className="group relative px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-lg flex items-center text-blue-600 text-sm gap-2 hover:pr-8 transition-all">
+                                <span className="truncate max-w-[300px]">{displayName}</span>
                                 <button type="button" onClick={() => setEditFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) }))} className="absolute right-2 opacity-0 group-hover:opacity-100 text-red-500">
-                                  <Trash2 size={18} />
+                                  <Trash2 size={16} />
                                 </button>
                               </div>
                             );
@@ -859,22 +827,19 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
               </form>
             </div>
 
-            <div className="px-8 py-5 border-t border-slate-100 bg-slate-50 rounded-b-3xl flex gap-6 mt-auto">
-              <button type="button" onClick={() => setEditingId(null)} className="flex-1 bg-white border border-slate-300 text-slate-700 p-4 text-lg rounded-xl font-bold hover:bg-slate-100 transition-all shadow-sm">
+            <div className="px-8 py-5 border-t border-slate-100 bg-slate-50 rounded-b-3xl flex gap-4 mt-auto">
+              <button type="button" onClick={handleCancel} className="flex-1 bg-white border border-slate-300 text-slate-700 p-4 text-base rounded-xl font-bold hover:bg-slate-100 transition-all">
                 Hủy
               </button>
-              <button form="edit-form" type="submit" className="flex-[2] bg-blue-600 text-white p-4 text-lg rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-[0.98]">
+              <button form="edit-form" type="submit" className="flex-[2] bg-blue-600 text-white p-4 text-base rounded-xl font-bold hover:bg-blue-700 shadow-md transition-all">
                 Lưu Thay Đổi
-              </button>
-              <button type="button" onClick={() => { const t = tasks.find(x => x.id === editingId); if (t) onDelete(t.id); setEditingId(null); }} className="bg-red-50 text-red-500 px-8 rounded-xl hover:bg-red-500 hover:text-white transition-all flex items-center justify-center border border-red-100 shadow-sm" title="Xóa dự án">
-                <Trash2 size={24} />
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 3. BẢNG DANH SÁCH */}
+      {/* 3. BẢNG DANH SÁCH (Giữ nguyên) */}
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-blue-100">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -912,12 +877,7 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
                       )
                     )}>
                     <td className="p-4 text-sm align-top">
-                      {/* Thêm type="button" và e.preventDefault() để chống giật trang */}
-                      <button 
-                        type="button"
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleEdit(task); }} 
-                        className="text-blue-400 hover:text-blue-600 transition-colors"
-                      >
+                      <button onClick={() => handleEdit(task)} className="text-blue-400 hover:text-blue-600 transition-colors">
                         <Edit size={18} />
                       </button>
                     </td>
@@ -933,7 +893,7 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
                     </td>
                     <td className="p-4 text-sm align-top max-w-[200px]"><ExpandableText text={task.note || ''} /></td>
                     <td className="p-4 text-sm align-top">
-                      <button type="button" onClick={() => onDelete(task.id)} className="text-red-400 hover:text-red-600 transition-colors">
+                      <button onClick={() => onDelete(task.id)} className="text-red-400 hover:text-red-600 transition-colors">
                         <Trash2 size={18} />
                       </button>
                     </td>
@@ -1197,11 +1157,17 @@ function SearchSection({ tasks, selectedId, onClearSelection, onDelete }: {
     if (onClearSelection) onClearSelection();
   };
 
+  const handleCloseModal = () => {
+    setSelectedTask(null);
+    if (onClearSelection) onClearSelection();
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
       <h2 className="text-3xl font-bold text-center text-blue-900 mb-12">Tìm Kiếm</h2>
       
-      <div className="relative">
+      {/* Thanh Tìm Kiếm */}
+      <div className="relative z-0">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
           <input
@@ -1231,85 +1197,102 @@ function SearchSection({ tasks, selectedId, onClearSelection, onDelete }: {
         )}
       </div>
 
+      {/* MODAL XEM CHI TIẾT (Đồng bộ cấu trúc nền đen, size +20% rộng, +10% cao) */}
       {selectedTask && (
-        <div className="bg-white rounded-3xl shadow-xl border border-blue-100 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-500">
-          <div className="p-8 space-y-8">
-            <div className="flex justify-between items-start border-b border-blue-50 pb-6">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          {/* Lớp nền mờ giống với form Giao Việc */}
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={handleCloseModal}></div>
+          
+          <div className="bg-white w-full max-w-5xl min-h-[65vh] rounded-3xl shadow-2xl relative z-10 flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+            {/* Header Modal */}
+            <div className="px-8 py-5 border-b border-slate-100 bg-slate-50 rounded-t-3xl flex justify-between items-center">
               <div>
-                <h3 className="text-2xl font-bold text-blue-900 mb-2">{selectedTask.project}</h3>
+                <h3 className="text-2xl font-bold text-blue-900 mb-1">{selectedTask.project}</h3>
                 <p className="text-sm text-slate-500 flex items-center gap-2">
                   <Clock size={16} />
                   Deadline: {format(parseISO(selectedTask.deadline), 'dd/MM/yyyy')}
                 </p>
               </div>
               <span 
-                className="px-4 py-2 rounded-full text-white text-sm font-bold shadow-sm"
+                className="px-5 py-2.5 rounded-full text-white text-sm font-bold shadow-sm"
                 style={{ backgroundColor: KPI_CONFIG[selectedTask.kpiLevel].color }}
               >
                 {KPI_CONFIG[selectedTask.kpiLevel].label}
               </span>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-8">
-              <div className="space-y-4">
-                <h4 className="text-base font-bold text-blue-900 flex items-center gap-2">
-                  <FileText size={18} className="text-blue-500" />
-                  Nội dung chi tiết
-                </h4>
-                <div className="bg-slate-50 p-6 rounded-2xl text-sm text-slate-700 leading-relaxed whitespace-pre-wrap min-h-[150px]">
-                  {selectedTask.description}
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                <div className="space-y-4">
-                  <h4 className="text-base font-bold text-blue-900 flex items-center gap-2">
-                    <Paperclip size={18} className="text-blue-500" />
-                    File đính kèm
+            {/* Body Modal: Cấu trúc chia cột thông minh 2/3 và 1/3 */}
+            <div className="p-8 overflow-y-auto flex-1">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {/* Cột Trái: Nội dung chi tiết (Chiếm không gian lớn hơn) */}
+                <div className="md:col-span-2 space-y-4">
+                  <h4 className="text-lg font-bold text-blue-900 flex items-center gap-2">
+                    <FileText size={20} className="text-blue-500" />
+                    Nội dung chi tiết
                   </h4>
-                  <div className="bg-slate-50 p-6 rounded-2xl min-h-[80px]">
-                    <ExpandableFiles files={selectedTask.files} />
+                  <div className="bg-slate-50 p-6 rounded-2xl text-base text-slate-700 leading-relaxed whitespace-pre-wrap min-h-[200px] border border-slate-100">
+                    {selectedTask.description}
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <h4 className="text-base font-bold text-blue-900 flex items-center gap-2">
-                    <AlertCircle size={18} className="text-blue-500" />
-                    Ghi chú & KPI
-                  </h4>
-                  <div className="bg-slate-50 p-6 rounded-2xl space-y-4">
-                    <div>
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">KPI Points</span>
-                      <p className="text-lg font-bold text-blue-900">{KPI_CONFIG[selectedTask.kpiLevel].points} điểm</p>
+                {/* Cột Phải: File đính kèm & KPI (Gọn gàng) */}
+                <div className="md:col-span-1 space-y-8">
+                  <div className="space-y-4">
+                    <h4 className="text-lg font-bold text-blue-900 flex items-center gap-2">
+                      <Paperclip size={20} className="text-blue-500" />
+                      File đính kèm
+                    </h4>
+                    <div className="bg-slate-50 p-6 rounded-2xl min-h-[100px] border border-slate-100">
+                      <ExpandableFiles files={selectedTask.files} />
                     </div>
-                    <div>
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ghi chú</span>
-                      <p className="text-sm text-slate-700 italic">{selectedTask.note || 'Không có ghi chú'}</p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h4 className="text-lg font-bold text-blue-900 flex items-center gap-2">
+                      <AlertCircle size={20} className="text-blue-500" />
+                      Ghi chú & KPI
+                    </h4>
+                    <div className="bg-slate-50 p-6 rounded-2xl space-y-5 border border-slate-100">
+                      <div>
+                        <span className="text-sm font-bold text-slate-400 uppercase tracking-wider block mb-1">KPI Points</span>
+                        <p className="text-2xl font-bold text-blue-900">{KPI_CONFIG[selectedTask.kpiLevel].points} điểm</p>
+                      </div>
+                      <div className="pt-4 border-t border-slate-200">
+                        <span className="text-sm font-bold text-slate-400 uppercase tracking-wider block mb-1">Ghi chú</span>
+                        <p className="text-base text-slate-700 italic">{selectedTask.note || 'Không có ghi chú'}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
-           {/* THÊM MỚI: Nút Chỉnh Sửa và Nút Xóa từ màn hình Tìm Kiếm */}
-            <div className="pt-6 border-t border-blue-50 flex justify-end mt-4 gap-4">
+            {/* Footer Modal: Đã bỏ chức năng chuyển tab */}
+            <div className="px-8 py-5 border-t border-slate-100 bg-slate-50 rounded-b-3xl flex justify-end items-center gap-4 mt-auto">
+              <button 
+                onClick={handleCloseModal} 
+                className="px-6 py-3 rounded-xl font-bold bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                Đóng
+              </button>
+              
               <button 
                 onClick={() => {
-                  if (onClearSelection) onClearSelection();
-                  const tabs = document.querySelectorAll('button');
-                  const giaoViecTab = Array.from(tabs).find(btn => btn.textContent?.includes('Giao việc'));
-                  if (giaoViecTab) giaoViecTab.click();
+                  handleCloseModal(); // Đóng Modal Xem
+                  // Gọi tín hiệu bật Modal Sửa mà KHÔNG chuyển trang
                   setTimeout(() => {
                     window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: selectedTask }));
-                  }, 150);
+                  }, 50);
                 }}
                 className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 active:scale-95"
               >
-                <Edit size={18} /> Chỉnh sửa Dự án này
+                <Edit size={18} /> Chỉnh sửa
               </button>
+              
               <button 
                 onClick={() => {
                   onDelete(selectedTask.id);
+                  handleCloseModal();
                 }}
                 className="bg-red-500 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-red-600 transition-colors shadow-lg shadow-red-200 active:scale-95"
                 title="Xóa dự án này"
@@ -1317,7 +1300,6 @@ function SearchSection({ tasks, selectedId, onClearSelection, onDelete }: {
                 <Trash2 size={18} /> Xóa
               </button>
             </div>
-
           </div>
         </div>
       )}
