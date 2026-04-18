@@ -1157,17 +1157,11 @@ function SearchSection({ tasks, selectedId, onClearSelection, onDelete }: {
     if (onClearSelection) onClearSelection();
   };
 
-  const handleCloseModal = () => {
-    setSelectedTask(null);
-    if (onClearSelection) onClearSelection();
-  };
-
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
       <h2 className="text-3xl font-bold text-center text-blue-900 mb-12">Tìm Kiếm</h2>
       
-      {/* Thanh Tìm Kiếm */}
-      <div className="relative z-0">
+      <div className="relative">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
           <input
@@ -1197,102 +1191,85 @@ function SearchSection({ tasks, selectedId, onClearSelection, onDelete }: {
         )}
       </div>
 
-      {/* MODAL XEM CHI TIẾT (Đồng bộ cấu trúc nền đen, size +20% rộng, +10% cao) */}
       {selectedTask && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-          {/* Lớp nền mờ giống với form Giao Việc */}
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={handleCloseModal}></div>
-          
-          <div className="bg-white w-full max-w-5xl min-h-[65vh] rounded-3xl shadow-2xl relative z-10 flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
-            {/* Header Modal */}
-            <div className="px-8 py-5 border-b border-slate-100 bg-slate-50 rounded-t-3xl flex justify-between items-center">
+        <div className="bg-white rounded-3xl shadow-xl border border-blue-100 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="p-8 space-y-8">
+            <div className="flex justify-between items-start border-b border-blue-50 pb-6">
               <div>
-                <h3 className="text-2xl font-bold text-blue-900 mb-1">{selectedTask.project}</h3>
+                <h3 className="text-2xl font-bold text-blue-900 mb-2">{selectedTask.project}</h3>
                 <p className="text-sm text-slate-500 flex items-center gap-2">
                   <Clock size={16} />
                   Deadline: {format(parseISO(selectedTask.deadline), 'dd/MM/yyyy')}
                 </p>
               </div>
               <span 
-                className="px-5 py-2.5 rounded-full text-white text-sm font-bold shadow-sm"
+                className="px-4 py-2 rounded-full text-white text-sm font-bold shadow-sm"
                 style={{ backgroundColor: KPI_CONFIG[selectedTask.kpiLevel].color }}
               >
                 {KPI_CONFIG[selectedTask.kpiLevel].label}
               </span>
             </div>
 
-            {/* Body Modal: Cấu trúc chia cột thông minh 2/3 và 1/3 */}
-            <div className="p-8 overflow-y-auto flex-1">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {/* Cột Trái: Nội dung chi tiết (Chiếm không gian lớn hơn) */}
-                <div className="md:col-span-2 space-y-4">
-                  <h4 className="text-lg font-bold text-blue-900 flex items-center gap-2">
-                    <FileText size={20} className="text-blue-500" />
-                    Nội dung chi tiết
+            <div className="grid md:grid-cols-2 gap-8">
+              <div className="space-y-4">
+                <h4 className="text-base font-bold text-blue-900 flex items-center gap-2">
+                  <FileText size={18} className="text-blue-500" />
+                  Nội dung chi tiết
+                </h4>
+                <div className="bg-slate-50 p-6 rounded-2xl text-sm text-slate-700 leading-relaxed whitespace-pre-wrap min-h-[150px]">
+                  {selectedTask.description}
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <h4 className="text-base font-bold text-blue-900 flex items-center gap-2">
+                    <Paperclip size={18} className="text-blue-500" />
+                    File đính kèm
                   </h4>
-                  <div className="bg-slate-50 p-6 rounded-2xl text-base text-slate-700 leading-relaxed whitespace-pre-wrap min-h-[200px] border border-slate-100">
-                    {selectedTask.description}
+                  <div className="bg-slate-50 p-6 rounded-2xl min-h-[80px]">
+                    <ExpandableFiles files={selectedTask.files} />
                   </div>
                 </div>
 
-                {/* Cột Phải: File đính kèm & KPI (Gọn gàng) */}
-                <div className="md:col-span-1 space-y-8">
-                  <div className="space-y-4">
-                    <h4 className="text-lg font-bold text-blue-900 flex items-center gap-2">
-                      <Paperclip size={20} className="text-blue-500" />
-                      File đính kèm
-                    </h4>
-                    <div className="bg-slate-50 p-6 rounded-2xl min-h-[100px] border border-slate-100">
-                      <ExpandableFiles files={selectedTask.files} />
+                <div className="space-y-4">
+                  <h4 className="text-base font-bold text-blue-900 flex items-center gap-2">
+                    <AlertCircle size={18} className="text-blue-500" />
+                    Ghi chú & KPI
+                  </h4>
+                  <div className="bg-slate-50 p-6 rounded-2xl space-y-4">
+                    <div>
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">KPI Points</span>
+                      <p className="text-lg font-bold text-blue-900">{KPI_CONFIG[selectedTask.kpiLevel].points} điểm</p>
                     </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <h4 className="text-lg font-bold text-blue-900 flex items-center gap-2">
-                      <AlertCircle size={20} className="text-blue-500" />
-                      Ghi chú & KPI
-                    </h4>
-                    <div className="bg-slate-50 p-6 rounded-2xl space-y-5 border border-slate-100">
-                      <div>
-                        <span className="text-sm font-bold text-slate-400 uppercase tracking-wider block mb-1">KPI Points</span>
-                        <p className="text-2xl font-bold text-blue-900">{KPI_CONFIG[selectedTask.kpiLevel].points} điểm</p>
-                      </div>
-                      <div className="pt-4 border-t border-slate-200">
-                        <span className="text-sm font-bold text-slate-400 uppercase tracking-wider block mb-1">Ghi chú</span>
-                        <p className="text-base text-slate-700 italic">{selectedTask.note || 'Không có ghi chú'}</p>
-                      </div>
+                    <div>
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ghi chú</span>
+                      <p className="text-sm text-slate-700 italic">{selectedTask.note || 'Không có ghi chú'}</p>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Footer Modal: Đã bỏ chức năng chuyển tab */}
-            <div className="px-8 py-5 border-t border-slate-100 bg-slate-50 rounded-b-3xl flex justify-end items-center gap-4 mt-auto">
-              <button 
-                onClick={handleCloseModal} 
-                className="px-6 py-3 rounded-xl font-bold bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors"
-              >
-                Đóng
-              </button>
-              
+           {/* THÊM MỚI: Nút Chỉnh Sửa và Nút Xóa từ màn hình Tìm Kiếm */}
+            <div className="pt-6 border-t border-blue-50 flex justify-end mt-4 gap-4">
               <button 
                 onClick={() => {
-                  handleCloseModal(); // Đóng Modal Xem
-                  // Gọi tín hiệu bật Modal Sửa mà KHÔNG chuyển trang
+                  if (onClearSelection) onClearSelection();
+                  const tabs = document.querySelectorAll('button');
+                  const giaoViecTab = Array.from(tabs).find(btn => btn.textContent?.includes('Giao việc'));
+                  if (giaoViecTab) giaoViecTab.click();
                   setTimeout(() => {
                     window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: selectedTask }));
-                  }, 50);
+                  }, 150);
                 }}
                 className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 active:scale-95"
               >
-                <Edit size={18} /> Chỉnh sửa
+                <Edit size={18} /> Chỉnh sửa Dự án này
               </button>
-              
               <button 
                 onClick={() => {
                   onDelete(selectedTask.id);
-                  handleCloseModal();
                 }}
                 className="bg-red-500 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-red-600 transition-colors shadow-lg shadow-red-200 active:scale-95"
                 title="Xóa dự án này"
@@ -1300,6 +1277,7 @@ function SearchSection({ tasks, selectedId, onClearSelection, onDelete }: {
                 <Trash2 size={18} /> Xóa
               </button>
             </div>
+
           </div>
         </div>
       )}
