@@ -146,14 +146,6 @@ export default function App() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   
-  // BẬT TẮT BẢNG XEM CHI TIẾT TOÀN CẦU
-  const [globalViewTask, setGlobalViewTask] = useState<Task | null>(null);
-  useEffect(() => {
-    const listener = (e: any) => setGlobalViewTask(e.detail);
-    window.addEventListener('TRIGGER_VIEW', listener);
-    return () => window.removeEventListener('TRIGGER_VIEW', listener);
-  }, []);
-  
   // BIẾN LƯU % TẢI FILE & XÓA THÔNG MINH
   const [uploadProgress, setUploadProgress] = useState<{ current: number, total: number, percentage: number } | null>(null);
   const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
@@ -365,6 +357,13 @@ export default function App() {
     return () => window.removeEventListener('TRIGGER_EDIT', listener);
   }, []);
   const [timelineActionTask, setTimelineActionTask] = useState<Task | null>(null);
+  // BẬT TẮT BẢNG XEM CHI TIẾT TOÀN CẦU
+  const [globalViewTask, setGlobalViewTask] = useState<Task | null>(null);
+  useEffect(() => {
+    const listener = (e: any) => setGlobalViewTask(e.detail);
+    window.addEventListener('TRIGGER_VIEW', listener);
+    return () => window.removeEventListener('TRIGGER_VIEW', listener);
+  }, []);
 
   return (
     <div className="flex h-screen bg-[#f0f7ff] text-slate-800 font-sans overflow-hidden">
@@ -413,8 +412,7 @@ export default function App() {
             <div className="flex flex-col gap-3">
               <button 
                 onClick={() => {
-                  setSelectedTaskId(timelineActionTask.id);
-                  setActiveSection('search');
+                  window.dispatchEvent(new CustomEvent('TRIGGER_VIEW', { detail: timelineActionTask }));
                   setTimelineActionTask(null);
                 }} 
                 className="w-full bg-emerald-500 text-white font-bold py-3 rounded-xl hover:bg-emerald-600 shadow-lg shadow-emerald-200 transition-colors flex justify-center items-center gap-2"
@@ -423,7 +421,7 @@ export default function App() {
               </button>
               <button 
   onClick={() => {
-    window.dispatchEvent(new CustomEvent('TRIGGER_VIEW', { detail: task }));
+    window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: timelineActionTask }));
     setTimelineActionTask(null);
   }}
   className="flex-1 bg-blue-600 text-white p-3 rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-sm"
@@ -552,7 +550,10 @@ export default function App() {
         <div className="max-w-6xl mx-auto">
           {activeSection === 'giao-viec' && <GiaoViec tasks={tasks} onAdd={addTask} onDelete={deleteTask} onUpdate={updateTask} showToast={showToast} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'cong-viec-hang-ngay' && <CongViecHangNgay tasks={tasks} onUpdate={updateTask} onDoubleClickTask={setDoubleClickTask} />}
-          {activeSection === 'timeline' && <TimelineCongViec tasks={tasks} onSelectTask={(id) => { setSelectedTaskId(id); setActiveSection('search'); }} onDoubleClickTask={setTimelineActionTask} />}
+          {activeSection === 'timeline' && <TimelineCongViec tasks={tasks} onSelectTask={(id) => {
+            const taskToView = tasks.find(t => t.id === id);
+            if (taskToView) window.dispatchEvent(new CustomEvent('TRIGGER_VIEW', { detail: taskToView }));
+          }} onDoubleClickTask={setTimelineActionTask} />}
           {activeSection === 'danh-gia' && <DanhGiaCongViec tasks={tasks} />}
           {activeSection === 'search' && <SearchSection tasks={tasks} selectedId={selectedTaskId} onClearSelection={() => setSelectedTaskId(null)} onDelete={deleteTask} />}
         </div>
@@ -566,15 +567,14 @@ export default function App() {
           showToast={showToast} 
         />
       )}
-
-      {/* KHUNG XEM CHI TIẾT TOÀN CẦU */}
-      {globalViewTask && (
-        <GlobalViewModal 
-          task={globalViewTask} 
-          onClose={() => setGlobalViewTask(null)}
-          onDelete={deleteTask}
-        />
-      )}
+        {/* KHUNG XEM CHI TIẾT TOÀN CẦU SẼ HIỆN LÊN Ở ĐÂY */}
+{globalViewTask && (
+  <GlobalViewModal 
+    task={globalViewTask} 
+    onClose={() => setGlobalViewTask(null)}
+    onDelete={deleteTask}
+  />
+)}
       </main>
     </div>
   );
