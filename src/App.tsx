@@ -146,6 +146,14 @@ export default function App() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   
+  // BẬT TẮT BẢNG XEM CHI TIẾT TOÀN CẦU
+  const [globalViewTask, setGlobalViewTask] = useState<Task | null>(null);
+  useEffect(() => {
+    const listener = (e: any) => setGlobalViewTask(e.detail);
+    window.addEventListener('TRIGGER_VIEW', listener);
+    return () => window.removeEventListener('TRIGGER_VIEW', listener);
+  }, []);
+  
   // BIẾN LƯU % TẢI FILE & XÓA THÔNG MINH
   const [uploadProgress, setUploadProgress] = useState<{ current: number, total: number, percentage: number } | null>(null);
   const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
@@ -415,7 +423,7 @@ export default function App() {
               </button>
               <button 
   onClick={() => {
-    window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: timelineActionTask }));
+    window.dispatchEvent(new CustomEvent('TRIGGER_VIEW', { detail: task }));
     setTimelineActionTask(null);
   }}
   className="flex-1 bg-blue-600 text-white p-3 rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-sm"
@@ -557,6 +565,14 @@ export default function App() {
           onDelete={deleteTask} 
           showToast={showToast} 
         />
+  {/* KHUNG XEM CHI TIẾT TOÀN CẦU */}
+      {globalViewTask && (
+        <GlobalViewModal 
+          task={globalViewTask} 
+          onClose={() => setGlobalViewTask(null)}
+          onDelete={deleteTask}
+        />
+      )}
       )}
       </main>
     </div>
