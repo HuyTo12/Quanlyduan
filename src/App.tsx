@@ -565,14 +565,15 @@ export default function App() {
           onDelete={deleteTask} 
           showToast={showToast} 
         />
-  {/* KHUNG XEM CHI TIẾT TOÀN CẦU */}
+      )}
+
+      {/* KHUNG XEM CHI TIẾT TOÀN CẦU */}
       {globalViewTask && (
         <GlobalViewModal 
           task={globalViewTask} 
           onClose={() => setGlobalViewTask(null)}
           onDelete={deleteTask}
         />
-      )}
       )}
       </main>
     </div>
