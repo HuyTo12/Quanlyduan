@@ -1788,3 +1788,102 @@ function GlobalEditModal({ task, onClose, onUpdate, onDelete, showToast }: {
     </div>
   );
 }
+// --- BẢNG XEM CHI TIẾT TOÀN CẦU (GLOBAL VIEW MODAL) ---
+function GlobalViewModal({ task, onClose, onDelete }: { 
+  task: Task, 
+  onClose: () => void,
+  onDelete: (id: string) => void
+}) {
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={onClose}></div>
+      
+      <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl relative z-10 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+        <div className="p-8 overflow-y-auto">
+           {/* Header */}
+           <div className="flex justify-between items-start border-b border-blue-50 pb-6 mb-8">
+              <div>
+                <h3 className="text-2xl font-bold text-blue-900 mb-2">{task.project}</h3>
+                <p className="text-sm text-slate-500 flex items-center gap-2">
+                  <Clock size={16} />
+                  Deadline: {format(parseISO(task.deadline), 'dd/MM/yyyy')}
+                </p>
+              </div>
+              <span className="px-4 py-2 rounded-full text-white text-sm font-bold shadow-sm" style={{ backgroundColor: KPI_CONFIG[task.kpiLevel].color }}>
+                {KPI_CONFIG[task.kpiLevel].label}
+              </span>
+            </div>
+
+            {/* Nội dung */}
+            <div className="grid md:grid-cols-2 gap-8">
+              <div className="space-y-4">
+                <h4 className="text-base font-bold text-blue-900 flex items-center gap-2">
+                  <FileText size={18} className="text-blue-500" />
+                  Nội dung chi tiết
+                </h4>
+                <div className="bg-slate-50 p-6 rounded-2xl text-sm text-slate-700 leading-relaxed whitespace-pre-wrap min-h-[150px]">
+                  {task.description}
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <h4 className="text-base font-bold text-blue-900 flex items-center gap-2">
+                    <Paperclip size={18} className="text-blue-500" />
+                    File đính kèm
+                  </h4>
+                  <div className="bg-slate-50 p-6 rounded-2xl min-h-[80px]">
+                    <ExpandableFiles files={task.files} />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="text-base font-bold text-blue-900 flex items-center gap-2">
+                    <AlertCircle size={18} className="text-blue-500" />
+                    Ghi chú & KPI
+                  </h4>
+                  <div className="bg-slate-50 p-6 rounded-2xl space-y-4">
+                    <div>
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">KPI Points</span>
+                      <p className="text-lg font-bold text-blue-900">{KPI_CONFIG[task.kpiLevel].points} điểm</p>
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ghi chú</span>
+                      <p className="text-sm text-slate-700 italic">{task.note || 'Không có ghi chú'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Các nút chức năng */}
+            <div className="pt-6 border-t border-blue-50 flex mt-8 gap-4">
+              <button onClick={onClose} className="px-6 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-all mr-auto">
+                Đóng
+              </button>
+              
+              <button 
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: task }));
+                  onClose();
+                }}
+                className="bg-blue-100 text-blue-700 px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-200 transition-colors shadow-sm active:scale-95"
+              >
+                <Edit size={18} /> Chỉnh sửa
+              </button>
+              
+              <button 
+                onClick={() => {
+                  onDelete(task.id);
+                  onClose();
+                }}
+                className="bg-red-500 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-red-600 transition-colors shadow-lg shadow-red-200 active:scale-95"
+              >
+                <Trash2 size={18} /> Xóa
+              </button>
+            </div>
+        </div>
+      </div>
+    </div>
+  );
+}
