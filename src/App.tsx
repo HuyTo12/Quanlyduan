@@ -1130,14 +1130,7 @@ function SearchSection({ tasks, selectedId, onClearSelection, onDelete }: {
                 </span>
               </div>
             </div>
-              <span 
-                className="px-4 py-2 rounded-full text-white text-sm font-bold shadow-sm"
-                style={{ backgroundColor: KPI_CONFIG[selectedTask.kpiLevel].color }}
-              >
-                {KPI_CONFIG[selectedTask.kpiLevel].label}
-              </span>
-            </div>
-
+              
             <div className="grid md:grid-cols-2 gap-8">
               <div className="space-y-4">
                 <h4 className="text-base font-bold text-blue-900 flex items-center gap-2">
