@@ -1302,7 +1302,14 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
     return tasks
       .filter(task => {
         const deadlineDate = startOfDay(parseISO(task.deadline));
-        return deadlineDate >= viewStart && deadlineDate <= viewEnd;
+        const isUnfinished = task.status !== 'COMPLETED';
+        const isOverdue = isBefore(deadlineDate, today);
+        
+        // Kiểm tra xem cột ngày "Hôm nay" có đang xuất hiện trong khung giao diện lịch đang xem không
+        const isTodayInView = timelineData.some(item => today >= item.start && today <= item.end);
+
+        // ĐIỀU KIỆN HIỂN THỊ: Nằm trong khung ngày lịch gốc HOẶC (Quá hạn nhiều ngày/tháng/năm + Chưa hoàn thành + Lịch đang hiển thị ngày hôm nay)
+        return (deadlineDate >= viewStart && deadlineDate <= viewEnd) || (isUnfinished && isOverdue && isTodayInView);
       })
       .sort((a, b) => {
         const aDeadline = startOfDay(parseISO(a.deadline));
@@ -1455,29 +1462,49 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                           isTaskInItem = isTodayInItemCol;
                         } else {
                           // BÌNH THƯỜNG: Hiện ở lịch gốc + cộng thêm cột hôm nay nếu đang làm
-                          const isTaskInOriginalItem = task.workingDays.some(day => {
-                            const d = parseISO(day);
-                            return d >= item.start && d <= item.end;
-                          });
-                          isTaskInItem = isTaskInOriginalItem || (isTodayInItemCol && isNotWeekend && isUnfinished);
+                          // 1. Kiểm tra ngày hiển thị gốc trên lịch
+                        const isTaskInOriginalItem = task.workingDays.some(day => {
+                          const d = parseISO(day);
+                          return d >= item.start && d <= item.end;
+                        });
+
+                        // 2. Nhận diện các dự án quá hạn chưa hoàn thành
+                        const todayStart = startOfDay(new Date());
+                        const isTodayColumn = todayStart >= item.start && todayStart <= item.end;
+                        const deadlineDate = startOfDay(parseISO(task.deadline));
+                        const isUnfinished = task.status !== 'COMPLETED';
+                        const isOverdue = isBefore(deadlineDate, todayStart);
+
+                        let isTaskInItem = false;
+                        if (isUnfinished && isOverdue) {
+                          // ÉP CẢ CỤM XUẤT HIỆN: Chỉ kích hoạt bắt đầu vẽ ngay tại vị trí cột của ngày "Hôm nay"
+                          isTaskInItem = isTodayColumn;
+                        } else {
+                          isTaskInItem = isTaskInOriginalItem;
                         }
 
                         if (isTaskInItem) {
                           let colSpan = 1;
-                          for (let j = i + 1; j < timelineData.length; j++) {
-                            const nextItem = timelineData[j];
-                            const isTaskInNextItem = task.workingDays.some(day => {
-                              const d = parseISO(day);
-                              return d >= nextItem.start && d <= nextItem.end;
-                            });
-                            if (isTaskInNextItem) {
-                              colSpan++;
-                            } else {
-                              break;
+                          
+                          if (isUnfinished && isOverdue) {
+                            // GIỮ NGUYÊN KÍCH THƯỚC: Lấy chính xác tổng số ngày làm việc gốc (độ dài theo KPI) để gộp cột
+                            // Giới hạn colSpan không vượt quá chiều rộng còn lại của bảng hiển thị để tránh lỗi vỡ layout
+                            colSpan = Math.min(task.workingDays.length, timelineData.length - i);
+                          } else {
+                            // Logic tính độ dài tự nhiên của các dự án nằm trong hạn bình thường
+                            for (let j = i + 1; j < timelineData.length; j++) {
+                              const nextItem = timelineData[j];
+                              const isTaskInNextItem = task.workingDays.some(day => {
+                                const d = parseISO(day);
+                                return d >= nextItem.start && d <= nextItem.end;
+                              });
+                              if (isTaskInNextItem) {
+                                colSpan++;
+                              } else {
+                                break;
+                              }
                             }
                           }
-                          
-                          skipCount = colSpan - 1;
                           
                           cells.push(
                             <td key={i} colSpan={colSpan} className={cn(
