@@ -1106,6 +1106,30 @@ function SearchSection({ tasks, selectedId, onClearSelection, onDelete }: {
                   Deadline: {format(parseISO(selectedTask.deadline), 'dd/MM/yyyy')}
                 </p>
               </div>
+              
+              {/* Bổ sung hiển thị Tiến độ song song với nhãn KPI */}
+              <div className="flex gap-2">
+                <span className={cn(
+                  "px-4 py-2 rounded-full text-slate-800 text-sm font-bold shadow-sm border border-slate-200",
+                  selectedTask.status === 'INFO' ? 'bg-gradient-to-t from-yellow-100 to-white' :
+                  selectedTask.status === 'IN_PROGRESS' ? 'bg-gradient-to-t from-orange-100 to-white' :
+                  selectedTask.status === 'REVIEW' ? 'bg-gradient-to-t from-purple-100 to-white' :
+                  selectedTask.status === 'COMPLETED' ? 'bg-gradient-to-t from-green-100 to-white opacity-70' : 'bg-white'
+                )}>
+                  {selectedTask.status === 'INFO' ? 'Tìm thông tin' :
+                   selectedTask.status === 'IN_PROGRESS' ? 'Đang thực hiện' :
+                   selectedTask.status === 'REVIEW' ? 'Chờ xác nhận' :
+                   selectedTask.status === 'COMPLETED' ? 'Hoàn thành' : 'Dự án mới'}
+                </span>
+                
+                <span 
+                  className="px-4 py-2 rounded-full text-white text-sm font-bold shadow-sm"
+                  style={{ backgroundColor: KPI_CONFIG[selectedTask.kpiLevel].color }}
+                >
+                  {KPI_CONFIG[selectedTask.kpiLevel].label}
+                </span>
+              </div>
+            </div>
               <span 
                 className="px-4 py-2 rounded-full text-white text-sm font-bold shadow-sm"
                 style={{ backgroundColor: KPI_CONFIG[selectedTask.kpiLevel].color }}
@@ -1823,6 +1847,18 @@ function GlobalViewModal({ task, onClose, onDelete }: {
   onClose: () => void,
   onDelete: (id: string) => void
 }) {
+  // Cấu hình màu sắc hiển thị 5 mức độ tiến độ an toàn
+  const STATUS_CONFIG = {
+    'NEW': { label: 'Dự án mới', gradient: 'bg-white' },
+    'INFO': { label: 'Tìm thông tin', gradient: 'bg-gradient-to-t from-yellow-100 to-white' },
+    'IN_PROGRESS': { label: 'Đang thực hiện', gradient: 'bg-gradient-to-t from-orange-100 to-white' },
+    'REVIEW': { label: 'Chờ xác nhận', gradient: 'bg-gradient-to-t from-purple-100 to-white' },
+    'COMPLETED': { label: 'Hoàn thành', gradient: 'bg-gradient-to-t from-green-100 to-white opacity-70' }
+  };
+
+  const currentStatus = task.status || 'NEW';
+  const statusInfo = STATUS_CONFIG[currentStatus] || STATUS_CONFIG['NEW'];
+
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={onClose}></div>
@@ -1838,9 +1874,10 @@ function GlobalViewModal({ task, onClose, onDelete }: {
                   Deadline: {format(parseISO(task.deadline), 'dd/MM/yyyy')}
                 </p>
               </div>
+              {/* Đã sửa lỗi trùng thuộc tính className gây sập giao diện */}
               <div className="flex gap-2">
-                <span className="px-4 py-2 rounded-full text-slate-800 text-sm font-bold shadow-sm border border-slate-200" style={{ backgroundImage: STATUS_CONFIG[task.status || TaskStatus.NEW]?.gradient ? 'none' : undefined }} className={cn("px-4 py-2 rounded-full text-slate-800 text-sm font-bold shadow-sm border border-slate-200", STATUS_CONFIG[task.status || TaskStatus.NEW]?.gradient)}>
-                  {STATUS_CONFIG[task.status || TaskStatus.NEW]?.label}
+                <span className={cn("px-4 py-2 rounded-full text-slate-800 text-sm font-bold shadow-sm border border-slate-200", statusInfo.gradient)}>
+                  {statusInfo.label}
                 </span>
                 <span className="px-4 py-2 rounded-full text-white text-sm font-bold shadow-sm" style={{ backgroundColor: KPI_CONFIG[task.kpiLevel].color }}>
                   {KPI_CONFIG[task.kpiLevel].label}
