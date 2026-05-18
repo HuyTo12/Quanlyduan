@@ -850,7 +850,19 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
     const today = startOfDay(new Date());
     return tasks
       .filter(task => {
-        return task.workingDays.some(day => isSameDay(parseISO(day), selectedDate));
+        // 1. Công việc có lịch làm việc đúng vào ngày đang chọn trên lịch
+        const isScheduledForSelectedDate = task.workingDays.some(day => isSameDay(parseISO(day), selectedDate));
+        
+        // 2. Dồn việc CHƯA XONG về ngày "Hôm nay" (trừ Thứ 7, CN)
+        const isToday = isSameDay(selectedDate, today);
+        const isNotWeekend = !isWeekend(today);
+        const isUnfinished = task.status !== TaskStatus.COMPLETED;
+        // Đảm bảo dự án đã đến ngày bắt đầu hoặc trễ hạn mới hiện lên
+        const hasStarted = task.startDate && isBefore(startOfDay(parseISO(task.startDate)), addDays(today, 1));
+        
+        const isRollover = isToday && isNotWeekend && isUnfinished && hasStarted;
+
+        return isScheduledForSelectedDate || isRollover;
       })
       .sort((a, b) => {
         const aDeadline = startOfDay(parseISO(a.deadline));
@@ -936,24 +948,20 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
                   const daysToDeadline = differenceInDays(deadlineDate, todayDate);
                   const isCompleted = task.status === TaskStatus.COMPLETED;
                   
-                  let isCurrentRed = false;
-                  // Chỉ cảnh báo khi còn 1 ngày hoặc đúng ngày deadline
-                  if (!isPastDeadline && daysToDeadline <= 1 && daysToDeadline >= 0 && (task.kpiLevel === KPILevel.LEVEL_4 || task.kpiLevel === KPILevel.LEVEL_5)) {
-                    isCurrentRed = true;
+                  // 1. TÔ MÀU NỀN 5 MỨC ĐỘ TỪ DƯỚI LÊN (bg-gradient-to-t)
+                  let gradientClass = "bg-white"; // Dự án mới
+                  if (task.status === TaskStatus.INFO) gradientClass = "bg-gradient-to-t from-yellow-100 to-white";
+                  else if (task.status === TaskStatus.IN_PROGRESS) gradientClass = "bg-gradient-to-t from-orange-100 to-white";
+                  else if (task.status === TaskStatus.REVIEW) gradientClass = "bg-gradient-to-t from-purple-100 to-white";
+                  else if (task.status === TaskStatus.COMPLETED) gradientClass = "bg-gradient-to-t from-green-100 to-white opacity-70";
+
+                  // 2. KHUNG VIỀN ĐỎ MỎNG NẾU TRỄ HẠN/SẮP ĐẾN HẠN
+                  let borderClass = "border-b border-slate-100";
+                  if (!isCompleted && (isPastDeadline || (daysToDeadline <= 1 && daysToDeadline >= 0))) {
+                    borderClass = "border border-red-400 shadow-sm relative z-10";
                   }
 
-                  let rowBgClass = index % 2 === 0 ? "bg-blue-50/50" : "bg-white";
-                  
-                  if (isCompleted) {
-                    rowBgClass = "bg-slate-100 text-slate-400";
-                  } else if (isPastDeadline) {
-                    rowBgClass = index % 2 === 0 ? "bg-slate-100 text-slate-500" : "bg-slate-50 text-slate-500";
-                  } 
-                  
-                  // THAY ĐỔI: Dùng nền Gradient chuyển sắc từ nhạt (trên) xuống đậm (dưới)
-                  if (isCurrentRed) {
-                    rowBgClass = "bg-gradient-to-b from-red-50 to-red-200 text-red-900 border-y border-red-300 relative z-10 shadow-sm"; 
-                  }
+                  let rowBgClass = `${gradientClass} ${borderClass}`;
 
                   return (
                     <tr 
@@ -965,16 +973,20 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
                         rowBgClass
                       )}>
                       <td className="p-4 text-sm align-top">
-                        <button 
-                          onClick={() => toggleStatus(task)}
+                        <select
+                          value={task.status || TaskStatus.NEW}
+                          onChange={(e) => onUpdate({ ...task, status: e.target.value as TaskStatus })}
                           className={cn(
-                            "px-3 py-1 rounded-lg text-[10px] font-bold text-white transition-all flex items-center gap-1 min-w-[100px] justify-center",
-                            isCompleted ? "bg-blue-500 hover:bg-blue-600" : "bg-yellow-500 hover:bg-yellow-600"
+                            "p-2 rounded-lg text-xs font-bold border border-slate-200 outline-none cursor-pointer hover:brightness-95 transition-all w-[130px] shadow-sm",
+                            isCompleted ? "bg-green-100 text-green-700" : "bg-white text-slate-700"
                           )}
                         >
-                          {isCompleted ? <CheckCircle2 size={12} /> : <Clock size={12} />}
-                          {isCompleted ? 'Hoàn thành' : 'Đang thực hiện'}
-                        </button>
+                          <option value={TaskStatus.NEW}>Dự án mới</option>
+                          <option value={TaskStatus.INFO}>Tìm thông tin</option>
+                          <option value={TaskStatus.IN_PROGRESS}>Đang thực hiện</option>
+                          <option value={TaskStatus.REVIEW}>Chờ xác nhận</option>
+                          <option value={TaskStatus.COMPLETED}>Hoàn thành</option>
+                        </select>
                       </td>
                       <td className="p-4 text-sm font-medium">{index + 1}</td>
                       <td className="p-4 text-sm align-top">
@@ -1826,9 +1838,14 @@ function GlobalViewModal({ task, onClose, onDelete }: {
                   Deadline: {format(parseISO(task.deadline), 'dd/MM/yyyy')}
                 </p>
               </div>
-              <span className="px-4 py-2 rounded-full text-white text-sm font-bold shadow-sm" style={{ backgroundColor: KPI_CONFIG[task.kpiLevel].color }}>
-                {KPI_CONFIG[task.kpiLevel].label}
-              </span>
+              <div className="flex gap-2">
+                <span className="px-4 py-2 rounded-full text-slate-800 text-sm font-bold shadow-sm border border-slate-200" style={{ backgroundImage: STATUS_CONFIG[task.status || TaskStatus.NEW]?.gradient ? 'none' : undefined }} className={cn("px-4 py-2 rounded-full text-slate-800 text-sm font-bold shadow-sm border border-slate-200", STATUS_CONFIG[task.status || TaskStatus.NEW]?.gradient)}>
+                  {STATUS_CONFIG[task.status || TaskStatus.NEW]?.label}
+                </span>
+                <span className="px-4 py-2 rounded-full text-white text-sm font-bold shadow-sm" style={{ backgroundColor: KPI_CONFIG[task.kpiLevel].color }}>
+                  {KPI_CONFIG[task.kpiLevel].label}
+                </span>
+              </div>
             </div>
 
             {/* Nội dung */}
