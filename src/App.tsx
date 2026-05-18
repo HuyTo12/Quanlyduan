@@ -1506,6 +1506,8 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                             }
                           }
                           
+                          skipCount = colSpan - 1;
+                          
                           cells.push(
                             <td key={i} colSpan={colSpan} className={cn(
                               "p-0 border-r border-slate-100 relative",
