@@ -1445,24 +1445,8 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                         }
                         
                         const item = timelineData[i];
-                        const taskStart = parseISO(task.startDate);
-                        const taskEnd = parseISO(task.deadline);
                         
-                        // THUẬT TOÁN ĐỊNH VỊ CÔNG VIỆC TRÊN TIMELINE
-                        const todayStart = startOfDay(new Date());
-                        const isNotWeekend = !isWeekend(todayStart);
-                        const isUnfinished = task.status !== 'COMPLETED';
-                        const isPast = isBefore(startOfDay(parseISO(task.deadline)), todayStart);
-                        const isTodayInItemCol = todayStart >= item.start && todayStart <= item.end;
-
-                        let isTaskInItem = false;
-
-                        if (isUnfinished && isPast && isNotWeekend) {
-                          // DỰ ÁN QUÁ HẠN & CHƯA XONG: Di chuyển hoàn toàn cả cụm về cột "Hôm nay"
-                          isTaskInItem = isTodayInItemCol;
-                        } else {
-                          // BÌNH THƯỜNG: Hiện ở lịch gốc + cộng thêm cột hôm nay nếu đang làm
-                          // 1. Kiểm tra ngày hiển thị gốc trên lịch
+                        // 1. Kiểm tra ngày hiển thị gốc trên lịch
                         const isTaskInOriginalItem = task.workingDays.some(day => {
                           const d = parseISO(day);
                           return d >= item.start && d <= item.end;
@@ -1477,7 +1461,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
 
                         let isTaskInItem = false;
                         if (isUnfinished && isOverdue) {
-                          // ÉP CẢ CỤM XUẤT HIỆN: Chỉ kích hoạt bắt đầu vẽ ngay tại vị trí cột của ngày "Hôm nay"
+                          // ÉP CẢ CỤM XUẤT HIỆN: Chỉ kích hoạt bắt đầu vẽ ngay tại vị trí cột "Hôm nay"
                           isTaskInItem = isTodayColumn;
                         } else {
                           isTaskInItem = isTaskInOriginalItem;
@@ -1487,11 +1471,10 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                           let colSpan = 1;
                           
                           if (isUnfinished && isOverdue) {
-                            // GIỮ NGUYÊN KÍCH THƯỚC: Lấy chính xác tổng số ngày làm việc gốc (độ dài theo KPI) để gộp cột
-                            // Giới hạn colSpan không vượt quá chiều rộng còn lại của bảng hiển thị để tránh lỗi vỡ layout
+                            // GIỮ NGUYÊN KÍCH THƯỚC: Lấy tổng số ngày làm việc gốc giới hạn trong khung hình
                             colSpan = Math.min(task.workingDays.length, timelineData.length - i);
                           } else {
-                            // Logic tính độ dài tự nhiên của các dự án nằm trong hạn bình thường
+                            // Tính độ dài tự nhiên
                             for (let j = i + 1; j < timelineData.length; j++) {
                               const nextItem = timelineData[j];
                               const isTaskInNextItem = task.workingDays.some(day => {
@@ -1528,7 +1511,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                                   <span className="shrink-0 z-10 px-2">{format(deadlineDate, 'dd/MM')}</span>
                                 )}
 
-                                {/* THANH TIẾN ĐỘ NHỎ DƯỚI ĐÁY (Chỉ hiện khi CHƯA Hoàn thành) */}
+                                {/* THANH TIẾN ĐỘ NHỎ DƯỚI ĐÁY */}
                                 {task.status !== 'COMPLETED' && (
                                   <div className="absolute bottom-0 left-0 w-full h-1.5 bg-slate-200/50 flex">
                                     <div className={cn(
@@ -1544,6 +1527,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                             </td>
                           );
                         } else {
+                          // Nếu không có việc ở cột này thì in ra ô trống
                           cells.push(
                             <td key={i} className={cn(
                               "p-2 border-r border-slate-100 relative pointer-events-none",
