@@ -17,9 +17,20 @@ export const KPI_CONFIG = {
 };
 
 export enum TaskStatus {
-  IN_PROGRESS = 'in-progress',
-  COMPLETED = 'completed',
+  NEW = 'NEW',
+  INFO = 'INFO',
+  IN_PROGRESS = 'IN_PROGRESS',
+  REVIEW = 'REVIEW',
+  COMPLETED = 'COMPLETED'
 }
+
+export const STATUS_CONFIG = {
+  [TaskStatus.NEW]: { label: 'Dự án mới', gradient: 'bg-white' },
+  [TaskStatus.INFO]: { label: 'Tìm thông tin', gradient: 'bg-gradient-to-t from-yellow-200 to-white' },
+  [TaskStatus.IN_PROGRESS]: { label: 'Đang thực hiện', gradient: 'bg-gradient-to-t from-orange-300 to-white' },
+  [TaskStatus.REVIEW]: { label: 'Chờ xác nhận', gradient: 'bg-gradient-to-t from-purple-300 to-white' },
+  [TaskStatus.COMPLETED]: { label: 'Hoàn thành', gradient: 'bg-gradient-to-t from-green-300 to-white' }
+};
 
 export interface Task {
   id: string;
