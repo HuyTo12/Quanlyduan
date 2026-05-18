@@ -1437,6 +1437,8 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                     {(() => {
                       const cells = [];
                       let skipCount = 0;
+                      // Tìm vị trí cột của ngày "Hôm nay" trong danh sách lịch hiển thị
+                      const todayIndex = timelineData.findIndex(item => item.isCurrent);
                       
                       for (let i = 0; i < timelineData.length; i++) {
                         if (skipCount > 0) {
@@ -1454,15 +1456,16 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
 
                         // 2. Nhận diện các dự án quá hạn chưa hoàn thành
                         const todayStart = startOfDay(new Date());
-                        const isTodayColumn = todayStart >= item.start && todayStart <= item.end;
                         const deadlineDate = startOfDay(parseISO(task.deadline));
                         const isUnfinished = task.status !== 'COMPLETED';
                         const isOverdue = isBefore(deadlineDate, todayStart);
 
                         let isTaskInItem = false;
                         if (isUnfinished && isOverdue) {
-                          // ÉP CẢ CỤM XUẤT HIỆN: Chỉ kích hoạt bắt đầu vẽ ngay tại vị trí cột "Hôm nay"
-                          isTaskInItem = isTodayColumn;
+                          // THUẬT TOÁN ĐẨY SÁT BÊN PHẢI: Tính toán vị trí bắt đầu sao cho cụm ngày làm việc kết thúc đúng cột "Hôm nay"
+                          const taskLength = task.workingDays.length;
+                          const overdueStartIndex = todayIndex !== -1 ? todayIndex - taskLength + 1 : -1;
+                          isTaskInItem = (i === Math.max(0, overdueStartIndex));
                         } else {
                           isTaskInItem = isTaskInOriginalItem;
                         }
@@ -1471,10 +1474,10 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                           let colSpan = 1;
                           
                           if (isUnfinished && isOverdue) {
-                            // GIỮ NGUYÊN KÍCH THƯỚC: Lấy tổng số ngày làm việc gốc giới hạn trong khung hình
-                            colSpan = Math.min(task.workingDays.length, timelineData.length - i);
+                            // Giữ nguyên vẹn kích thước và số lượng ngày làm việc gốc dựa theo mức KPI
+                            colSpan = todayIndex !== -1 ? (todayIndex - i + 1) : task.workingDays.length;
                           } else {
-                            // Tính độ dài tự nhiên
+                            // Tính độ dài tự nhiên đối với các dự án trong hạn
                             for (let j = i + 1; j < timelineData.length; j++) {
                               const nextItem = timelineData[j];
                               const isTaskInNextItem = task.workingDays.some(day => {
@@ -1511,23 +1514,25 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                                   <span className="shrink-0 z-10 px-2">{format(deadlineDate, 'dd/MM')}</span>
                                 )}
 
-                                {/* THANH TIẾN ĐỘ NHỎ DƯỚI ĐÁY */}
-                                {task.status !== 'COMPLETED' && (
-                                  <div className="absolute bottom-0 left-0 w-full h-1.5 bg-slate-200/50 flex">
-                                    <div className={cn(
-                                      "h-full transition-all duration-300",
-                                      task.status === 'INFO' ? "w-[40%] bg-yellow-300" :
-                                      task.status === 'IN_PROGRESS' ? "w-[60%] bg-orange-500" :
-                                      task.status === 'REVIEW' ? "w-[80%] bg-purple-500" :
-                                      "w-0 bg-transparent"
-                                    )}></div>
-                                  </div>
-                                )}
+                                {/* THANH TIẾN ĐỘ NHỎ DƯỚI ĐÁY: Chia đều 4 phần & tự động làm đậm màu (brightness) */}
+                                <div className="absolute bottom-0 left-0 w-full h-1.5 bg-slate-200/40 flex">
+                                  <div 
+                                    className="h-full transition-all duration-300"
+                                    style={{ 
+                                      width: task.status === 'NEW' ? '100%' :
+                                             task.status === 'INFO' ? '25%' :
+                                             task.status === 'IN_PROGRESS' ? '50%' :
+                                             task.status === 'REVIEW' ? '75%' :
+                                             task.status === 'COMPLETED' ? '100%' : '0%',
+                                      backgroundColor: task.status === 'NEW' ? '#94a3b8' : KPI_CONFIG[task.kpiLevel].color,
+                                      filter: task.status === 'NEW' ? 'none' : 'brightness(0.70)' // Làm màu đậm và sắc nét hơn màu nền gốc 30%
+                                    }}
+                                  ></div>
+                                </div>
                               </div>
                             </td>
                           );
                         } else {
-                          // Nếu không có việc ở cột này thì in ra ô trống
                           cells.push(
                             <td key={i} className={cn(
                               "p-2 border-r border-slate-100 relative pointer-events-none",
