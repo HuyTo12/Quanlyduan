@@ -1409,13 +1409,12 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
             </thead>
             <tbody>
               {sortedTasks.map((task, index) => {
-                const todayStart = startOfDay(new Date());
-                const taskDeadline = startOfDay(parseISO(task.deadline));
-                const taskStart = startOfDay(parseISO(task.startDate));
+                const today = startOfDay(new Date());
+                const deadlineDate = startOfDay(parseISO(task.deadline));
                 const isCompleted = task.status === 'COMPLETED';
-                
-                // CẬP NHẬT: Chỉ có dự án HOÀN THÀNH mới bị xám màu. Quá hạn chưa xong vẫn giữ màu KPI!
-                const isInactive = isCompleted; 
+                const isPastDeadline = isBefore(deadlineDate, today);
+                // CHỈ những dự án đã HOÀN THÀNH mới bị đổi thành màu xám. Quá hạn vẫn giữ nguyên màu KPI.
+                const isInactive = isCompleted;
                 
                 return (
                   <tr key={task.id} className={cn(
@@ -1431,7 +1430,6 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                     {(() => {
                       const cells = [];
                       let skipCount = 0;
-                      const isUnfinished = task.status !== 'COMPLETED';
                       
                       for (let i = 0; i < timelineData.length; i++) {
                         if (skipCount > 0) {
@@ -1440,33 +1438,39 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                         }
                         
                         const item = timelineData[i];
+                        const taskStart = parseISO(task.startDate);
+                        const taskEnd = parseISO(task.deadline);
                         
-                        // THUẬT TOÁN MỚI: Kiểm tra ô này có được vẽ thanh màu hay không?
-                        const checkTaskInItem = (colItem: any) => {
-                          // 1. Nếu nằm trong ngày làm việc gốc (WorkingDays)
-                          const inOriginal = task.workingDays.some(day => {
+                        // THUẬT TOÁN ĐỊNH VỊ CÔNG VIỆC TRÊN TIMELINE
+                        const todayStart = startOfDay(new Date());
+                        const isNotWeekend = !isWeekend(todayStart);
+                        const isUnfinished = task.status !== 'COMPLETED';
+                        const isPast = isBefore(startOfDay(parseISO(task.deadline)), todayStart);
+                        const isTodayInItemCol = todayStart >= item.start && todayStart <= item.end;
+
+                        let isTaskInItem = false;
+
+                        if (isUnfinished && isPast && isNotWeekend) {
+                          // DỰ ÁN QUÁ HẠN & CHƯA XONG: Di chuyển hoàn toàn cả cụm về cột "Hôm nay"
+                          isTaskInItem = isTodayInItemCol;
+                        } else {
+                          // BÌNH THƯỜNG: Hiện ở lịch gốc + cộng thêm cột hôm nay nếu đang làm
+                          const isTaskInOriginalItem = task.workingDays.some(day => {
                             const d = parseISO(day);
-                            return d >= colItem.start && d <= colItem.end;
+                            return d >= item.start && d <= item.end;
                           });
-
-                          // 2. KÉO DÀI LIỀN MẠCH: Nếu trễ hạn chưa xong, phủ màu từ deadline tới tận hôm nay (Kể cả T7, CN)
-                          let inExtension = false;
-                          if (isUnfinished && taskDeadline < todayStart) {
-                            if (colItem.start > taskDeadline && colItem.start <= todayStart) {
-                              inExtension = true;
-                            }
-                          }
-                          return inOriginal || inExtension;
-                        };
-
-                        const isTaskInItem = checkTaskInItem(item);
+                          isTaskInItem = isTaskInOriginalItem || (isTodayInItemCol && isNotWeekend && isUnfinished);
+                        }
 
                         if (isTaskInItem) {
-                          // Tính toán độ dài (colSpan) liền mạch cho dự án
                           let colSpan = 1;
                           for (let j = i + 1; j < timelineData.length; j++) {
                             const nextItem = timelineData[j];
-                            if (checkTaskInItem(nextItem)) {
+                            const isTaskInNextItem = task.workingDays.some(day => {
+                              const d = parseISO(day);
+                              return d >= nextItem.start && d <= nextItem.end;
+                            });
+                            if (isTaskInNextItem) {
                               colSpan++;
                             } else {
                               break;
@@ -1495,7 +1499,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                                   <span className="shrink-0 z-10 px-2">{format(deadlineDate, 'dd/MM')}</span>
                                 )}
 
-                                {/* THANH TIẾN ĐỘ NHỎ DƯỚI ĐÁY - CHỈ HIỆN KHI CHƯA HOÀN THÀNH */}
+                                {/* THANH TIẾN ĐỘ NHỎ DƯỚI ĐÁY (Chỉ hiện khi CHƯA Hoàn thành) */}
                                 {task.status !== 'COMPLETED' && (
                                   <div className="absolute bottom-0 left-0 w-full h-1.5 bg-slate-200/50 flex">
                                     <div className={cn(
@@ -1503,11 +1507,11 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                                       task.status === 'INFO' ? "w-[40%] bg-yellow-300" :
                                       task.status === 'IN_PROGRESS' ? "w-[60%] bg-orange-500" :
                                       task.status === 'REVIEW' ? "w-[80%] bg-purple-500" :
-                                      "w-0 bg-transparent" // Mặc định NEW không có màu
+                                      "w-0 bg-transparent"
                                     )}></div>
                                   </div>
                                 )}
-                                </div>
+                              </div>
                             </td>
                           );
                         } else {
