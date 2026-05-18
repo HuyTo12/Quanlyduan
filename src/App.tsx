@@ -1440,10 +1440,22 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                         const taskStart = parseISO(task.startDate);
                         const taskEnd = parseISO(task.deadline);
                         
-                        const isTaskInItem = task.workingDays.some(day => {
+                        // 1. Kiểm tra ngày lịch gốc
+                        const isTaskInOriginalItem = task.workingDays.some(day => {
                           const d = parseISO(day);
                           return d >= item.start && d <= item.end;
                         });
+
+                        // 2. Dồn việc chưa xong về ngày hôm nay (trừ T7, CN)
+                        const todayStart = startOfDay(new Date());
+                        const isTodayInItemCol = todayStart >= item.start && todayStart <= item.end;
+                        const isNotWeekend = !isWeekend(todayStart);
+                        const isUnfinished = task.status !== 'COMPLETED';
+                        
+                        const isRolledOverToToday = isTodayInItemCol && isNotWeekend && isUnfinished;
+
+                        // Dự án hiện lên nếu đúng lịch HOẶC bị dồn về hôm nay
+                        const isTaskInItem = isTaskInOriginalItem || isRolledOverToToday;
 
                         if (isTaskInItem) {
                           let colSpan = 1;
@@ -1474,13 +1486,25 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                                   e.stopPropagation();
                                   if (onDoubleClickTask) onDoubleClickTask(task);
                                 }}
-                                className="h-10 mx-0 rounded-none flex items-center justify-center text-[10px] text-white font-bold px-2 shadow-sm cursor-pointer hover:opacity-80 transition-opacity overflow-hidden whitespace-nowrap"
+                                className="h-10 mx-0 rounded-none flex flex-col justify-center items-center text-[10px] text-white font-bold shadow-sm cursor-pointer hover:opacity-80 transition-opacity overflow-hidden whitespace-nowrap relative"
                                 style={{ backgroundColor: isInactive ? '#cbd5e1' : KPI_CONFIG[task.kpiLevel].color }}
-                                title={`${task.project} (${format(taskStart, 'dd/MM')} - ${format(taskEnd, 'dd/MM/yyyy')})`}
+                                title={`${task.project} - Tiến độ: ${task.status === 'COMPLETED' ? 'Hoàn thành' : task.status === 'REVIEW' ? 'Chờ xác nhận' : task.status === 'IN_PROGRESS' ? 'Đang thực hiện' : task.status === 'INFO' ? 'Tìm thông tin' : 'Dự án mới'}`}
                               >
                                 {viewMode === 'week' && (
-                                  <span className="shrink-0">{format(deadlineDate, 'dd/MM')}</span>
+                                  <span className="shrink-0 z-10 px-2">{format(deadlineDate, 'dd/MM')}</span>
                                 )}
+
+                                {/* THANH TIẾN ĐỘ NHỎ DƯỚI ĐÁY */}
+                                <div className="absolute bottom-0 left-0 w-full h-1.5 bg-slate-200/50 flex">
+                                  <div className={cn(
+                                    "h-full transition-all duration-300",
+                                    task.status === 'INFO' ? "w-[40%] bg-yellow-300" :
+                                    task.status === 'IN_PROGRESS' ? "w-[60%] bg-orange-500" :
+                                    task.status === 'REVIEW' ? "w-[80%] bg-purple-500" :
+                                    task.status === 'COMPLETED' ? "w-full bg-green-500" : 
+                                    "w-0 bg-transparent" // Mặc định NEW không có màu
+                                  )}></div>
+                                </div>
                               </div>
                             </td>
                           );
@@ -1704,6 +1728,7 @@ function GlobalEditModal({ task, onClose, onUpdate, onDelete, showToast }: {
     description: task.description,
     deadline: task.deadline,
     kpiLevel: task.kpiLevel,
+    status: task.status || 'NEW', // Thêm dòng này để nhận diện tiến độ hiện tại
     note: task.note || '',
     files: task.files || []
   });
@@ -1774,6 +1799,18 @@ function GlobalEditModal({ task, onClose, onUpdate, onDelete, showToast }: {
                   {Object.entries(KPI_CONFIG).map(([level, config]) => (
                     <option key={level} value={level}>{config.label}</option>
                   ))}
+                </select>
+              </div>
+
+              {/* BỔ SUNG: Ô CHỈNH SỬA TIẾN ĐỘ DỰ ÁN */}
+              <div className="md:col-span-1 space-y-2">
+                <label className="text-base font-semibold text-slate-600">Tiến độ công việc</label>
+                <select value={editFormData.status} onChange={e => setEditFormData(prev => ({ ...prev, status: e.target.value as any }))} className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white cursor-pointer font-bold text-slate-700">
+                  <option value="NEW">Dự án mới</option>
+                  <option value="INFO">Tìm thông tin</option>
+                  <option value="IN_PROGRESS">Đang thực hiện</option>
+                  <option value="REVIEW">Chờ xác nhận</option>
+                  <option value="COMPLETED">Hoàn thành</option>
                 </select>
               </div>
               <div className="md:col-span-2 space-y-2">
