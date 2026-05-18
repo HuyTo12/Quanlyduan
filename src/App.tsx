@@ -1507,6 +1507,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                                     )}></div>
                                   </div>
                                 )}
+                                </div>
                             </td>
                           );
                         } else {
