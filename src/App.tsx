@@ -1506,7 +1506,13 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                                   e.stopPropagation();
                                   if (onDoubleClickTask) onDoubleClickTask(task);
                                 }}
-                                className="h-10 mx-0 rounded-none flex flex-col justify-center items-center text-[10px] text-white font-bold shadow-sm cursor-pointer hover:opacity-80 transition-opacity overflow-hidden whitespace-nowrap relative"
+                                // CẬP NHẬT: Nếu là dự án chưa xong bị dồn về hôm nay, ép nội dung và lề sát về bên phải (ml-auto, items-end, text-right)
+                                className={cn(
+                                  "h-10 mx-0 rounded-none flex flex-col text-[10px] text-white font-bold shadow-sm cursor-pointer hover:opacity-80 transition-opacity overflow-hidden whitespace-nowrap relative px-2",
+                                  isUnfinished && isOverdue 
+                                    ? "items-end text-right justify-center ml-auto w-full" 
+                                    : "items-center justify-center"
+                                )}
                                 style={{ backgroundColor: isInactive ? '#cbd5e1' : KPI_CONFIG[task.kpiLevel].color }}
                                 title={`${task.project} - Tiến độ: ${task.status === 'COMPLETED' ? 'Hoàn thành' : task.status === 'REVIEW' ? 'Chờ xác nhận' : task.status === 'IN_PROGRESS' ? 'Đang thực hiện' : task.status === 'INFO' ? 'Tìm thông tin' : 'Dự án mới'}`}
                               >
@@ -1514,20 +1520,16 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                                   <span className="shrink-0 z-10 px-2">{format(deadlineDate, 'dd/MM')}</span>
                                 )}
 
-                                {/* THANH TIẾN ĐỘ NHỎ DƯỚI ĐÁY: Chia đều 4 phần & tự động làm đậm màu (brightness) */}
-                                <div className="absolute bottom-0 left-0 w-full h-1.5 bg-slate-200/40 flex">
-                                  <div 
-                                    className="h-full transition-all duration-300"
-                                    style={{ 
-                                      width: task.status === 'NEW' ? '100%' :
-                                             task.status === 'INFO' ? '25%' :
-                                             task.status === 'IN_PROGRESS' ? '50%' :
-                                             task.status === 'REVIEW' ? '75%' :
-                                             task.status === 'COMPLETED' ? '100%' : '0%',
-                                      backgroundColor: task.status === 'NEW' ? '#94a3b8' : KPI_CONFIG[task.kpiLevel].color,
-                                      filter: task.status === 'NEW' ? 'none' : 'brightness(0.70)' // Làm màu đậm và sắc nét hơn màu nền gốc 30%
-                                    }}
-                                  ></div>
+                                {/* THANH TIẾN ĐỘ NHỎ DƯỚI ĐÁY: Màu sắc nhạt hơn và chia tỉ lệ 1/4, 2/4, 3/4, 4/4 */}
+                                <div className="absolute bottom-0 left-0 w-full h-1.5 bg-slate-200/30 flex">
+                                  <div className={cn(
+                                    "h-full transition-all duration-300",
+                                    task.status === 'NEW' || !task.status ? "w-full bg-white/50" : // Dự án mới: màu trắng nhạt nguyên thanh
+                                    task.status === 'INFO' ? "w-[25%] bg-yellow-200" :             // Tìm thông tin: 1/4 thanh, vàng nhạt
+                                    task.status === 'IN_PROGRESS' ? "w-[50%] bg-orange-300" :      // Đang thực hiện: 2/4 thanh, cam nhạt
+                                    task.status === 'REVIEW' ? "w-[75%] bg-purple-300" :            // Chờ xác nhận: 3/4 thanh, tím nhạt
+                                    task.status === 'COMPLETED' ? "w-full bg-green-300" : "w-0 bg-transparent" // Hoàn thành: 4/4 thanh, xanh nhạt
+                                  )}></div>
                                 </div>
                               </div>
                             </td>
