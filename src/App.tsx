@@ -1437,8 +1437,6 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                     {(() => {
                       const cells = [];
                       let skipCount = 0;
-                      // Tìm vị trí cột của ngày "Hôm nay" trong danh sách lịch hiển thị
-                      const todayIndex = timelineData.findIndex(item => item.isCurrent);
                       
                       for (let i = 0; i < timelineData.length; i++) {
                         if (skipCount > 0) {
@@ -1456,16 +1454,16 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
 
                         // 2. Nhận diện các dự án quá hạn chưa hoàn thành
                         const todayStart = startOfDay(new Date());
+                        const isTodayColumn = todayStart >= item.start && todayStart <= item.end;
                         const deadlineDate = startOfDay(parseISO(task.deadline));
-                        const isUnfinished = task.status !== 'COMPLETED';
+                        const isCompleted = task.status === 'COMPLETED';
+                        const isUnfinished = !isCompleted;
                         const isOverdue = isBefore(deadlineDate, todayStart);
 
                         let isTaskInItem = false;
                         if (isUnfinished && isOverdue) {
-                          // THUẬT TOÁN ĐẨY SÁT BÊN PHẢI: Tính toán vị trí bắt đầu sao cho cụm ngày làm việc kết thúc đúng cột "Hôm nay"
-                          const taskLength = task.workingDays.length;
-                          const overdueStartIndex = todayIndex !== -1 ? todayIndex - taskLength + 1 : -1;
-                          isTaskInItem = (i === Math.max(0, overdueStartIndex));
+                          // ÉP CẢ CỤM XUẤT HIỆN: Bắt đầu vẽ ngay tại vị trí cột "Hôm nay"
+                          isTaskInItem = isTodayColumn;
                         } else {
                           isTaskInItem = isTaskInOriginalItem;
                         }
@@ -1474,10 +1472,10 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                           let colSpan = 1;
                           
                           if (isUnfinished && isOverdue) {
-                            // Giữ nguyên vẹn kích thước và số lượng ngày làm việc gốc dựa theo mức KPI
-                            colSpan = todayIndex !== -1 ? (todayIndex - i + 1) : task.workingDays.length;
+                            // GIỮ NGUYÊN KÍCH THƯỚC: Lấy tổng số ngày làm việc gốc giới hạn trong khung hình
+                            colSpan = Math.min(task.workingDays.length, timelineData.length - i);
                           } else {
-                            // Tính độ dài tự nhiên đối với các dự án trong hạn
+                            // Tính độ dài tự nhiên của các công việc bình thường
                             for (let j = i + 1; j < timelineData.length; j++) {
                               const nextItem = timelineData[j];
                               const isTaskInNextItem = task.workingDays.some(day => {
@@ -1494,6 +1492,10 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                           
                           skipCount = colSpan - 1;
                           
+                          // Thiết lập màu nền chính cho thanh công việc: Hoàn thành = xám nhạt (#e2e8f0), Chưa hoàn thành = màu KPI gốc
+                          const mainBarBg = isCompleted ? '#e2e8f0' : KPI_CONFIG[task.kpiLevel].color;
+                          const mainBarTextColor = isCompleted ? 'text-slate-400 font-medium' : 'text-white font-bold';
+
                           cells.push(
                             <td key={i} colSpan={colSpan} className={cn(
                               "p-0 border-r border-slate-100 relative",
@@ -1506,31 +1508,35 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                                   e.stopPropagation();
                                   if (onDoubleClickTask) onDoubleClickTask(task);
                                 }}
-                                // CẬP NHẬT: Nếu là dự án chưa xong bị dồn về hôm nay, ép nội dung và lề sát về bên phải (ml-auto, items-end, text-right)
+                                // Đã cập nhật: khi là dự án quá hạn dồn về hôm nay, thêm thuộc tính "items-end text-right pr-3" để thanh màu sát lề bên phải
                                 className={cn(
-                                  "h-10 mx-0 rounded-none flex flex-col text-[10px] text-white font-bold shadow-sm cursor-pointer hover:opacity-80 transition-opacity overflow-hidden whitespace-nowrap relative px-2",
-                                  isUnfinished && isOverdue 
-                                    ? "items-end text-right justify-center ml-auto w-full" 
-                                    : "items-center justify-center"
+                                  "h-10 mx-0 rounded-none flex flex-col justify-center text-[10px] shadow-sm cursor-pointer hover:opacity-80 transition-opacity overflow-hidden whitespace-nowrap relative px-2",
+                                  mainBarTextColor,
+                                  (isUnfinished && isOverdue) ? "items-end text-right pr-3" : "items-center justify-center"
                                 )}
-                                style={{ backgroundColor: isInactive ? '#cbd5e1' : KPI_CONFIG[task.kpiLevel].color }}
+                                style={{ backgroundColor: mainBarBg }}
                                 title={`${task.project} - Tiến độ: ${task.status === 'COMPLETED' ? 'Hoàn thành' : task.status === 'REVIEW' ? 'Chờ xác nhận' : task.status === 'IN_PROGRESS' ? 'Đang thực hiện' : task.status === 'INFO' ? 'Tìm thông tin' : 'Dự án mới'}`}
                               >
                                 {viewMode === 'week' && (
                                   <span className="shrink-0 z-10 px-2">{format(deadlineDate, 'dd/MM')}</span>
                                 )}
 
-                                {/* THANH TIẾN ĐỘ NHỎ DƯỚI ĐÁY: Màu sắc nhạt hơn và chia tỉ lệ 1/4, 2/4, 3/4, 4/4 */}
-                                <div className="absolute bottom-0 left-0 w-full h-1.5 bg-slate-200/30 flex">
-                                  <div className={cn(
-                                    "h-full transition-all duration-300",
-                                    task.status === 'NEW' || !task.status ? "w-full bg-white/50" : // Dự án mới: màu trắng nhạt nguyên thanh
-                                    task.status === 'INFO' ? "w-[25%] bg-yellow-200" :             // Tìm thông tin: 1/4 thanh, vàng nhạt
-                                    task.status === 'IN_PROGRESS' ? "w-[50%] bg-orange-300" :      // Đang thực hiện: 2/4 thanh, cam nhạt
-                                    task.status === 'REVIEW' ? "w-[75%] bg-purple-300" :            // Chờ xác nhận: 3/4 thanh, tím nhạt
-                                    task.status === 'COMPLETED' ? "w-full bg-green-300" : "w-0 bg-transparent" // Hoàn thành: 4/4 thanh, xanh nhạt
-                                  )}></div>
-                                </div>
+                                {/* THANH TIẾN ĐỘ NHỎ DƯỚI ĐÁY: Ẩn hoàn thành, chia lại 5 mức độ phần trăm */}
+                                {isUnfinished && (
+                                  <div className="absolute bottom-0 left-0 w-full h-1.5 bg-black/15 flex">
+                                    <div 
+                                      className={cn(
+                                        "h-full transition-all duration-300",
+                                        task.status === 'INFO' ? "w-1/4" :
+                                        task.status === 'IN_PROGRESS' ? "w-2/4" :
+                                        task.status === 'REVIEW' ? "w-3/4" :
+                                        (task.status === 'NEW' || !task.status) ? "w-full bg-white/60" : "w-0"
+                                      )}
+                                      // Sử dụng màu trùng với mức KPI của dự án cho các trạng thái INFO, IN_PROGRESS, REVIEW
+                                      style={task.status !== 'NEW' && task.status ? { backgroundColor: KPI_CONFIG[task.kpiLevel].color } : {}}
+                                    ></div>
+                                  </div>
+                                )}
                               </div>
                             </td>
                           );
