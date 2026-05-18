@@ -140,7 +140,18 @@ type Toast = {
   isClosing?: boolean;
 };
 export default function App() {
-  const [activeSection, setActiveSection] = useState<Section>('giao-viec');
+  // --- BỘ NHỚ LƯU TRẠNG THÁI TAB KHI F5 ---
+  const [activeSection, setActiveSection] = useState(() => {
+    // Kiểm tra xem trình duyệt có lưu tab nào trước đó không
+    const savedSection = localStorage.getItem('savedActiveSection');
+    // Nếu có thì lấy tab đó, nếu không thì mặc định mở tab Công Việc Hằng Ngày
+    return savedSection || 'cong-viec-hang-ngay';
+  });
+
+  // Mỗi khi bạn click chuyển tab, tự động lưu tên tab đó vào trình duyệt
+  useEffect(() => {
+    localStorage.setItem('savedActiveSection', activeSection);
+  }, [activeSection]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -476,9 +487,9 @@ export default function App() {
         </div>
 
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          <SidebarItem icon={<Plus size={20} />} label="Giao việc" active={activeSection === 'giao-viec'} onClick={() => setActiveSection('giao-viec')} collapsed={!isSidebarOpen} />
-          <SidebarItem icon={<CalendarDays size={20} />} label="Công việc hàng ngày" active={activeSection === 'cong-viec-hang-ngay'} onClick={() => setActiveSection('cong-viec-hang-ngay')} collapsed={!isSidebarOpen} />
+          <SidebarItem icon={<CalendarDays size={20} />} label="Công việc hằng ngày" active={activeSection === 'cong-viec-hang-ngay'} onClick={() => setActiveSection('cong-viec-hang-ngay')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<CalendarRange size={20} />} label="Timeline công việc" active={activeSection === 'timeline'} onClick={() => setActiveSection('timeline')} collapsed={!isSidebarOpen} />
+          <SidebarItem icon={<Plus size={20} />} label="Giao việc" active={activeSection === 'giao-viec'} onClick={() => setActiveSection('giao-viec')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<BarChart3 size={20} />} label="Đánh giá công việc" active={activeSection === 'danh-gia'} onClick={() => setActiveSection('danh-gia')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<Search size={20} />} label="Tìm kiếm" active={activeSection === 'search'} onClick={() => setActiveSection('search')} collapsed={!isSidebarOpen} />
         </nav>
