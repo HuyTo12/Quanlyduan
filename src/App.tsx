@@ -312,7 +312,7 @@ export default function App() {
       workingDays: workingDays.map(d => d.toISOString()),
       dailyKpiPoints: kpiPoints / workingDays.length,
       createdAt: new Date().toISOString(),
-      status: TaskStatus.IN_PROGRESS,
+      status: 'NEW', // ĐÃ SỬA: Mặc định mọi dự án mới giao đều là "Dự án mới" (NEW)
       files: driveLinks
     };
     
