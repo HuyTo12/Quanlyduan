@@ -368,6 +368,37 @@ export default function App() {
     return () => window.removeEventListener('TRIGGER_EDIT', listener);
   }, []);
   const [timelineActionTask, setTimelineActionTask] = useState<Task | null>(null);
+  // --- THÊM: TRẠNG THÁI KÉO THẢ TOÀN MÀN HÌNH ---
+  const [isGlobalDragging, setIsGlobalDragging] = useState(false);
+  useEffect(() => {
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      if (e.dataTransfer?.types.includes('Files')) setIsGlobalDragging(true);
+    };
+    const handleDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      // Chỉ tắt hiệu ứng khi con chuột thực sự rời khỏi trình duyệt
+      if (e.clientX === 0 && e.clientY === 0) setIsGlobalDragging(false);
+    };
+    const handleDrop = (e: DragEvent) => {
+      e.preventDefault();
+      setIsGlobalDragging(false);
+      if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+        // Phóng sự kiện mang theo file đi toàn hệ thống
+        window.dispatchEvent(new CustomEvent('GLOBAL_FILE_DROP', { detail: e.dataTransfer.files }));
+      }
+    };
+    
+    window.addEventListener('dragover', handleDragOver);
+    window.addEventListener('dragleave', handleDragLeave);
+    window.addEventListener('drop', handleDrop);
+    
+    return () => {
+      window.removeEventListener('dragover', handleDragOver);
+      window.removeEventListener('dragleave', handleDragLeave);
+      window.removeEventListener('drop', handleDrop);
+    };
+  }, []);
   // BẬT TẮT BẢNG XEM CHI TIẾT TOÀN CẦU
   const [globalViewTask, setGlobalViewTask] = useState<Task | null>(null);
   useEffect(() => {
@@ -377,7 +408,15 @@ export default function App() {
   }, []);
 
   return (
+    return (
     <div className="flex h-screen bg-[#f0f7ff] text-slate-800 font-sans overflow-hidden">
+      
+      {/* OVERLAY KÉO THẢ FILE TOÀN MÀN HÌNH */}
+      {isGlobalDragging && (
+        <div className="fixed inset-0 z-[9999] bg-white/70 backdrop-blur-sm border border-blue-400 flex items-center justify-center pointer-events-none">
+          <span className="text-sm font-light text-blue-600 tracking-wider">Thả file và hình ảnh</span>
+        </div>
+      )}
       
       {/* Bảng chọn Sửa/Xóa khi Double Click */}
       {doubleClickTask && (
@@ -663,20 +702,21 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files) processFiles(e.target.files); };
-  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
-  const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragging(false); };
-  const handleDrop = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files) processFiles(e.dataTransfer.files); };
+  // Bắt sự kiện thả file từ hệ thống toàn màn hình
+  useEffect(() => {
+    const handleGlobalDrop = (e: any) => {
+      // Bỏ qua không nhận file nếu Bảng Chỉnh Sửa đang bật (để tránh 1 file bị add nhầm vào cả 2 nơi)
+      if (!document.getElementById('global-edit-form')) {
+        processFiles(e.detail);
+      }
+    };
+    window.addEventListener('GLOBAL_FILE_DROP', handleGlobalDrop);
+    return () => window.removeEventListener('GLOBAL_FILE_DROP', handleGlobalDrop);
+  }, []);
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 relative" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
-      {/* Hiệu ứng kéo thả file */}
-      {isDragging && (
-        <div className="fixed inset-0 z-[100] bg-blue-500/20 backdrop-blur-sm border-4 border-dashed border-blue-500 flex items-center justify-center pointer-events-none">
-          <span className="text-3xl font-bold text-blue-700 bg-white px-8 py-4 rounded-full shadow-xl">Thả file vào đây để tải lên</span>
-        </div>
-      )}
-      
-      <h2 className="text-3xl font-bold text-center text-blue-900 mb-12">Quản Lý Giao Việc</h2>
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
+      <h2 className="text-3xl font-bold text-center text-blue-900 mb-12">Giao Việc Mới</h2>
       
       {/* 1. KHUNG FORM THÊM MỚI (Giữ nguyên) */}
       <form onSubmit={handleAddSubmit} className="bg-white p-6 md:p-8 rounded-3xl shadow-xl border border-blue-100 space-y-6">
@@ -1807,6 +1847,12 @@ function GlobalEditModal({ task, onClose, onUpdate, onDelete, showToast }: {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) processFiles(e.target.files);
   };
+  // Nhận file từ sự kiện kéo thả toàn màn hình
+  useEffect(() => {
+    const handleGlobalDrop = (e: any) => processFiles(e.detail);
+    window.addEventListener('GLOBAL_FILE_DROP', handleGlobalDrop);
+    return () => window.removeEventListener('GLOBAL_FILE_DROP', handleGlobalDrop);
+  }, []);
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
