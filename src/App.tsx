@@ -408,7 +408,6 @@ export default function App() {
   }, []);
 
   return (
-    return (
     <div className="flex h-screen bg-[#f0f7ff] text-slate-800 font-sans overflow-hidden">
       
       {/* OVERLAY KÉO THẢ FILE TOÀN MÀN HÌNH */}
@@ -702,7 +701,7 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files) processFiles(e.target.files); };
-  // Bắt sự kiện thả file từ hệ thống toàn màn hình
+ // Bắt sự kiện thả file từ hệ thống toàn màn hình
   useEffect(() => {
     const handleGlobalDrop = (e: any) => {
       // Bỏ qua không nhận file nếu Bảng Chỉnh Sửa đang bật (để tránh 1 file bị add nhầm vào cả 2 nơi)
