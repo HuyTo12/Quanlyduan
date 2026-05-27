@@ -1364,28 +1364,35 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
       .sort((a, b) => {
         const aDeadline = startOfDay(parseISO(a.deadline));
         const bDeadline = startOfDay(parseISO(b.deadline));
-        
-        // Trạng thái không hoạt động (Xong hoặc Quá hạn)
-        const aInactive = a.status === TaskStatus.COMPLETED || isBefore(aDeadline, today);
-        const bInactive = b.status === TaskStatus.COMPLETED || isBefore(bDeadline, today);
+        const aStart = startOfDay(parseISO(a.startDate));
+        const bStart = startOfDay(parseISO(b.startDate));
 
-        // NHÓM CUỐI: Đẩy dự án Xong/Quá hạn xuống đáy
-        if (aInactive !== bInactive) return aInactive ? 1 : -1;
+        // 1. NHẬN DIỆN DỰ ÁN HOÀN THÀNH HOẶC CHƯA ĐẾN NGÀY LÀM VIỆC (NHÓM THẤP)
+        const aCompleted = a.status === 'COMPLETED';
+        const aNotStarted = isBefore(today, aStart);
+        const aLowPriority = aCompleted || aNotStarted;
 
-        if (!aInactive && !bInactive) {
-          // NHÓM ĐẦU: Kiểm tra xem hôm nay có phải ngày đang làm việc của dự án không
-          const aWorkingToday = a.workingDays.some(d => isSameDay(parseISO(d), today));
-          const bWorkingToday = b.workingDays.some(d => isSameDay(parseISO(d), today));
+        const bCompleted = b.status === 'COMPLETED';
+        const bNotStarted = isBefore(today, bStart);
+        const bLowPriority = bCompleted || bNotStarted;
 
-          if (aWorkingToday !== bWorkingToday) return aWorkingToday ? -1 : 1;
-        }
+        // Quy tắc 1: Đẩy nhóm Thấp (Chưa làm / Đã xong) xuống vị trí dưới cùng của bảng
+        if (aLowPriority !== bLowPriority) return aLowPriority ? 1 : -1;
 
-        // NHÓM GIỮA: Sắp xếp theo Deadline gần nhất
+        // 2. ƯU TIÊN CÁC DỰ ÁN ĐANG HOẠT ĐỘNG TRONG NGÀY HÔM NAY LÊN TRÊN CÙNG
+        // Bao gồm các dự án có lịch hôm nay HOẶC các dự án quá hạn đang được dồn về hôm nay
+        const aActiveToday = a.workingDays.some(d => isSameDay(parseISO(d), today)) || isBefore(aDeadline, today);
+        const bActiveToday = b.workingDays.some(d => isSameDay(parseISO(d), today)) || isBefore(bDeadline, today);
+
+        // Quy tắc 2: Dự án đang có trong ngày hôm nay nằm trên các dự án hoạt động vào ngày khác
+        if (aActiveToday !== bActiveToday) return aActiveToday ? -1 : 1;
+
+        // 3. SẮP XẾP PHỤ: Theo thời hạn Deadline gần nhất nếu cùng nhóm ưu tiên
         if (aDeadline.getTime() !== bDeadline.getTime()) {
           return aDeadline.getTime() - bDeadline.getTime();
         }
 
-        // ƯU TIÊN CUỐI: KPI (5 -> 1)
+        // 4. SẮP XẾP PHỤ CUỐI CÙNG: Theo mức độ KPI từ cao xuống thấp (5 -> 1)
         return b.kpiLevel - a.kpiLevel;
       });
   }, [tasks, timelineData]);
