@@ -1362,39 +1362,41 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
         return (deadlineDate >= viewStart && deadlineDate <= viewEnd) || (isUnfinished && isOverdue && isTodayInView);
       })
       .sort((a, b) => {
-        const aDeadline = startOfDay(parseISO(a.deadline));
-        const bDeadline = startOfDay(parseISO(b.deadline));
-        const aStart = startOfDay(parseISO(a.startDate));
-        const bStart = startOfDay(parseISO(b.startDate));
+                    const todayDate = startOfDay(new Date());
+                    
+                    // HÀM PHÂN LOẠI 3 NHÓM ƯU TIÊN THEO YÊU CẦU
+                    const getPriorityGroup = (t: Task) => {
+                      if (t.status === 'COMPLETED') return 3; // Nhóm 3: Đã hoàn thành -> Đưa xuống dưới
+                      
+                      const startDate = startOfDay(parseISO(t.startDate));
+                      if (isBefore(todayDate, startDate)) return 3; // Nhóm 3: Chưa đến ngày làm việc -> Đưa xuống dưới
+                      
+                      const deadlineDate = startOfDay(parseISO(t.deadline));
+                      const daysToDeadline = differenceInDays(deadlineDate, todayDate);
+                      
+                      // Nhóm 2: Sắp đến ngày deadline (còn <= 2 ngày) hoặc Quá hạn -> Nằm kế tiếp
+                      if (daysToDeadline <= 2) return 2; 
+                      
+                      // Nhóm 1: Đang trong thời hạn (còn > 2 ngày) -> Nằm ở trên cùng
+                      return 1; 
+                    };
 
-        // 1. NHẬN DIỆN DỰ ÁN HOÀN THÀNH HOẶC CHƯA ĐẾN NGÀY LÀM VIỆC (NHÓM THẤP)
-        const aCompleted = a.status === 'COMPLETED';
-        const aNotStarted = isBefore(today, aStart);
-        const aLowPriority = aCompleted || aNotStarted;
+                    const groupA = getPriorityGroup(a);
+                    const groupB = getPriorityGroup(b);
 
-        const bCompleted = b.status === 'COMPLETED';
-        const bNotStarted = isBefore(today, bStart);
-        const bLowPriority = bCompleted || bNotStarted;
+                    // TIÊU CHÍ 1: Xếp theo Nhóm (Nhóm 1 -> Nhóm 2 -> Nhóm 3)
+                    if (groupA !== groupB) {
+                      return groupA - groupB;
+                    }
 
-        // Quy tắc 1: Đẩy nhóm Thấp (Chưa làm / Đã xong) xuống vị trí dưới cùng của bảng
-        if (aLowPriority !== bLowPriority) return aLowPriority ? 1 : -1;
-
-        // 2. ƯU TIÊN CÁC DỰ ÁN ĐANG HOẠT ĐỘNG TRONG NGÀY HÔM NAY LÊN TRÊN CÙNG
-        // Bao gồm các dự án có lịch hôm nay HOẶC các dự án quá hạn đang được dồn về hôm nay
-        const aActiveToday = a.workingDays.some(d => isSameDay(parseISO(d), today)) || isBefore(aDeadline, today);
-        const bActiveToday = b.workingDays.some(d => isSameDay(parseISO(d), today)) || isBefore(bDeadline, today);
-
-        // Quy tắc 2: Dự án đang có trong ngày hôm nay nằm trên các dự án hoạt động vào ngày khác
-        if (aActiveToday !== bActiveToday) return aActiveToday ? -1 : 1;
-
-        // 3. SẮP XẾP PHỤ: Theo thời hạn Deadline gần nhất nếu cùng nhóm ưu tiên
-        if (aDeadline.getTime() !== bDeadline.getTime()) {
-          return aDeadline.getTime() - bDeadline.getTime();
-        }
-
-        // 4. SẮP XẾP PHỤ CUỐI CÙNG: Theo mức độ KPI từ cao xuống thấp (5 -> 1)
-        return b.kpiLevel - a.kpiLevel;
-      });
+                    // TIÊU CHÍ 2: Cùng một Nhóm, xếp theo KPI từ cao xuống thấp (5 -> 1)
+                    if (a.kpiLevel !== b.kpiLevel) {
+                      return b.kpiLevel - a.kpiLevel;
+                    }
+                    
+                    // TIÊU CHÍ 3 (Phụ): Nếu cùng Nhóm và cùng KPI, dự án nào hạn gần hơn xếp trên
+                    return startOfDay(parseISO(a.deadline)).getTime() - startOfDay(parseISO(b.deadline)).getTime();
+                  });
   }, [tasks, timelineData]);
 
   return (
