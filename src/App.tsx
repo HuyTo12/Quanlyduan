@@ -1364,23 +1364,28 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
       .sort((a, b) => {
         const todayDate = startOfDay(new Date());
 
-        // HÀM PHÂN LOẠI NHÓM ƯU TIÊN (1: Cao nhất -> 3: Thấp nhất)
+        // HÀM PHÂN LOẠI NHÓM ƯU TIÊN (1: Cao nhất -> 4: Thấp nhất)
         const getPriorityGroup = (task: Task) => {
-          if (task.status === 'COMPLETED') return 3; // NHÓM 3: Đã hoàn thành -> Xuống đáy
+          // NHÓM 4: Đã hoàn thành -> Nằm dưới cùng tuyệt đối của danh sách
+          if (task.status === 'COMPLETED') return 4; 
           
           const deadlineDate = startOfDay(parseISO(task.deadline));
           const startDate = startOfDay(parseISO(task.startDate));
 
-          if (isBefore(deadlineDate, todayDate)) return 2; // NHÓM 2: Đã quá hạn -> Nằm giữa
-          if (isBefore(todayDate, startDate)) return 3; // NHÓM 3: Chưa tới ngày bắt đầu (dự án tương lai) -> Xuống đáy
+          // NHÓM 2: Đã quá hạn nhưng chưa xong -> Ưu tiên kế tiếp sau việc đang làm
+          if (isBefore(deadlineDate, todayDate)) return 2; 
           
-          return 1; // NHÓM 1: Đang trong thời hạn làm việc -> Lên trên cùng
+          // NHÓM 3: Dự án tương lai (chưa tới ngày bắt đầu) -> Nằm trên dự án đã xong
+          if (isBefore(todayDate, startDate)) return 3; 
+          
+          // NHÓM 1: Đang trong thời hạn làm việc -> Lên trên cùng
+          return 1; 
         };
 
         const groupA = getPriorityGroup(a);
         const groupB = getPriorityGroup(b);
 
-        // 1. SẮP XẾP THEO NHÓM ƯU TIÊN (Nhóm 1 -> Nhóm 2 -> Nhóm 3)
+        // 1. SẮP XẾP THEO NHÓM ƯU TIÊN (Nhóm 1 -> Nhóm 2 -> Nhóm 3 -> Nhóm 4)
         if (groupA !== groupB) {
           return groupA - groupB; 
         }
