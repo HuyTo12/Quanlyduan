@@ -915,18 +915,39 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
         return isScheduledForSelectedDate || isRollover;
       })
       .sort((a, b) => {
-        const aDeadline = startOfDay(parseISO(a.deadline));
-        const bDeadline = startOfDay(parseISO(b.deadline));
-        
-        // Kiểm tra xem dự án đã Hoàn thành hoặc Hết hạn chưa
-        const aInactive = a.status === TaskStatus.COMPLETED || isBefore(aDeadline, today);
-        const bInactive = b.status === TaskStatus.COMPLETED || isBefore(bDeadline, today);
+        const todayDate = startOfDay(new Date());
 
-        // ƯU TIÊN 1: Đẩy các dự án đã xong hoặc hết hạn xuống cuối bảng (Inactive)
-        if (aInactive !== bInactive) return aInactive ? 1 : -1;
+        // HÀM PHÂN LOẠI NHÓM ƯU TIÊN (1: Cao nhất -> 3: Thấp nhất)
+        const getPriorityGroup = (task: Task) => {
+          // NHÓM 3: Đã hoàn thành -> Nằm dưới cùng
+          if (task.status === 'COMPLETED' || task.status === TaskStatus.COMPLETED) return 3; 
+          
+          const deadlineDate = startOfDay(parseISO(task.deadline));
 
-        // ƯU TIÊN 2: Nếu cùng đang hoạt động, xếp theo mức KPI từ cao đến thấp (5 -> 1)
-        return b.kpiLevel - a.kpiLevel;
+          // NHÓM 2: Đã quá hạn nhưng chưa xong -> Ưu tiên nằm kế tiếp
+          if (isBefore(deadlineDate, todayDate)) return 2; 
+          
+          // NHÓM 1: Đang trong thời hạn làm việc -> Lên trên cùng
+          return 1; 
+        };
+
+        const groupA = getPriorityGroup(a);
+        const groupB = getPriorityGroup(b);
+
+        // 1. SẮP XẾP THEO NHÓM ƯU TIÊN (Nhóm 1 -> Nhóm 2 -> Nhóm 3)
+        if (groupA !== groupB) {
+          return groupA - groupB; 
+        }
+
+        // 2. NẾU CÙNG NHÓM -> Sắp xếp theo mức KPI giảm dần (Từ 5 xuống 1)
+        if (a.kpiLevel !== b.kpiLevel) {
+          return b.kpiLevel - a.kpiLevel;
+        }
+
+        // 3. NẾU CÙNG NHÓM & CÙNG KPI -> Dự án nào có Deadline gần hơn sẽ xếp trước
+        const aDeadline = startOfDay(parseISO(a.deadline)).getTime();
+        const bDeadline = startOfDay(parseISO(b.deadline)).getTime();
+        return aDeadline - bDeadline;
       });
   }, [tasks, selectedDate]);
 
