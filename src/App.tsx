@@ -1362,40 +1362,40 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
         return (deadlineDate >= viewStart && deadlineDate <= viewEnd) || (isUnfinished && isOverdue && isTodayInView);
       })
       .sort((a, b) => {
-        const todayDate = startOfDay(new Date());
+                const today = startOfDay(new Date());
 
-        // HÀM PHÂN LOẠI NHÓM ƯU TIÊN
-        const getPriorityGroup = (task: Task) => {
-          if (task.status === 'COMPLETED') return 3; // NHÓM 3: Đã hoàn thành -> Xuống đáy
-          
-          const deadlineDate = startOfDay(parseISO(task.deadline));
-          const startDate = startOfDay(parseISO(task.startDate));
+                // HÀM PHÂN LOẠI NHÓM DỰ ÁN
+                const getGroup = (task: any) => {
+                  const deadlineDate = startOfDay(parseISO(task.deadline));
+                  const startDate = startOfDay(parseISO(task.startDate));
+                  const daysToDeadline = differenceInDays(deadlineDate, today);
+                  
+                  const isCompleted = task.status === 'COMPLETED';
+                  const isFuture = isBefore(today, startDate);
+                  const isOverdue = isBefore(deadlineDate, today);
+                  const isNearing = daysToDeadline <= 1 && daysToDeadline >= 0; // Sắp đến hạn (Hôm nay hoặc ngày mai)
 
-          if (isBefore(deadlineDate, todayDate)) return 2; // NHÓM 2: Đã quá hạn -> Nằm giữa
-          if (isBefore(todayDate, startDate)) return 3; // NHÓM 3: Chưa tới ngày làm việc -> Xuống đáy cùng nhóm Hoàn thành
-          
-          return 1; // NHÓM 1: Đang trong thời hạn (Hôm nay nằm trong khoảng từ Bắt đầu đến Deadline) -> Lên trên cùng
-        };
+                  // NHÓM 3 (Dưới cùng): Chưa đến ngày làm việc HOẶC Đã hoàn thành
+                  if (isFuture || isCompleted) return 3;
 
-        const groupA = getPriorityGroup(a);
-        const groupB = getPriorityGroup(b);
+                  // NHÓM 2 (Kế trên/Ở giữa): Quá hạn HOẶC Sắp đến deadline
+                  if (isOverdue || isNearing) return 2;
 
-        // 1. SẮP XẾP THEO NHÓM (Nhóm 1 -> Nhóm 2 -> Nhóm 3)
-        if (groupA !== groupB) {
-          return groupA - groupB; 
-        }
+                  // NHÓM 1 (Trên cùng): Đang trong thời hạn (Bình thường, an toàn)
+                  return 1;
+                };
 
-        // 2. NẾU CÙNG NHÓM -> Sắp xếp theo mức KPI giảm dần (Từ 5 xuống 1)
-        if (a.kpiLevel !== b.kpiLevel) {
-          return b.kpiLevel - a.kpiLevel;
-        }
+                const groupA = getGroup(a);
+                const groupB = getGroup(b);
 
-        // 3. NẾU CÙNG NHÓM & CÙNG KPI -> Dự án nào có Deadline gần hơn sẽ xếp trước
-        const aDeadline = startOfDay(parseISO(a.deadline)).getTime();
-        const bDeadline = startOfDay(parseISO(b.deadline)).getTime();
-        return aDeadline - bDeadline;
-      });
-  }, [tasks, timelineData]);
+                // ƯU TIÊN 1: Xếp theo Nhóm (Nhóm 1 -> Nhóm 2 -> Nhóm 3)
+                if (groupA !== groupB) {
+                  return groupA - groupB;
+                }
+
+                // ƯU TIÊN 2: Nếu cùng một Nhóm thì xếp theo mức KPI giảm dần (Mức 5 -> Mức 1)
+                return b.kpiLevel - a.kpiLevel;
+              });
   }, [tasks, timelineData]);
 
   return (
