@@ -1341,7 +1341,27 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
     return groups;
   }, [timelineData]);
 
-  .sort((a, b) => {
+  // THUẬT TOÁN SẮP XẾP TIMELINE THÔNG MINH
+  const sortedTasks = useMemo(() => {
+    const todayDate = startOfDay(new Date());
+    const viewStart = timelineData[0]?.start;
+    const viewEnd = timelineData[timelineData.length - 1]?.end;
+
+    if (!viewStart || !viewEnd) return [];
+
+    return tasks
+      .filter(task => {
+        const deadlineDate = startOfDay(parseISO(task.deadline));
+        const isUnfinished = task.status !== 'COMPLETED';
+        const isOverdue = isBefore(deadlineDate, todayDate);
+        
+        // Kiểm tra xem cột ngày "Hôm nay" có đang xuất hiện trong khung giao diện lịch đang xem không
+        const isTodayInView = timelineData.some(item => todayDate >= item.start && todayDate <= item.end);
+
+        // ĐIỀU KIỆN HIỂN THỊ
+        return (deadlineDate >= viewStart && deadlineDate <= viewEnd) || (isUnfinished && isOverdue && isTodayInView);
+      })
+      .sort((a, b) => {
         const todayDate = startOfDay(new Date());
 
         // HÀM PHÂN LOẠI NHÓM ƯU TIÊN (1: Cao nhất -> 3: Thấp nhất)
@@ -1376,6 +1396,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
         return aDeadline - bDeadline;
       });
   }, [tasks, timelineData]);
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <h2 className="text-3xl font-bold text-center text-blue-900 mb-12">Timeline Công Việc</h2>
