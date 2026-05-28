@@ -1342,8 +1342,8 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
   }, [timelineData]);
 
   // THUẬT TOÁN SẮP XẾP TIMELINE THÔNG MINH
- const sortedTasks = useMemo(() => {
-    const today = startOfDay(new Date());
+  const sortedTasks = useMemo(() => {
+    const todayDate = startOfDay(new Date());
     const viewStart = timelineData[0]?.start;
     const viewEnd = timelineData[timelineData.length - 1]?.end;
 
@@ -1353,17 +1353,15 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
       .filter(task => {
         const deadlineDate = startOfDay(parseISO(task.deadline));
         const isUnfinished = task.status !== 'COMPLETED';
-        const isOverdue = isBefore(deadlineDate, today);
+        const isOverdue = isBefore(deadlineDate, todayDate);
         
         // Kiểm tra xem cột ngày "Hôm nay" có đang xuất hiện trong khung giao diện lịch đang xem không
-        const isTodayInView = timelineData.some(item => today >= item.start && today <= item.end);
+        const isTodayInView = timelineData.some(item => todayDate >= item.start && todayDate <= item.end);
 
-        // ĐIỀU KIỆN HIỂN THỊ: Nằm trong khung ngày lịch gốc HOẶC (Quá hạn nhiều ngày/tháng/năm + Chưa hoàn thành + Lịch đang hiển thị ngày hôm nay)
+        // ĐIỀU KIỆN HIỂN THỊ
         return (deadlineDate >= viewStart && deadlineDate <= viewEnd) || (isUnfinished && isOverdue && isTodayInView);
       })
       .sort((a, b) => {
-        const todayDate = startOfDay(new Date());
-
         // HÀM PHÂN LOẠI NHÓM ƯU TIÊN
         const getPriorityGroup = (task: Task) => {
           if (task.status === 'COMPLETED') return 3; // NHÓM 3: Đã hoàn thành -> Xuống đáy
@@ -1371,16 +1369,16 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
           const deadlineDate = startOfDay(parseISO(task.deadline));
           const startDate = startOfDay(parseISO(task.startDate));
 
-          if (isBefore(deadlineDate, todayDate)) return 2; // NHÓM 2: Đã quá hạn -> Nằm giữa
+          if (isBefore(deadlineDate, todayDate)) return 2; // NHÓM 2: Đã quá hạn nhưng chưa xong -> Nằm giữa
           if (isBefore(todayDate, startDate)) return 3; // NHÓM 3: Chưa tới ngày làm việc -> Xuống đáy cùng nhóm Hoàn thành
           
-          return 1; // NHÓM 1: Đang trong thời hạn (Hôm nay nằm trong khoảng từ Bắt đầu đến Deadline) -> Lên trên cùng
+          return 1; // NHÓM 1: Đang trong thời hạn (Hôm nay nằm trong khoảng Bắt đầu đến Deadline) -> Lên trên cùng
         };
 
         const groupA = getPriorityGroup(a);
         const groupB = getPriorityGroup(b);
 
-        // 1. SẮP XẾP THEO NHÓM (Nhóm 1 -> Nhóm 2 -> Nhóm 3)
+        // 1. SẮP XẾP THEO NHÓM ƯU TIÊN (Nhóm 1 -> Nhóm 2 -> Nhóm 3)
         if (groupA !== groupB) {
           return groupA - groupB; 
         }
@@ -1390,7 +1388,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
           return b.kpiLevel - a.kpiLevel;
         }
 
-        // 3. NẾU CÙNG NHÓM & CÙNG KPI -> Dự án nào có Deadline gần hơn sẽ xếp trước
+        // 3. NẾU CÙNG NHÓM & CÙNG KPI -> Dự án nào có Deadline gần hơn sẽ xếp trước để ưu tiên xử lý
         const aDeadline = startOfDay(parseISO(a.deadline)).getTime();
         const bDeadline = startOfDay(parseISO(b.deadline)).getTime();
         return aDeadline - bDeadline;
