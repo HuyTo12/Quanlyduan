@@ -712,7 +712,56 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
     window.addEventListener('GLOBAL_FILE_DROP', handleGlobalDrop);
     return () => window.removeEventListener('GLOBAL_FILE_DROP', handleGlobalDrop);
   }, []);
+// --- BẮT ĐẦU: LOGIC LỌC THÁNG, SẮP XẾP & PHÂN TRANG ---
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
+  // 1. Nhóm và đếm dự án theo tháng (dựa vào ngày giao/bắt đầu)
+  const monthGroups = useMemo(() => {
+    const groups: { [key: string]: number } = {};
+    tasks.forEach(task => {
+      const date = parseISO(task.createdAt || task.startDate);
+      const monthKey = format(date, 'MM/yyyy');
+      groups[monthKey] = (groups[monthKey] || 0) + 1;
+    });
+    return Object.entries(groups).sort((a, b) => {
+      const [m1, y1] = a[0].split('/');
+      const [m2, y2] = b[0].split('/');
+      if (y1 !== y2) return parseInt(y2) - parseInt(y1);
+      return parseInt(m2) - parseInt(m1);
+    });
+  }, [tasks]);
+
+  // 2. Lọc và sắp xếp dữ liệu
+  const processedTasks = useMemo(() => {
+    let filtered = [...tasks];
+    
+    if (selectedMonth) {
+      // NẾU CHỌN THÁNG: Chỉ lấy dự án tháng đó, sắp xếp Deadline từ gần đến xa
+      filtered = filtered.filter(task => {
+        const date = parseISO(task.createdAt || task.startDate);
+        return format(date, 'MM/yyyy') === selectedMonth;
+      });
+      filtered.sort((a, b) => startOfDay(parseISO(a.deadline)).getTime() - startOfDay(parseISO(b.deadline)).getTime());
+    } else {
+      // MẶC ĐỊNH (Tất cả): Sắp xếp theo Thời gian giao mới nhất lên đầu
+      filtered.sort((a, b) => {
+         const dateA = parseISO(a.createdAt || a.startDate).getTime();
+         const dateB = parseISO(b.createdAt || b.startDate).getTime();
+         return dateB - dateA;
+      });
+    }
+    return filtered;
+  }, [tasks, selectedMonth]);
+
+  // 3. Cắt dữ liệu cho trang hiện tại
+  const totalPages = Math.max(1, Math.ceil(processedTasks.length / itemsPerPage));
+  const paginatedTasks = processedTasks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  // Tự động quay về trang 1 nếu đổi tháng
+  useEffect(() => { setCurrentPage(1); }, [selectedMonth, tasks.length]);
+  // --- KẾT THÚC LOGIC ---
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
       <h2 className="text-3xl font-bold text-center text-blue-900 mb-12">Giao Việc Mới</h2>
@@ -779,7 +828,27 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
 
       {/* 2. BẢNG DANH SÁCH (Đã được dọn dẹp và kết nối với Bảng Sửa Toàn Cầu) */}
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-blue-100">
-        <div className="overflow-x-auto">
+        {/* KHU VỰC CHIA 2 CỘT: BỘ LỌC THÁNG (TRÁI) VÀ BẢNG DỮ LIỆU (PHẢI) */}
+      <div className="flex flex-col xl:flex-row gap-6 items-start">
+        
+        {/* CỘT TRÁI: DANH SÁCH THÁNG */}
+        <div className="w-full xl:w-64 shrink-0 space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-100 sticky top-0">
+          <button onClick={() => setSelectedMonth(null)} className={cn("w-full flex justify-between items-center p-3 rounded-xl transition-all font-bold text-sm", selectedMonth === null ? "bg-blue-600 text-white shadow-md" : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200")}>
+            <span>Tất cả Dự án</span>
+            <span className={cn("px-2 py-1 rounded-lg text-[10px]", selectedMonth === null ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-500")}>{tasks.length}</span>
+          </button>
+          
+          {monthGroups.map(([month, count]) => (
+            <button key={month} onClick={() => setSelectedMonth(month)} className={cn("w-full flex justify-between items-center p-3 rounded-xl transition-all font-bold text-sm", selectedMonth === month ? "bg-blue-600 text-white shadow-md" : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200")}>
+              <span>Tháng {month}</span>
+              <span className={cn("px-2 py-1 rounded-lg text-[10px]", selectedMonth === month ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-500")}>{count}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* CỘT PHẢI: BẢNG DỮ LIỆU */}
+        <div className="flex-1 w-full overflow-hidden flex flex-col bg-white border border-slate-100 rounded-2xl">
+          <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-blue-600 text-white">
@@ -795,7 +864,7 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
               </tr>
             </thead>
             <tbody>
-              {tasks
+              {paginatedTasks
                 .slice()
                 .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
                 .map((task, index) => {
@@ -823,7 +892,7 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
                         <Edit size={18} />
                       </button>
                     </td>
-                    <td className="p-4 text-sm font-medium">{index + 1}</td>
+                    <td className="p-4 text-sm font-medium">{(currentPage - 1) * 10 + index + 1}</td>
                     <td className="p-4 text-sm align-top"><ExpandableText text={task.project} isProject /></td>
                     <td className="p-4 text-sm align-top max-w-[300px]"><ExpandableText text={task.description} /></td>
                     <td className="p-4 text-sm align-top"><ExpandableFiles files={task.files} /></td>
@@ -849,6 +918,32 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
               )}
             </tbody>
           </table>
+          </div>
+          
+          {/* THANH ĐIỀU HƯỚNG PHÂN TRANG (PAGINATION) */}
+          {totalPages > 0 && (
+            <div className="flex items-center justify-center gap-2 p-4 border-t border-slate-100 bg-slate-50/50">
+              <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="p-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 disabled:opacity-40 transition-all font-bold flex items-center shadow-sm">
+                <ChevronLeft size={16} className="-mr-1"/><ChevronLeft size={16} />
+              </button>
+              <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="p-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 disabled:opacity-40 transition-all shadow-sm">
+                <ChevronLeft size={16}/>
+              </button>
+              
+              <span className="px-6 py-2 text-sm font-bold text-blue-700 bg-blue-50 rounded-lg border border-blue-100 shadow-inner">
+                Trang {currentPage} / {totalPages}
+              </span>
+              
+              <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} className="p-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 disabled:opacity-40 transition-all shadow-sm">
+                <ChevronRight size={16}/>
+              </button>
+              <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="p-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 disabled:opacity-40 transition-all font-bold flex items-center shadow-sm">
+                <ChevronRight size={16} className="-mr-1"/><ChevronRight size={16} />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
         </div>
       </div>
     </div>
