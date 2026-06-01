@@ -654,14 +654,7 @@ function SidebarItem({ icon, label, active, onClick, collapsed }: {
 }
 
 // --- Section: Giao Việc ---
-function GiaoViec({ 
-  tasks, 
-  onAdd, 
-  onDelete, 
-  onUpdate,
-  showToast,
-  onDoubleClickTask
-}: { 
+function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTask }: { 
   tasks: Task[], 
   onAdd: (task: any) => void, 
   onDelete: (id: string) => void,
@@ -669,120 +662,49 @@ function GiaoViec({
   showToast: (message: string, type: 'success' | 'delete' | 'edit' | 'error' | 'cancel', task?: Task) => void,
   onDoubleClickTask?: (task: Task) => void
 }) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  // --- TRẠNG THÁI KÉO THẢ CHUỘT (DRAG TO SCROLL) CHO THANH THÁNG ---
-  const [isDraggingTab, setIsDraggingTab] = useState(false);
-  const [startX, setStartX] = useState(0);
-  const [scrollLeft, setScrollLeft] = useState(0);
-
-  const onMouseDownTab = (e: React.MouseEvent) => {
-    if (!scrollRef.current) return;
-    setIsDraggingTab(true);
-    setStartX(e.pageX - scrollRef.current.offsetLeft);
-    setScrollLeft(scrollRef.current.scrollLeft);
-  };
-  const onMouseLeaveTab = () => setIsDraggingTab(false);
-  const onMouseUpTab = () => setIsDraggingTab(false);
-  const onMouseMoveTab = (e: React.MouseEvent) => {
-    if (!isDraggingTab || !scrollRef.current) return;
-    e.preventDefault();
-    const x = e.pageX - scrollRef.current.offsetLeft;
-    const walk = (x - startX) * 2; // Tốc độ cuộn
-    scrollRef.current.scrollLeft = scrollLeft - walk;
-  };
-
-  // --- LOGIC LỌC THÁNG, SẮP XẾP & PHÂN TRANG ---
-  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-
-  // 1. Nhóm và đếm dự án theo tháng (Sắp xếp từ mới nhất -> cũ nhất)
-  const monthGroups = useMemo(() => {
-    const groups: { [key: string]: number } = {};
-    tasks.forEach(task => {
-      const date = parseISO(task.createdAt || task.startDate);
-      const monthKey = format(date, 'MM/yyyy');
-      groups[monthKey] = (groups[monthKey] || 0) + 1;
-    });
-    return Object.entries(groups).sort((a, b) => {
-      const [m1, y1] = a[0].split('/');
-      const [m2, y2] = b[0].split('/');
-      if (y1 !== y2) return parseInt(y2) - parseInt(y1);
-      return parseInt(m2) - parseInt(m1);
-    });
-  }, [tasks]);
-
-  // 2. Lọc và sắp xếp dữ liệu
-  const processedTasks = useMemo(() => {
-    let filtered = [...tasks];
-    if (selectedMonth) {
-      // Đang xem 1 tháng: Lọc đúng tháng đó và sắp xếp Deadline từ gần đến xa (trên xuống dưới)
-      filtered = filtered.filter(task => {
-        const date = parseISO(task.createdAt || task.startDate);
-        return format(date, 'MM/yyyy') === selectedMonth;
-      });
-      filtered.sort((a, b) => startOfDay(parseISO(a.deadline)).getTime() - startOfDay(parseISO(b.deadline)).getTime());
-    } else {
-      // Xem tất cả (Mặc định): Sắp xếp theo Thời gian Giao Việc từ mới nhất đến cũ nhất
-      filtered.sort((a, b) => {
-         const dateA = parseISO(a.createdAt || a.startDate).getTime();
-         const dateB = parseISO(b.createdAt || b.startDate).getTime();
-         return dateB - dateA;
-      });
-    }
-    return filtered;
-  }, [tasks, selectedMonth]);
-
-  // 3. Phân trang
-  const totalPages = Math.max(1, Math.ceil(processedTasks.length / itemsPerPage));
-  const paginatedTasks = processedTasks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-  // Tự động quay về trang 1 nếu đổi tháng
-  useEffect(() => { setCurrentPage(1); }, [selectedMonth, tasks.length]);
-
-  // --- TRẠNG THÁI FORM GIAO VIỆC ---
   const [formData, setFormData] = useState({
     project: '',
     description: '',
-    deadline: '',
-    kpiLevel: 3,
+    deadline: format(new Date(), 'yyyy-MM-dd'),
+    kpiLevel: KPILevel.LEVEL_1,
     note: '',
     files: [] as string[]
   });
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) processFiles(e.target.files);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleAddSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.project) return;
+    
+    // Kiểm tra chặn giao việc ngày nghỉ (Thứ 7, Chủ Nhật)
+    const deadlineDate = parseISO(formData.deadline);
+    if (isWeekend(deadlineDate)) {
+      showToast('Không thể giao Deadline vào ngày nghỉ (Thứ 7, Chủ nhật)', 'error');
+      return;
+    }
+
+    onAdd(formData);
+    setFormData({ project: '', description: '', deadline: format(new Date(), 'yyyy-MM-dd'), kpiLevel: KPILevel.LEVEL_1, note: '', files: [] });
   };
 
   const processFiles = (files: FileList) => {
-    const newFiles = Array.from(files);
-    newFiles.forEach(file => {
+    if (!files) return;
+    Array.from(files).forEach((file: File) => {
       const reader = new FileReader();
       reader.onloadend = () => {
-        const base64Data = reader.result as string;
-        const fileWithMetadata = `${base64Data}|||${file.name}`;
-        setFormData(prev => ({ ...prev, files: [...prev.files, fileWithMetadata] }));
+        const fileString = (reader.result as string) + "|||" + file.name;
+        setFormData(prev => ({ ...prev, files: [...prev.files, fileString] }));
       };
       reader.readAsDataURL(file);
     });
   };
 
-  const removeFile = (index: number) => {
-    setFormData(prev => ({ ...prev, files: prev.files.filter((_, i) => i !== index) }));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.project || !formData.deadline) return;
-    onAdd(formData);
-    setFormData({ project: '', description: '', deadline: '', kpiLevel: 3, note: '', files: [] });
-  };
-
-  // Bắt sự kiện thả file toàn màn hình
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files) processFiles(e.target.files); };
+ // Bắt sự kiện thả file từ hệ thống toàn màn hình
   useEffect(() => {
     const handleGlobalDrop = (e: any) => {
+      // Bỏ qua không nhận file nếu Bảng Chỉnh Sửa đang bật (để tránh 1 file bị add nhầm vào cả 2 nơi)
       if (!document.getElementById('global-edit-form')) {
         processFiles(e.detail);
       }
@@ -794,228 +716,139 @@ function GiaoViec({
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
       <h2 className="text-3xl font-bold text-center text-blue-900 mb-12">Giao Việc Mới</h2>
-
-      {/* FORM GIAO VIỆC */}
-      <div className="bg-white p-4 md:p-8 rounded-3xl shadow-xl border border-blue-100">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="md:col-span-2 space-y-2">
-              <label className="text-base font-semibold text-slate-600">Dự án / Nội dung công việc</label>
-              <textarea 
-                required 
-                value={formData.project} 
-                onChange={e => setFormData(prev => ({ ...prev, project: e.target.value }))} 
-                placeholder="Ví dụ: Thiết kế banner khai trương..." 
-                className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none h-24 text-base shadow-sm"
-              />
-            </div>
-            <div className="md:col-span-2 space-y-2">
-              <label className="text-base font-semibold text-slate-600">Chi tiết công việc (Tuỳ chọn)</label>
-              <textarea 
-                value={formData.description} 
-                onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))} 
-                placeholder="Mô tả cụ thể các yêu cầu..." 
-                className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none h-24 text-base"
-              />
-            </div>
-            <div className="md:col-span-1 space-y-2">
-              <label className="text-base font-semibold text-slate-600">Deadline</label>
-              <input 
-                type="date" 
-                required 
-                value={formData.deadline} 
-                onChange={e => setFormData(prev => ({ ...prev, deadline: e.target.value }))} 
-                className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
-              />
-            </div>
-            <div className="md:col-span-1 space-y-2">
-              <label className="text-base font-semibold text-slate-600">Đánh giá KPI</label>
-              <select 
-                value={formData.kpiLevel} 
-                onChange={e => setFormData(prev => ({ ...prev, kpiLevel: parseInt(e.target.value) }))} 
-                className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
-              >
-                {Object.entries(KPI_CONFIG).map(([level, config]) => (
-                  <option key={level} value={level}>{config.label}</option>
-                ))}
-              </select>
-            </div>
-            <div className="md:col-span-2 space-y-2">
-              <label className="text-base font-semibold text-slate-600">File đính kèm</label>
-              <div className="flex gap-4 items-start">
-                <input type="file" multiple onChange={handleFileUpload} className="hidden" ref={fileInputRef} />
-                <button 
-                  type="button" 
-                  onClick={() => fileInputRef.current?.click()} 
-                  className="bg-blue-50 text-blue-600 px-6 py-4 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-100 transition-colors shadow-sm shrink-0 border border-blue-200"
-                >
-                  <FileUp size={20} /> Chọn File
-                </button>
-                <div className="flex-1 flex gap-2 flex-wrap min-h-[56px] items-center bg-slate-50 p-2 rounded-xl border border-slate-200">
-                  {formData.files.length === 0 && <span className="text-slate-400 text-sm px-2">Chưa có file nào</span>}
-                  {formData.files.map((file, i) => {
-                    const fileName = file.includes("|||") ? file.split("|||")[1] : "Tệp " + (i + 1);
+      
+      {/* 1. KHUNG FORM THÊM MỚI (Giữ nguyên) */}
+      <form onSubmit={handleAddSubmit} className="bg-white p-6 md:p-8 rounded-3xl shadow-xl border border-blue-100 space-y-6">
+        <h3 className="text-xl font-bold text-blue-900 mb-2 border-b border-blue-100 pb-4">Thêm Dự Án Mới</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-base font-semibold text-slate-600">Dự án</label>
+            <input type="text" required value={formData.project} onChange={e => setFormData(prev => ({ ...prev, project: e.target.value }))} placeholder="Tên dự án..." className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-base" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-base font-semibold text-slate-600">Deadline</label>
+            <input type="date" required min={format(new Date(), 'yyyy-MM-dd')} value={formData.deadline} onChange={e => setFormData(prev => ({ ...prev, deadline: e.target.value }))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-base" />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <label className="text-base font-semibold text-slate-600">Mô tả và thông tin</label>
+            <textarea value={formData.description} onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))} placeholder="Chi tiết công việc..." rows={4} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-base" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-base font-semibold text-slate-600">Đánh giá KPI</label>
+            <select value={formData.kpiLevel} onChange={e => setFormData(prev => ({ ...prev, kpiLevel: parseInt(e.target.value) }))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-base">
+              {Object.entries(KPI_CONFIG).map(([level, config]) => (
+                <option key={level} value={level}>{config.label} ({config.displayHours} - {config.points}đ)</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-base font-semibold text-slate-600">Ghi chú</label>
+            <input type="text" value={formData.note} onChange={e => setFormData(prev => ({ ...prev, note: e.target.value }))} placeholder="Ghi chú thêm..." className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-base" />
+          </div>
+          <div className="md:col-span-2 space-y-2">
+            <label className="text-base font-semibold text-slate-600">Hình ảnh và file đính kèm</label>
+            <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors cursor-pointer relative">
+              <input type="file" multiple onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
+              <FileUp className="mx-auto text-slate-400 mb-2" size={32} />
+              <p className="text-slate-500 text-sm">Kéo thả file vào bất cứ đâu trên màn hình hoặc click vào đây</p>
+              {formData.files.length > 0 && (
+                <div className="mt-4 flex flex-wrap gap-2 justify-center">
+                  {formData.files.map((fileData, i) => {
+                    let displayName = "File đính kèm";
+                    if (fileData.includes("|||")) displayName = fileData.split("|||")[1];
+                    else if (fileData.includes("drive.google.com")) displayName = "Thư mục Drive đã lưu";
                     return (
-                      <div key={i} className="bg-white pl-3 pr-1 py-1.5 rounded-lg border border-slate-200 text-sm flex items-center gap-2 shadow-sm">
-                        <span className="truncate max-w-[120px] text-slate-600 font-medium" title={fileName}>{fileName}</span>
-                        <button type="button" onClick={() => removeFile(i)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1 rounded-md transition-colors"><Trash2 size={14} /></button>
+                      <div key={i} className="group relative px-3 py-1.5 bg-blue-100 rounded-lg flex items-center text-blue-600 text-sm font-medium gap-2 shadow-sm hover:pr-8 transition-all">
+                        <Paperclip size={14} className="shrink-0" />
+                        <span className="truncate max-w-[250px]">{displayName}</span>
+                        <button type="button" onClick={() => setFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) }))} className="absolute right-2 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity">
+                          <Trash2 size={16} />
+                        </button>
                       </div>
-                    )
+                    );
                   })}
                 </div>
-              </div>
-            </div>
-            <div className="md:col-span-2 space-y-2">
-              <label className="text-base font-semibold text-slate-600">Ghi chú (Tuỳ chọn)</label>
-              <input 
-                type="text" 
-                value={formData.note} 
-                onChange={e => setFormData(prev => ({ ...prev, note: e.target.value }))} 
-                placeholder="Ghi chú thêm..." 
-                className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-base"
-              />
+              )}
             </div>
           </div>
-          <button type="submit" className="w-full bg-blue-700 text-white font-bold py-5 px-6 rounded-xl hover:bg-blue-800 transition-all flex items-center justify-center gap-2 text-lg shadow-lg shadow-blue-200 active:scale-[0.99]">
-            <Plus size={24} /> Giao Việc & Tính KPI
-          </button>
-        </form>
-      </div>
-
-      {/* DANH SÁCH DỰ ÁN */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between pl-2">
-          <h3 className="text-2xl font-bold text-slate-800">Danh sách Dự án</h3>
         </div>
+        <button type="submit" className="w-full bg-blue-600 text-white p-4 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-[0.98]">
+          Giao Việc Ngay
+        </button>
+      </form>
 
-        {/* THANH THÁNG CUỘN NGANG VỚI HIỆU ỨNG MỜ 2 BÊN VÀ VUỐT CHUỘT */}
-        <div className="relative w-full">
-          {/* Lớp mờ bên trái */}
-          <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-[#f0f7ff] to-transparent z-10 pointer-events-none"></div>
-          
-          <div 
-            ref={scrollRef}
-            onMouseDown={onMouseDownTab}
-            onMouseLeave={onMouseLeaveTab}
-            onMouseUp={onMouseUpTab}
-            onMouseMove={onMouseMoveTab}
-            className="flex gap-3 overflow-x-auto no-scrollbar py-2 px-6 select-none cursor-grab active:cursor-grabbing"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-          >
-            <button 
-              onClick={() => setSelectedMonth(null)} 
-              className={cn("shrink-0 px-6 py-3 rounded-full font-bold text-sm transition-all shadow-sm flex items-center gap-2", selectedMonth === null ? "bg-blue-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200")}
-            >
-              <span>Tất cả Dự án</span>
-              <span className={cn("px-2 py-0.5 rounded-full text-[10px]", selectedMonth === null ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-500")}>{tasks.length}</span>
-            </button>
-            
-            {monthGroups.map(([month, count]) => (
-              <button 
-                key={month} 
-                onClick={() => setSelectedMonth(month)} 
-                className={cn("shrink-0 px-6 py-3 rounded-full font-bold text-sm transition-all shadow-sm flex items-center gap-2", selectedMonth === month ? "bg-blue-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200")}
-              >
-                <span>Tháng {month}</span>
-                <span className={cn("px-2 py-0.5 rounded-full text-[10px]", selectedMonth === month ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-500")}>{count}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Lớp mờ bên phải */}
-          <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-[#f0f7ff] to-transparent z-10 pointer-events-none"></div>
-        </div>
-
-        {/* BẢNG DỮ LIỆU CỐ ĐỊNH CHIỀU CAO */}
-        <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-blue-100 flex flex-col min-h-[600px]">
-          <div className="overflow-x-auto flex-1">
-            <table className="w-full text-left border-collapse min-w-[1000px]">
-              <thead>
-                <tr className="bg-blue-50 text-blue-900 border-b border-blue-100">
-                  <th className="p-4 font-bold w-16">STT</th>
-                  <th className="p-4 font-bold w-64">Dự án</th>
-                  <th className="p-4 font-bold">Nội dung</th>
-                  <th className="p-4 font-bold">Ngày giao</th>
-                  <th className="p-4 font-bold">Deadline</th>
-                  <th className="p-4 font-bold">Ngày cần làm</th>
-                  <th className="p-4 font-bold">KPI</th>
-                  <th className="p-4 font-bold text-center">File đính kèm</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedTasks.map((task, index) => {
-                  const createdAt = parseISO(task.createdAt || task.startDate);
-                  const isCompleted = task.status === 'COMPLETED' || task.status === TaskStatus.COMPLETED;
-                  
-                  return (
-                    <tr 
-                      key={task.id} 
-                      onDoubleClick={() => onDoubleClickTask && onDoubleClickTask(task)}
-                      className={cn(
-                        "border-b border-slate-50 hover:bg-slate-50/80 transition-colors group cursor-pointer",
-                        isCompleted ? "opacity-60 bg-slate-50" : ""
-                      )}
-                    >
-                      <td className="p-4 text-sm font-medium text-slate-500">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                      <td className="p-4">
-                        <ExpandableText text={task.project} isProject={true} />
-                      </td>
-                      <td className="p-4"><ExpandableText text={task.description} /></td>
-                      <td className="p-4 text-sm font-medium text-slate-600">{format(createdAt, 'dd/MM/yyyy')}</td>
-                      <td className="p-4 text-sm font-bold text-red-600">{format(parseISO(task.deadline), 'dd/MM/yyyy')}</td>
-                      <td className="p-4">
-                        <div className="flex flex-wrap gap-1 max-w-[150px]">
-                          {task.workingDays.map((d, i) => (
-                            <span key={i} className="px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded-md font-medium">
-                              {format(parseISO(d), 'dd/MM')}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="p-4 text-sm whitespace-nowrap">
-                        <span className="px-3 py-1.5 rounded-full text-white text-xs font-bold shadow-sm" style={{ backgroundColor: isCompleted ? '#94a3b8' : KPI_CONFIG[task.kpiLevel].color }}>
-                          {KPI_CONFIG[task.kpiLevel].label}
-                        </span>
-                      </td>
-                      <td className="p-4 text-center">
-                        <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-                          <ExpandableFiles files={task.files} />
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-                {paginatedTasks.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="p-12 text-center text-slate-400 italic">Chưa có dự án nào trong khoảng thời gian này</td>
+      {/* 2. BẢNG DANH SÁCH (Đã được dọn dẹp và kết nối với Bảng Sửa Toàn Cầu) */}
+      <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-blue-100">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-blue-600 text-white">
+                <th className="p-4 font-semibold text-base w-16">Sửa</th>
+                <th className="p-4 font-semibold text-base w-16">STT</th>
+                <th className="p-4 font-semibold text-base min-w-[150px]">Dự án</th>
+                <th className="p-4 font-semibold text-base max-w-[300px]">Mô tả</th>
+                <th className="p-4 font-semibold text-base w-24">File</th>
+                <th className="p-4 font-semibold text-base w-32 whitespace-nowrap">Deadline</th>
+                <th className="p-4 font-semibold text-base w-24 whitespace-nowrap">KPI</th>
+                <th className="p-4 font-semibold text-base max-w-[200px]">Ghi chú</th>
+                <th className="p-4 font-semibold text-base w-16">Xóa</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tasks
+                .slice()
+                .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+                .map((task, index) => {
+                const isPastDeadline = isBefore(parseISO(task.deadline), startOfDay(new Date()));
+                const isCompleted = task.status === TaskStatus.COMPLETED;
+                return (
+                  <tr 
+                    key={task.id} 
+                    onDoubleClick={() => onDoubleClickTask && onDoubleClickTask(task)}
+                    title="Nháy đúp chuột để Sửa hoặc Xóa"
+                    className={cn(
+                      "transition-colors",
+                      isCompleted ? "bg-slate-100 text-slate-400" : (
+                        isPastDeadline 
+                          ? (index % 2 === 0 ? "bg-slate-100 text-slate-500" : "bg-slate-50 text-slate-500")
+                          : (index % 2 === 0 ? "bg-blue-50/50" : "bg-white")
+                      )
+                    )}>
+                    <td className="p-4 text-sm align-top">
+                      {/* NÚT CHỈNH SỬA GỌI BẢNG TOÀN CẦU */}
+                      <button 
+                        onClick={() => window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: task }))} 
+                        className="text-blue-400 hover:text-blue-600 transition-colors"
+                      >
+                        <Edit size={18} />
+                      </button>
+                    </td>
+                    <td className="p-4 text-sm font-medium">{index + 1}</td>
+                    <td className="p-4 text-sm align-top"><ExpandableText text={task.project} isProject /></td>
+                    <td className="p-4 text-sm align-top max-w-[300px]"><ExpandableText text={task.description} /></td>
+                    <td className="p-4 text-sm align-top"><ExpandableFiles files={task.files} /></td>
+                    <td className="p-4 text-sm font-medium align-top whitespace-nowrap">{format(parseISO(task.deadline), 'dd/MM/yyyy')}</td>
+                    <td className="p-4 text-sm align-top whitespace-nowrap">
+                      <span className={cn("px-3 py-1 rounded-full text-white text-xs font-bold", (isPastDeadline || isCompleted) && "opacity-60")} style={{ backgroundColor: isCompleted ? '#94a3b8' : KPI_CONFIG[task.kpiLevel].color }}>
+                        {KPI_CONFIG[task.kpiLevel].label}
+                      </span>
+                    </td>
+                    <td className="p-4 text-sm align-top max-w-[200px]"><ExpandableText text={task.note || ''} /></td>
+                    <td className="p-4 text-sm align-top">
+                      <button onClick={() => onDelete(task.id)} className="text-red-400 hover:text-red-600 transition-colors">
+                        <Trash2 size={18} />
+                      </button>
+                    </td>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* THANH ĐIỀU HƯỚNG PHÂN TRANG (PAGINATION) NẰM CỐ ĐỊNH Ở ĐÁY BẢNG */}
-          {totalPages > 0 && (
-            <div className="flex items-center justify-center gap-2 p-4 border-t border-slate-100 bg-slate-50/50 mt-auto shrink-0">
-              <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="p-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 disabled:opacity-40 transition-all font-bold flex items-center shadow-sm">
-                <ChevronLeft size={16} className="-mr-2"/><ChevronLeft size={16} />
-              </button>
-              <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="p-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 disabled:opacity-40 transition-all shadow-sm">
-                <ChevronLeft size={16}/>
-              </button>
-              
-              <span className="px-6 py-2 text-sm font-bold text-blue-700 bg-blue-50 rounded-lg border border-blue-100 shadow-inner">
-                Trang {currentPage} / {totalPages}
-              </span>
-              
-              <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} className="p-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 disabled:opacity-40 transition-all shadow-sm">
-                <ChevronRight size={16}/>
-              </button>
-              <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="p-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 disabled:opacity-40 transition-all font-bold flex items-center shadow-sm">
-                <ChevronRight size={16} className="-mr-2"/><ChevronRight size={16} />
-              </button>
-            </div>
-          )}
+                );
+              })}
+              {tasks.length === 0 && (
+                <tr>
+                  <td colSpan={9} className="p-12 text-center text-slate-400 italic">Chưa có công việc nào được giao</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
