@@ -1141,49 +1141,40 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
                     borderClass = "border border-red-400 shadow-sm relative z-10";
                   }
 
+                  // Tích hợp màu nền gradient tiến độ và viền mỏng
                   let rowBgClass = `${gradientClass} ${borderClass}`;
 
-                  
+                  return (
                     <tr 
                       key={task.id} 
                       onDoubleClick={() => onDoubleClickTask && onDoubleClickTask(task)}
-                      title="Nháy đúp chuột để Sửa hoặc Xóa"
-                      className={cn(
-                        "transition-colors",
-                        rowBgClass
-                      )}>
+                      className={cn("transition-colors hover:bg-slate-50", rowBgClass)}
+                    >
                       <td className="p-4 text-sm align-top">
-                        <select
-                          value={task.status || TaskStatus.NEW}
-                          onChange={(e) => onUpdate({ ...task, status: e.target.value as TaskStatus })}
-                          className={cn(
-                            "p-2 rounded-lg text-xs font-bold border border-slate-200 outline-none cursor-pointer hover:brightness-95 transition-all w-[130px] shadow-sm",
-                            isCompleted ? "bg-green-100 text-green-700" : "bg-white text-slate-700"
-                          )}
+                        <button 
+                          onClick={() => window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: task }))} 
+                          className="text-blue-400 hover:text-blue-600 transition-colors"
                         >
-                          <option value={TaskStatus.NEW}>Dự án mới</option>
-                          <option value={TaskStatus.INFO}>Tìm thông tin</option>
-                          <option value={TaskStatus.IN_PROGRESS}>Đang thực hiện</option>
-                          <option value={TaskStatus.REVIEW}>Chờ xác nhận</option>
-                          <option value={TaskStatus.COMPLETED}>Hoàn thành</option>
-                        </select>
+                          <Edit size={18} />
+                        </button>
                       </td>
                       <td className="p-4 text-sm font-medium">{index + 1}</td>
-                      <td className="p-4 text-sm align-top">
-                        <ExpandableText text={task.project} isProject />
+                      <td className="p-4 text-sm align-top"><ExpandableText text={task.project} isProject /></td>
+                      <td className="p-4 text-sm align-top max-w-[300px]"><ExpandableText text={task.description} /></td>
+                      <td className="p-4 text-sm align-top"><ExpandableFiles files={task.files} /></td>
+                      
+                      {/* ĐỔI MÀU CHỮ THÀNH ĐỎ NẾU DỰ ÁN TRỄ HẠN HOẶC SẮP ĐẾN HẠN MÀ CHƯA HOÀN THÀNH */}
+                      <td className={cn(
+                        "p-4 text-sm align-top whitespace-nowrap",
+                        task.status !== 'COMPLETED' && (isPastDeadline || (daysToDeadline <= 1 && daysToDeadline >= 0)) 
+                          ? "text-red-600 font-bold drop-shadow-sm" 
+                          : "font-medium text-slate-700"
+                      )}>
+                        {format(parseISO(task.deadline), 'dd/MM/yyyy')}
                       </td>
-                      <td className="p-4 text-sm align-top max-w-[300px]">
-                        <ExpandableText text={task.description} />
-                      </td>
-                      <td className="p-4 text-sm align-top">
-                        <ExpandableFiles files={task.files} />
-                      </td>
-                      <td className="p-4 text-sm font-medium align-top whitespace-nowrap">{format(parseISO(task.deadline), 'dd/MM/yyyy')}</td>
+                      
                       <td className="p-4 text-sm align-top whitespace-nowrap">
-                        <span 
-                          className={cn("px-3 py-1 rounded-full text-white text-xs font-bold", (isPastDeadline || isCompleted) && "opacity-60")}
-                          style={{ backgroundColor: isCompleted ? '#94a3b8' : KPI_CONFIG[task.kpiLevel].color }}
-                        >
+                        <span className={cn("px-3 py-1 rounded-full text-white text-xs font-bold", task.status === 'COMPLETED' && "opacity-60")} style={{ backgroundColor: task.status === 'COMPLETED' ? '#94a3b8' : KPI_CONFIG[task.kpiLevel].color }}>
                           {KPI_CONFIG[task.kpiLevel].label}
                         </span>
                       </td>
