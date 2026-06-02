@@ -56,12 +56,6 @@ import {
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { createClient } from '@supabase/supabase-js';
-
-// --- KẾT NỐI SUPABASE & GOOGLE DRIVE ---
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-const gasUrl = import.meta.env.VITE_GAS_URL || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 import { 
   KPILevel, 
   KPI_CONFIG, 
@@ -70,6 +64,12 @@ import {
   isWorkingDay,
   TaskStatus
 } from './types';
+
+// --- KẾT NỐI SUPABASE & GOOGLE DRIVE ---
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const gasUrl = import.meta.env.VITE_GAS_URL || '';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -1065,7 +1065,7 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
     onUpdate({ ...task, status: newStatus });
   };
 
-  
+  return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <h2 className="text-3xl font-bold text-center text-blue-900 mb-12">Công Việc Hằng Ngày</h2>
       
@@ -1117,77 +1117,65 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
               </tr>
             </thead>
             <tbody>
-              {(() => {
-                let isPrevRed = false;
-                let redToggle = false;
+              {currentTasks.map((task, index) => {
+                const deadlineDate = startOfDay(parseISO(task.deadline));
+                const todayDate = startOfDay(new Date());
+                const isPastDeadline = isBefore(deadlineDate, todayDate);
+                const daysToDeadline = differenceInDays(deadlineDate, todayDate);
+                const isCompleted = task.status === TaskStatus.COMPLETED;
+                
+                let gradientClass = "bg-white";
+                if (task.status === TaskStatus.INFO) gradientClass = "bg-gradient-to-t from-yellow-100 to-white";
+                else if (task.status === TaskStatus.IN_PROGRESS) gradientClass = "bg-gradient-to-t from-orange-100 to-white";
+                else if (task.status === TaskStatus.REVIEW) gradientClass = "bg-gradient-to-t from-purple-100 to-white";
+                else if (task.status === TaskStatus.COMPLETED) gradientClass = "bg-gradient-to-t from-green-100 to-white opacity-70";
 
-                return currentTasks.map((task, index) => {
-                  const deadlineDate = startOfDay(parseISO(task.deadline));
-                  const todayDate = startOfDay(new Date());
-                  const isPastDeadline = isBefore(deadlineDate, todayDate);
-                  const daysToDeadline = differenceInDays(deadlineDate, todayDate);
-                  const isCompleted = task.status === TaskStatus.COMPLETED;
-                  
-                  // 1. TÔ MÀU NỀN 5 MỨC ĐỘ TỪ DƯỚI LÊN (bg-gradient-to-t)
-                  let gradientClass = "bg-white"; // Dự án mới
-                  if (task.status === TaskStatus.INFO) gradientClass = "bg-gradient-to-t from-yellow-100 to-white";
-                  else if (task.status === TaskStatus.IN_PROGRESS) gradientClass = "bg-gradient-to-t from-orange-100 to-white";
-                  else if (task.status === TaskStatus.REVIEW) gradientClass = "bg-gradient-to-t from-purple-100 to-white";
-                  else if (task.status === TaskStatus.COMPLETED) gradientClass = "bg-gradient-to-t from-green-100 to-white opacity-70";
+                const borderClass = "border-b border-slate-100";
+                const rowBgClass = `${gradientClass} ${borderClass}`;
 
-                  // 2. KHUNG VIỀN ĐỎ MỎNG NẾU TRỄ HẠN/SẮP ĐẾN HẠN
-                  // CHỈ GIỮ VIỀN MỎNG MẶC ĐỊNH
-                  let borderClass = "border-b border-slate-100";
-
-                  // Tích hợp màu nền gradient tiến độ và viền mỏng
-                  let rowBgClass = `${gradientClass} ${borderClass}`;
-
-                  return (
-                    <tr 
-                      key={task.id} 
-                      onDoubleClick={() => onDoubleClickTask && onDoubleClickTask(task)}
-                      className={cn("transition-colors hover:bg-slate-50", rowBgClass)}
-                    >
-                      <td className="p-4 text-sm align-top">
-                        <button 
-                          onClick={() => window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: task }))} 
-                          className="text-blue-400 hover:text-blue-600 transition-colors"
-                        >
-                          <Edit size={18} />
-                        </button>
-                      </td>
-                      <td className="p-4 text-sm font-medium">{index + 1}</td>
-                      <td className="p-4 text-sm align-top"><ExpandableText text={task.project} isProject /></td>
-                      <td className="p-4 text-sm align-top max-w-[300px]"><ExpandableText text={task.description} /></td>
-                      <td className="p-4 text-sm align-top"><ExpandableFiles files={task.files} /></td>
-                      
-                      {/* ĐỔI MÀU CHỮ THÀNH ĐỎ NẾU DỰ ÁN TRỄ HẠN HOẶC SẮP ĐẾN HẠN MÀ CHƯA HOÀN THÀNH */}
-                      <td className={cn(
-                        "p-4 text-sm align-top whitespace-nowrap",
-                        task.status !== 'COMPLETED' && (isPastDeadline || (daysToDeadline <= 1 && daysToDeadline >= 0)) 
-                          ? "text-red-600 font-bold drop-shadow-sm" 
-                          : "font-medium text-slate-700"
-                      )}>
-                        {format(parseISO(task.deadline), 'dd/MM/yyyy')}
-                      </td>
-                      
-                      <td className="p-4 text-sm align-top whitespace-nowrap">
-                        <span className={cn("px-3 py-1 rounded-full text-white text-xs font-bold", task.status === 'COMPLETED' && "opacity-60")} style={{ backgroundColor: task.status === 'COMPLETED' ? '#94a3b8' : KPI_CONFIG[task.kpiLevel].color }}>
-                          {KPI_CONFIG[task.kpiLevel].label}
-                        </span>
-                      </td>
-                      <td className="p-4 text-sm align-top max-w-[200px]">
-                        <ExpandableText text={task.note || ''} />
-                      </td>
-                    </tr>
-                  );
-                })}
-                {currentTasks.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="p-12 text-center text-slate-400 italic">Không có công việc nào cần xử lý</td>
+                return (
+                  <tr 
+                    key={task.id} 
+                    onDoubleClick={() => onDoubleClickTask && onDoubleClickTask(task)}
+                    className={cn("transition-colors hover:bg-slate-50", rowBgClass)}
+                  >
+                    <td className="p-4 text-sm align-top">
+                      <button 
+                        onClick={() => window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: task }))} 
+                        className="text-blue-400 hover:text-blue-600 transition-colors"
+                      >
+                        <Edit size={18} />
+                      </button>
+                    </td>
+                    <td className="p-4 text-sm font-medium">{index + 1}</td>
+                    <td className="p-4 text-sm align-top"><ExpandableText text={task.project} isProject /></td>
+                    <td className="p-4 text-sm align-top max-w-[300px]"><ExpandableText text={task.description} /></td>
+                    <td className="p-4 text-sm align-top"><ExpandableFiles files={task.files} /></td>
+                    <td className={cn(
+                      "p-4 text-sm align-top whitespace-nowrap",
+                      task.status !== 'COMPLETED' && (isPastDeadline || (daysToDeadline <= 1 && daysToDeadline >= 0)) 
+                        ? "text-red-600 font-bold drop-shadow-sm" 
+                        : "font-medium text-slate-700"
+                    )}>
+                      {format(parseISO(task.deadline), 'dd/MM/yyyy')}
+                    </td>
+                    <td className="p-4 text-sm align-top whitespace-nowrap">
+                      <span className={cn("px-3 py-1 rounded-full text-white text-xs font-bold", task.status === 'COMPLETED' && "opacity-60")} style={{ backgroundColor: task.status === 'COMPLETED' ? '#94a3b8' : KPI_CONFIG[task.kpiLevel].color }}>
+                        {KPI_CONFIG[task.kpiLevel].label}
+                      </span>
+                    </td>
+                    <td className="p-4 text-sm align-top max-w-[200px]">
+                      <ExpandableText text={task.note || ''} />
+                    </td>
                   </tr>
-                )}
-              </tbody>
+                );
+              })}
+              {currentTasks.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="p-12 text-center text-slate-400 italic">Không có công việc nào cần xử lý</td>
+                </tr>
+              )}
+            </tbody>
           </table>
         </div>
       </div>
@@ -1230,7 +1218,7 @@ function SearchSection({ tasks, selectedId, onClearSelection, onDelete }: {
     if (onClearSelection) onClearSelection();
   };
 
-  
+  return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
       <h2 className="text-3xl font-bold text-center text-blue-900 mb-12">Tìm Kiếm</h2>
       
@@ -1478,7 +1466,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
         const isTodayInView = timelineData.some(item => todayDate >= item.start && todayDate <= item.end);
 
         // ĐIỀU KIỆN HIỂN THỊ
-        deadlineDate >= viewStart && deadlineDate <= viewEnd) || (isUnfinished && isOverdue && isTodayInView);
+        return (deadlineDate >= viewStart && deadlineDate <= viewEnd) || (isUnfinished && isOverdue && isTodayInView);
       })
       .sort((a, b) => {
         const todayDate = startOfDay(new Date());
@@ -1521,7 +1509,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
       });
   }, [tasks, timelineData]);
 
-  
+  return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <h2 className="text-3xl font-bold text-center text-blue-900 mb-12">Timeline Công Việc</h2>
       
@@ -1604,7 +1592,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                 // CHỈ công việc đã HOÀN THÀNH mới bị chuyển sang màu xám nhạt
                 const isInactive = isCompleted;
                 
-                
+                return (
                   <tr key={task.id} className={cn(
                     "transition-colors h-16",
                     index % 2 === 0 ? "bg-blue-50/50" : "bg-white"
@@ -1821,7 +1809,7 @@ function DanhGiaCongViec({ tasks }: { tasks: Task[] }) {
     };
   }, [selectedMonth, tasks]);
 
-  
+  return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <h2 className="text-3xl font-bold text-center text-blue-900 mb-12">Đánh Giá Công Việc</h2>
       
@@ -1981,10 +1969,10 @@ function GlobalEditModal({ task, onClose, onUpdate, onDelete, showToast }: {
   useEffect(() => {
     const handleGlobalDrop = (e: any) => processFiles(e.detail);
     window.addEventListener('GLOBAL_FILE_DROP', handleGlobalDrop);
-    ) => window.removeEventListener('GLOBAL_FILE_DROP', handleGlobalDrop);
+    return () => window.removeEventListener('GLOBAL_FILE_DROP', handleGlobalDrop);
   }, []);
 
-  
+  return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={onClose}></div>
       <div className="bg-white w-full max-w-5xl min-h-[65vh] rounded-3xl shadow-2xl relative z-10 flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
@@ -2041,7 +2029,7 @@ function GlobalEditModal({ task, onClose, onUpdate, onDelete, showToast }: {
                         let displayName = "File đính kèm";
                         if (fileData.includes("|||")) displayName = fileData.split("|||")[1];
                         else if (fileData.includes("drive.google.com")) displayName = "Thư mục Drive đã lưu";
-                        
+                        return (
                           <div key={i} className="group relative px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-lg flex items-center text-blue-600 text-sm gap-2 hover:pr-8 transition-all">
                             <span className="truncate max-w-[300px]">{displayName}</span>
                             <button type="button" onClick={() => setEditFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) }))} className="absolute right-2 opacity-0 group-hover:opacity-100 text-red-500">
@@ -2102,7 +2090,7 @@ function GlobalViewModal({ task, onClose, onDelete }: {
   const currentStatus = task.status || 'NEW';
   const statusInfo = STATUS_CONFIG[currentStatus] || STATUS_CONFIG['NEW'];
 
-  
+  return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={onClose}></div>
       
