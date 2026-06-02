@@ -1136,10 +1136,8 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
                   else if (task.status === TaskStatus.COMPLETED) gradientClass = "bg-gradient-to-t from-green-100 to-white opacity-70";
 
                   // 2. KHUNG VIỀN ĐỎ MỎNG NẾU TRỄ HẠN/SẮP ĐẾN HẠN
+                  // CHỈ GIỮ VIỀN MỎNG MẶC ĐỊNH
                   let borderClass = "border-b border-slate-100";
-                  if (!isCompleted && (isPastDeadline || (daysToDeadline <= 1 && daysToDeadline >= 0))) {
-                    borderClass = "border border-red-400 shadow-sm relative z-10";
-                  }
 
                   // Tích hợp màu nền gradient tiến độ và viền mỏng
                   let rowBgClass = `${gradientClass} ${borderClass}`;
@@ -1184,12 +1182,12 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
                     </tr>
                   );
                 })}
-              {currentTasks.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="p-12 text-center text-slate-400 italic">Không có công việc nào cần xử lý</td>
-                </tr>
-              )}
-            </tbody>
+                {currentTasks.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="p-12 text-center text-slate-400 italic">Không có công việc nào cần xử lý</td>
+                  </tr>
+                )}
+              </tbody>
           </table>
         </div>
       </div>
