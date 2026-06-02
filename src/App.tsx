@@ -1106,7 +1106,7 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-blue-600 text-white">
-                <th className="p-4 font-semibold text-base w-32">Tiến độ</th>
+                <th className="p-4 font-semibold text-base w-44">Tiến độ</th>
                 <th className="p-4 font-semibold text-base w-16">STT</th>
                 <th className="p-4 font-semibold text-base min-w-[150px]">Dự án</th>
                 <th className="p-4 font-semibold text-base max-w-[300px]">Mô tả</th>
@@ -1139,18 +1139,18 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
                     onDoubleClick={() => onDoubleClickTask && onDoubleClickTask(task)}
                     className={cn("transition-colors hover:bg-slate-50", rowBgClass)}
                   >
-                    <td className="p-3 align-middle">
+                    <td className="p-3 align-middle w-44">
                       <select
                         value={task.status || 'NEW'}
                         onChange={e => onUpdate({ ...task, status: e.target.value as any })}
                         onClick={e => e.stopPropagation()}
                         className={cn(
-                          "w-full px-2 py-1.5 rounded-lg text-xs font-bold cursor-pointer outline-none border-0 transition-all shadow-sm",
-                          task.status === 'COMPLETED' ? "bg-green-100 text-green-800" :
-                          task.status === 'REVIEW'    ? "bg-purple-100 text-purple-800" :
+                          "w-full min-w-[140px] px-3 py-2 rounded-lg text-sm font-semibold cursor-pointer outline-none border-0 transition-all shadow-sm",
+                          task.status === 'COMPLETED'   ? "bg-green-100 text-green-800" :
+                          task.status === 'REVIEW'      ? "bg-purple-100 text-purple-800" :
                           task.status === 'IN_PROGRESS' ? "bg-orange-100 text-orange-800" :
-                          task.status === 'INFO'      ? "bg-yellow-100 text-yellow-800" :
-                                                        "bg-slate-100 text-slate-600"
+                          task.status === 'INFO'        ? "bg-yellow-100 text-yellow-800" :
+                                                          "bg-slate-100 text-slate-600"
                         )}
                       >
                         <option value="NEW">Dự án mới</option>
