@@ -1139,13 +1139,26 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
                     onDoubleClick={() => onDoubleClickTask && onDoubleClickTask(task)}
                     className={cn("transition-colors hover:bg-slate-50", rowBgClass)}
                   >
-                    <td className="p-4 text-sm align-top">
-                      <button 
-                        onClick={() => window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: task }))} 
-                        className="text-blue-400 hover:text-blue-600 transition-colors"
+                    <td className="p-3 align-middle">
+                      <select
+                        value={task.status || 'NEW'}
+                        onChange={e => onUpdate({ ...task, status: e.target.value as any })}
+                        onClick={e => e.stopPropagation()}
+                        className={cn(
+                          "w-full px-2 py-1.5 rounded-lg text-xs font-bold cursor-pointer outline-none border-0 transition-all shadow-sm",
+                          task.status === 'COMPLETED' ? "bg-green-100 text-green-800" :
+                          task.status === 'REVIEW'    ? "bg-purple-100 text-purple-800" :
+                          task.status === 'IN_PROGRESS' ? "bg-orange-100 text-orange-800" :
+                          task.status === 'INFO'      ? "bg-yellow-100 text-yellow-800" :
+                                                        "bg-slate-100 text-slate-600"
+                        )}
                       >
-                        <Edit size={18} />
-                      </button>
+                        <option value="NEW">Dự án mới</option>
+                        <option value="INFO">Tìm thông tin</option>
+                        <option value="IN_PROGRESS">Đang thực hiện</option>
+                        <option value="REVIEW">Chờ xác nhận</option>
+                        <option value="COMPLETED">Hoàn thành</option>
+                      </select>
                     </td>
                     <td className="p-4 text-sm font-medium">{index + 1}</td>
                     <td className="p-4 text-sm align-top"><ExpandableText text={task.project} isProject /></td>
