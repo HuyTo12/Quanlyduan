@@ -1192,7 +1192,7 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
                       </td>
                     </tr>
                   );
-                })})()}
+                })}
               {currentTasks.length === 0 && (
                 <tr>
                   <td colSpan={8} className="p-12 text-center text-slate-400 italic">Không có công việc nào cần xử lý</td>
