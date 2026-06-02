@@ -1,24 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
-  LayoutDashboard, 
-  CalendarDays, 
-  CalendarRange, 
-  BarChart3, 
-  Plus, 
-  FileUp, 
-  ChevronLeft, 
-  ChevronRight,
-  ChevronDown,
-  ChevronUp,
-  FileText,
-  Paperclip,
-  Trash2,
-  Download,
-  Search,
-  Edit,
-  CheckCircle2,
-  Clock,
-  AlertCircle
+  LayoutDashboard, CalendarDays, CalendarRange, BarChart3, Plus, FileUp, ChevronLeft, ChevronRight,
+  ChevronDown, ChevronUp, FileText, Paperclip, Trash2, Download, Search, Edit, CheckCircle2, Clock, AlertCircle,
+  Share2, MessageSquare, Music, Facebook, ShoppingBag, Video, Image as ImageIcon, MessageCircle
 } from 'lucide-react';
 import { 
   format, 
@@ -130,7 +114,21 @@ function ExpandableFiles({ files }: { files: string[] }) {
   );
 }
 
-type Section = 'giao-viec' | 'cong-viec-hang-ngay' | 'timeline' | 'danh-gia' | 'search';
+type Section = 'giao-viec' | 'cong-viec-hang-ngay' | 'timeline' | 'danh-gia' | 'search' | 'social-media';
+
+// --- BỘ CÔNG CỤ XỬ LÝ DỮ LIỆU SOCIAL MEDIA NGẦM ---
+export type SMSchedule = { id: string; platform: string; date: string; time: string; };
+export type SMData = { format: 'Hình ảnh' | 'Video'; schedules: SMSchedule[]; };
+export const getSMData = (task: any): { note: string, smData: SMData | null } => {
+  if (task.note && task.note.includes('SM_DATA:::')) {
+    try {
+      const [note, smString] = task.note.split('SM_DATA:::');
+      return { note, smData: JSON.parse(smString) };
+    } catch { return { note: task.note || '', smData: null }; }
+  }
+  return { note: task.note || '', smData: null };
+};
+export const encodeSMData = (note: string, smData: SMData): string => `${note || ''}SM_DATA:::${JSON.stringify(smData)}`;
 
 type Toast = {
   id: number;
@@ -528,6 +526,7 @@ export default function App() {
           <SidebarItem icon={<CalendarDays size={20} />} label="Công việc hằng ngày" active={activeSection === 'cong-viec-hang-ngay'} onClick={() => setActiveSection('cong-viec-hang-ngay')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<CalendarRange size={20} />} label="Timeline công việc" active={activeSection === 'timeline'} onClick={() => setActiveSection('timeline')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<Plus size={20} />} label="Giao việc" active={activeSection === 'giao-viec'} onClick={() => setActiveSection('giao-viec')} collapsed={!isSidebarOpen} />
+          <SidebarItem icon={<Share2 size={20} />} label="Social Media" active={activeSection === 'social-media'} onClick={() => setActiveSection('social-media')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<BarChart3 size={20} />} label="Đánh giá công việc" active={activeSection === 'danh-gia'} onClick={() => setActiveSection('danh-gia')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<Search size={20} />} label="Tìm kiếm" active={activeSection === 'search'} onClick={() => setActiveSection('search')} collapsed={!isSidebarOpen} />
         </nav>
@@ -597,6 +596,7 @@ export default function App() {
         </div>
 
         <div className="max-w-6xl mx-auto">
+          {activeSection === 'social-media' && <SocialMedia tasks={tasks} onAdd={addTask} onUpdate={updateTask} onDelete={deleteTask} showToast={showToast} />}
           {activeSection === 'giao-viec' && <GiaoViec tasks={tasks} onAdd={addTask} onDelete={deleteTask} onUpdate={updateTask} showToast={showToast} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'cong-viec-hang-ngay' && <CongViecHangNgay tasks={tasks} onUpdate={updateTask} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'timeline' && <TimelineCongViec tasks={tasks} onSelectTask={(id) => {
@@ -652,7 +652,412 @@ function SidebarItem({ icon, label, active, onClick, collapsed }: {
     </button>
   );
 }
+// --- COMPONENT SOCIAL MEDIA ---
+function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast }: any) {
+  const [viewPart, setViewPart] = useState<1 | 2>(1);
+  const [calendarMode, setCalendarMode] = useState<'month' | 'week'>('month');
+  const [currentDate, setCurrentDate] = useState(new Date());
+  
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedSchedule, setSelectedSchedule] = useState<{task: any, schedule: SMSchedule} | null>(null);
+  const [editPrompt, setEditPrompt] = useState<{task: any, schedule: SMSchedule} | null>(null);
+  const [editForm, setEditForm] = useState<{task: any, schedule: SMSchedule} | null>(null);
+  const [formData, setFormData] = useState({ project: '', description: '', format: 'Hình ảnh', note: '', files: [] as string[] });
 
+  const platforms = [
+    { id: 'Facebook', color: '#2563eb', bg: 'bg-blue-600', icon: Facebook },
+    { id: 'Zalo', color: '#3b82f6', bg: 'bg-blue-500', icon: MessageCircle },
+    { id: 'OA Zalo', color: '#60a5fa', bg: 'bg-blue-400', icon: MessageSquare },
+    { id: 'Tiktok', color: '#000000', bg: 'bg-black', icon: Music },
+    { id: 'Shopee', color: '#f97316', bg: 'bg-orange-500', icon: ShoppingBag },
+  ];
+
+  const timeOptions = Array.from({ length: 48 }, (_, i) => {
+    const h = Math.floor(i / 2).toString().padStart(2, '0');
+    const m = i % 2 === 0 ? '00' : '30';
+    return `${h}:${m}`;
+  });
+
+  const getPlatformStyle = (pId: string) => platforms.find(p => p.id === pId) || platforms[0];
+
+  const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== null), [tasks]);
+  
+  const currentMonthSMTasks = useMemo(() => smTasks.filter((t: any) => {
+    const { smData } = getSMData(t);
+    const taskDate = parseISO(t.createdAt || t.startDate || new Date().toISOString());
+    if (getMonth(taskDate) === getMonth(currentDate) && getYear(taskDate) === getYear(currentDate)) return true;
+    return smData?.schedules.some((s: any) => {
+      const sDate = parseISO(s.date);
+      return getMonth(sDate) === getMonth(currentDate) && getYear(sDate) === getYear(currentDate);
+    });
+  }), [smTasks, currentDate]);
+
+  const allSchedules = useMemo(() => {
+    const arr: {task: any, schedule: SMSchedule}[] = [];
+    smTasks.forEach((t: any) => {
+      const { smData } = getSMData(t);
+      smData?.schedules.forEach((s: any) => arr.push({ task: t, schedule: s }));
+    });
+    return arr;
+  }, [smTasks]);
+
+  const calendarDays = useMemo(() => {
+    const start = calendarMode === 'month' ? startOfWeek(startOfMonth(currentDate), { weekStartsOn: 1 }) : startOfWeek(currentDate, { weekStartsOn: 1 });
+    const end = calendarMode === 'month' ? endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 }) : endOfWeek(currentDate, { weekStartsOn: 1 });
+    return eachDayOfInterval({ start, end });
+  }, [currentDate, calendarMode]);
+
+  const handleAddSubmit = (e: any) => {
+    e.preventDefault();
+    if (!formData.project) return;
+    const smData: SMData = { format: formData.format as any, schedules: [] };
+    onAdd({
+      project: formData.project, description: formData.description, note: encodeSMData(formData.note, smData),
+      files: formData.files, kpiLevel: formData.format === 'Video' ? 3 : 2, deadline: format(new Date(), 'yyyy-MM-dd')
+    });
+    setFormData({ project: '', description: '', format: 'Hình ảnh', note: '', files: [] });
+    setShowAddModal(false);
+  };
+
+  const processFiles = (files: FileList) => {
+    if (!files) return;
+    Array.from(files).forEach((file: File) => {
+      const reader = new FileReader();
+      reader.onloadend = () => setFormData(prev => ({ ...prev, files: [...prev.files, (reader.result as string) + "|||" + file.name] }));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleDropToPlatform = (taskId: string, platformId: string) => {
+    const task = smTasks.find((t: any) => t.id === taskId);
+    if (!task) return;
+    const { note, smData } = getSMData(task);
+    if (!smData) return;
+    
+    const isCurrentMonth = getMonth(currentDate) === getMonth(new Date());
+    smData.schedules.push({
+      id: crypto.randomUUID(), platform: platformId, time: '12:00',
+      date: isCurrentMonth ? format(new Date(), 'yyyy-MM-dd') : format(startOfMonth(currentDate), 'yyyy-MM-dd')
+    });
+    
+    const hasZalo = smData.schedules.some((s: any) => s.platform === 'Zalo' || s.platform === 'OA Zalo');
+    onUpdate({ ...task, note: encodeSMData(note, smData), kpiLevel: (smData.format === 'Video' ? 3 : 2) + (hasZalo ? 1 : 0) });
+    showToast(`Đã xếp lịch lên ${platformId}`, 'success');
+  };
+
+  const handleSaveSchedule = (e: any) => {
+    e.preventDefault();
+    if (!editForm) return;
+    const { task, schedule } = editForm;
+    const { note, smData } = getSMData(task);
+    if (!smData) return;
+    
+    const index = smData.schedules.findIndex((s: any) => s.id === schedule.id);
+    if (index >= 0) smData.schedules[index] = schedule;
+    
+    const hasZalo = smData.schedules.some((s: any) => s.platform === 'Zalo' || s.platform === 'OA Zalo');
+    onUpdate({ ...task, note: encodeSMData(note, smData), kpiLevel: (smData.format === 'Video' ? 3 : 2) + (hasZalo ? 1 : 0) });
+    setEditForm(null); setEditPrompt(null);
+    if (selectedSchedule?.schedule.id === schedule.id) setSelectedSchedule({ task, schedule });
+    showToast('Đã cập nhật lịch đăng', 'edit');
+  };
+
+  const handleDeleteSchedule = (task: any, scheduleId: string) => {
+    const { note, smData } = getSMData(task);
+    if (!smData) return;
+    smData.schedules = smData.schedules.filter((s: any) => s.id !== scheduleId);
+    
+    const hasZalo = smData.schedules.some((s: any) => s.platform === 'Zalo' || s.platform === 'OA Zalo');
+    onUpdate({ ...task, note: encodeSMData(note, smData), kpiLevel: (smData.format === 'Video' ? 3 : 2) + (hasZalo ? 1 : 0) });
+    setEditPrompt(null); setEditForm(null);
+    if (selectedSchedule?.schedule.id === scheduleId) setSelectedSchedule(null);
+    showToast('Đã xóa lịch đăng', 'delete');
+  };
+
+  return (
+    <div className="space-y-6 h-full flex flex-col relative animate-in fade-in duration-500">
+      
+      {/* HEADER & TABS */}
+      <div className="flex items-center justify-between shrink-0 bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
+        <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
+          <button onClick={() => setViewPart(1)} className={cn("px-6 py-2.5 rounded-lg font-bold transition-all", viewPart === 1 ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:bg-slate-200")}>Phần 1: Lịch Đăng</button>
+          <button onClick={() => setViewPart(2)} className={cn("px-6 py-2.5 rounded-lg font-bold transition-all", viewPart === 2 ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:bg-slate-200")}>Phần 2: Danh sách</button>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          {viewPart === 1 && (
+            <div className="flex bg-slate-100 rounded-lg p-1 mr-4">
+              <button onClick={() => setCalendarMode('month')} className={cn("px-4 py-1.5 text-sm font-bold rounded-md transition-all", calendarMode === 'month' ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700")}>Tháng</button>
+              <button onClick={() => setCalendarMode('week')} className={cn("px-4 py-1.5 text-sm font-bold rounded-md transition-all", calendarMode === 'week' ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700")}>Tuần</button>
+            </div>
+          )}
+          <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-xl border border-slate-200">
+            <button onClick={() => setCurrentDate(calendarMode === 'month' ? subDays(currentDate, 30) : subDays(currentDate, 7))} className="p-1 hover:bg-slate-200 rounded text-slate-600"><ChevronLeft size={20}/></button>
+            <span className="font-bold text-slate-700 text-sm">{calendarMode === 'month' ? `Tháng ${format(currentDate, 'MM / yyyy')}` : `Tuần ${getWeek(currentDate)} - Năm ${getYear(currentDate)}`}</span>
+            <button onClick={() => setCurrentDate(calendarMode === 'month' ? addDays(currentDate, 30) : addDays(currentDate, 7))} className="p-1 hover:bg-slate-200 rounded text-slate-600"><ChevronRight size={20}/></button>
+          </div>
+        </div>
+      </div>
+
+      {/* PHẦN 1: LỊCH */}
+      {viewPart === 1 && (
+        <div className="flex-1 flex gap-6 min-h-0">
+          <div className="flex-1 bg-white rounded-3xl shadow-xl border border-blue-100 flex flex-col overflow-hidden">
+            <div className="grid grid-cols-7 border-b border-slate-200 shrink-0">
+              {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map(d => <div key={d} className="py-3 text-center font-bold text-slate-500 bg-slate-50 border-r border-slate-200 last:border-0">{d}</div>)}
+            </div>
+            <div className="flex-1 overflow-y-auto bg-slate-100 p-px">
+              <div className="grid grid-cols-7 gap-px bg-slate-200 min-h-full">
+                {calendarDays.map(day => {
+                  const dayStr = format(day, 'yyyy-MM-dd');
+                  const daySchedules = allSchedules.filter(s => s.schedule.date === dayStr);
+                  return (
+                    <div key={dayStr} className={cn("bg-white p-2 flex flex-col", calendarMode === 'month' ? "min-h-[140px]" : "min-h-[500px]")}>
+                      <span className={cn("text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full mb-2", isSameDay(day, new Date()) ? "bg-blue-600 text-white" : "text-slate-400")}>
+                        {format(day, 'd')}
+                      </span>
+                      <div className="flex-1 space-y-1.5 overflow-y-auto [&::-webkit-scrollbar]:hidden">
+                        {daySchedules.map(item => {
+                          const pStyle = getPlatformStyle(item.schedule.platform);
+                          const isPast = isBefore(parseISO(`${item.schedule.date}T${item.schedule.time}:00`), new Date());
+                          return (
+                            <div key={item.schedule.id} onClick={() => setSelectedSchedule(item)} className={cn("p-1.5 rounded-lg shadow-sm cursor-pointer border transition-all hover:scale-[1.02]", isPast ? 'bg-slate-100 border-slate-200' : 'bg-blue-50/80 border-blue-200', selectedSchedule?.schedule.id === item.schedule.id && "ring-2 ring-blue-500")}>
+                              <div className={cn("text-[10px] font-bold text-center truncate mb-1", isPast ? 'text-slate-500' : 'text-blue-900')}>{item.task.project}</div>
+                              <div className="flex justify-between items-end px-1">
+                                <span className={cn("text-[10px] font-bold", isPast ? 'text-slate-400' : 'text-blue-600')}>{item.schedule.time}</span>
+                                <pStyle.icon size={12} className={isPast ? 'text-slate-400' : ''} style={!isPast ? { color: pStyle.color } : {}} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          
+          <div className="w-[320px] shrink-0 bg-white rounded-3xl border border-blue-100 shadow-xl p-6 flex flex-col">
+            <h3 className="text-xl font-bold text-blue-900 mb-6 border-b border-slate-100 pb-4 flex items-center gap-2"><CalendarDays size={20}/> Chi tiết Lịch</h3>
+            {selectedSchedule ? (() => {
+              const { task, schedule } = selectedSchedule;
+              const { note, smData } = getSMData(task);
+              const pStyle = getPlatformStyle(schedule.platform);
+              return (
+                <div className="space-y-5 flex-1 overflow-y-auto pr-2">
+                  <div><label className="text-xs text-slate-400 font-bold uppercase block mb-1">Dự án</label><div className="text-lg font-bold text-slate-800 leading-tight">{task.project}</div></div>
+                  <div className="flex gap-6">
+                    <div><label className="text-xs text-slate-400 font-bold uppercase block mb-1">Mức KPI</label><div className="font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-lg">{KPI_CONFIG[task.kpiLevel]?.label || `Mức ${task.kpiLevel}`}</div></div>
+                    <div><label className="text-xs text-slate-400 font-bold uppercase block mb-1">Định dạng</label><div className="font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg flex items-center gap-1">{smData?.format === 'Video' ? <Video size={14}/> : <ImageIcon size={14}/>} {smData?.format}</div></div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-400 font-bold uppercase block mb-2">Lịch Đăng</label>
+                    <div className={cn("inline-flex items-center gap-2 px-4 py-2 rounded-xl text-white font-bold text-sm shadow-sm", pStyle.bg)}><pStyle.icon size={16} /> {schedule.platform} - {format(parseISO(schedule.date), 'dd/MM')} {schedule.time}</div>
+                  </div>
+                  <div><label className="text-xs text-slate-400 font-bold uppercase block mb-1">Ghi chú gốc</label><div className="text-sm text-slate-700 italic">{note || 'Không có'}</div></div>
+                  <div><label className="text-xs text-slate-400 font-bold uppercase block mb-1">Nội dung (Mô tả)</label><div className="text-sm text-slate-700 bg-slate-50 p-4 rounded-xl border border-slate-100 whitespace-pre-wrap">{task.description}</div></div>
+                  <div><label className="text-xs text-slate-400 font-bold uppercase block mb-2">File đính kèm</label><ExpandableFiles files={task.files} /></div>
+                </div>
+              );
+            })() : (
+              <div className="flex-1 flex flex-col items-center justify-center text-slate-400 italic gap-4"><Share2 size={48} className="opacity-20"/> Chọn 1 lịch đăng trên lịch để xem</div>
+            )}
+            {selectedSchedule && (
+              <div className="pt-6 mt-4 border-t border-slate-100 flex gap-3">
+                <button onClick={() => setEditForm(selectedSchedule)} className="flex-1 bg-blue-100 text-blue-700 font-bold py-3 rounded-xl hover:bg-blue-200 transition-colors flex justify-center items-center gap-2"><Edit size={16}/> Sửa</button>
+                <button onClick={() => setEditPrompt(selectedSchedule)} className="flex-1 bg-red-100 text-red-600 font-bold py-3 rounded-xl hover:bg-red-200 transition-colors flex justify-center items-center gap-2"><Trash2 size={16}/> Xóa</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* PHẦN 2: DANH SÁCH & KÉO THẢ */}
+      {viewPart === 2 && (
+        <div className="flex-1 flex gap-6 min-h-0">
+          <div className="flex-1 bg-white rounded-3xl shadow-xl border border-blue-100 overflow-hidden flex flex-col">
+            <div className="p-4 bg-blue-50/50 border-b border-blue-100 flex items-center justify-between">
+              <h3 className="font-bold text-blue-900 flex items-center gap-2"><FileText size={18}/> Danh sách Dự án Social Media</h3>
+              <p className="text-xs text-slate-500 italic">Kéo dự án và thả sang cột bên phải để xếp lịch nhanh</p>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 sticky top-0 z-10 border-b border-slate-200">
+                  <tr>
+                    <th className="p-4 font-semibold text-sm text-slate-600 w-16">STT</th>
+                    <th className="p-4 font-semibold text-sm text-slate-600 min-w-[150px]">Dự án</th>
+                    <th className="p-4 font-semibold text-sm text-slate-600">Định dạng</th>
+                    <th className="p-4 font-semibold text-sm text-slate-600">Mô tả</th>
+                    <th className="p-4 font-semibold text-sm text-slate-600 w-24">File</th>
+                    <th className="p-4 font-semibold text-sm text-slate-600 w-12"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentMonthSMTasks.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="p-6">
+                        <div onClick={() => setShowAddModal(true)} className="w-full py-8 bg-blue-50 border-2 border-dashed border-blue-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-blue-100 hover:border-blue-400 transition-all group">
+                           <Plus size={32} className="text-blue-500 group-hover:scale-125 transition-transform mb-2" />
+                           <span className="font-bold text-blue-600">Thêm Dự Án Social Media Mới</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    currentMonthSMTasks.map((t: any, idx) => {
+                      const { smData } = getSMData(t);
+                      return (
+                        <tr key={t.id} draggable onDragStart={(e) => e.dataTransfer.setData('taskId', t.id)} className="hover:bg-slate-50 cursor-grab active:cursor-grabbing border-b border-slate-100 transition-colors">
+                          <td className="p-4 text-sm font-bold text-slate-500">{idx + 1}</td>
+                          <td className="p-4 text-sm font-bold text-blue-900">{t.project}</td>
+                          <td className="p-4 text-sm font-bold"><span className="bg-slate-100 px-3 py-1 rounded-lg text-slate-600 flex items-center gap-1 w-fit">{smData?.format === 'Video' ? <Video size={14}/> : <ImageIcon size={14}/>}{smData?.format}</span></td>
+                          <td className="p-4 text-sm text-slate-600"><ExpandableText text={t.description}/></td>
+                          <td className="p-4"><ExpandableFiles files={t.files}/></td>
+                          <td className="p-4">
+                            <button onClick={() => onDelete(t.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Xóa toàn bộ dự án"><Trash2 size={16}/></button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {currentMonthSMTasks.length > 0 && (
+              <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+                <button onClick={() => setShowAddModal(true)} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-md transition flex items-center justify-center gap-2"><Plus size={18} /> Giao Dự Án Mới</button>
+              </div>
+            )}
+          </div>
+
+          <div className="w-[360px] shrink-0 flex flex-col gap-4 overflow-y-auto pr-2 pb-4">
+            {platforms.map(p => (
+              <div 
+                key={p.id}
+                onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('ring-4', 'ring-blue-300', 'bg-blue-50/50'); }}
+                onDragLeave={e => { e.currentTarget.classList.remove('ring-4', 'ring-blue-300', 'bg-blue-50/50'); }}
+                onDrop={e => {
+                  e.preventDefault(); e.currentTarget.classList.remove('ring-4', 'ring-blue-300', 'bg-blue-50/50');
+                  handleDropToPlatform(e.dataTransfer.getData('taskId'), p.id);
+                }}
+                className="border border-slate-200 rounded-3xl p-5 bg-white shadow-sm transition-all"
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm", p.bg)}><p.icon size={20} /></div>
+                  <span className="font-bold text-slate-800 text-lg">{p.id}</span>
+                </div>
+                <div className="space-y-2">
+                  {allSchedules.filter(item => item.schedule.platform === p.id && getMonth(parseISO(item.schedule.date)) === getMonth(currentDate)).map(item => (
+                    <div key={item.schedule.id} onDoubleClick={() => setEditPrompt(item)} className="bg-slate-50 border border-slate-100 p-3 rounded-2xl flex items-center justify-between hover:border-blue-300 hover:shadow-md cursor-pointer transition-all group" title="Nháy đúp để tùy chỉnh">
+                      <div className="truncate text-sm font-bold text-slate-700 group-hover:text-blue-700 transition-colors max-w-[160px]">{item.task.project}</div>
+                      <div className={cn("text-xs font-bold px-2.5 py-1.5 rounded-lg text-white whitespace-nowrap", p.bg)}>
+                        {format(parseISO(item.schedule.date), 'dd/MM')} <span className="opacity-70">|</span> {item.schedule.time}
+                      </div>
+                    </div>
+                  ))}
+                  {allSchedules.filter(item => item.schedule.platform === p.id && getMonth(parseISO(item.schedule.date)) === getMonth(currentDate)).length === 0 && (
+                    <div className="text-sm font-bold text-slate-400 text-center py-6 border-2 border-dashed border-slate-100 rounded-2xl">Thả dự án vào đây</div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL THÊM DỰ ÁN */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
+          <div className="bg-white p-8 rounded-3xl w-full max-w-2xl shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <h3 className="text-2xl font-bold text-blue-900 mb-6 flex items-center gap-2 border-b border-slate-100 pb-4"><Plus size={24}/> Tạo Dự Án Social Media</h3>
+            <form onSubmit={handleAddSubmit} className="space-y-5">
+              <div className="grid grid-cols-2 gap-5">
+                <div className="space-y-2 col-span-2">
+                  <label className="text-sm font-bold text-slate-600">Tên Dự án</label>
+                  <input required value={formData.project} onChange={e => setFormData(prev => ({...prev, project: e.target.value}))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-blue-900"/>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-600">Định dạng (Auto tính KPI)</label>
+                  <select value={formData.format} onChange={e => setFormData(prev => ({...prev, format: e.target.value}))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-emerald-700 bg-emerald-50">
+                    <option value="Hình ảnh">Hình ảnh (Mức 2)</option>
+                    <option value="Video">Video (Mức 3)</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-600">Ghi chú thêm</label>
+                  <input value={formData.note} onChange={e => setFormData(prev => ({...prev, note: e.target.value}))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700"/>
+                </div>
+                <div className="space-y-2 col-span-2">
+                  <label className="text-sm font-bold text-slate-600">Nội dung (Mô tả)</label>
+                  <textarea rows={3} value={formData.description} onChange={e => setFormData(prev => ({...prev, description: e.target.value}))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700"/>
+                </div>
+                <div className="space-y-2 col-span-2">
+                  <label className="text-sm font-bold text-slate-600">Đính kèm</label>
+                  <div className="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center hover:bg-slate-50 relative cursor-pointer">
+                    <input type="file" multiple onChange={e => e.target.files && processFiles(e.target.files)} className="absolute inset-0 opacity-0 cursor-pointer"/>
+                    <FileUp className="mx-auto text-slate-400 mb-2" size={24}/>
+                    <span className="text-slate-500 font-bold text-sm">Bấm để tải file lên</span>
+                    {formData.files.length > 0 && <div className="mt-3 text-sm font-bold text-blue-600">{formData.files.length} file đã chọn</div>}
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-4 pt-4 border-t border-slate-100">
+                <button type="button" onClick={() => setShowAddModal(false)} className="px-6 py-3 rounded-xl bg-slate-100 font-bold text-slate-600 hover:bg-slate-200">Hủy</button>
+                <button type="submit" className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-blue-700">Lưu Dự Án</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* PROMPT SỬA / XÓA */}
+      {editPrompt && (
+        <div className="fixed inset-0 z-[120] bg-black/40 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
+          <div className="bg-white p-8 rounded-3xl max-w-sm w-full text-center space-y-4 shadow-2xl">
+            <h3 className="text-2xl font-bold text-slate-800">Tùy chọn Lịch đăng</h3>
+            <p className="text-sm text-slate-500 mb-4">{editPrompt.task.project}</p>
+            <div className="flex flex-col gap-3">
+              <button onClick={() => { setEditForm(editPrompt); setEditPrompt(null); }} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-blue-700"><Edit size={18}/> Chỉnh sửa giờ/ngày</button>
+              <button onClick={() => handleDeleteSchedule(editPrompt.task, editPrompt.schedule.id)} className="w-full bg-red-500 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-red-600"><Trash2 size={18}/> Xóa lịch đăng này</button>
+              <button onClick={() => setEditPrompt(null)} className="w-full bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 mt-2">Hủy</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FORM CHỈNH SỬA CHI TIẾT */}
+      {editForm && (
+        <div className="fixed inset-0 z-[130] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
+          <div className="bg-white p-8 rounded-3xl w-full max-w-sm shadow-2xl space-y-5">
+            <h3 className="text-xl font-bold text-blue-900 border-b border-slate-100 pb-3">Chỉnh sửa Lịch đăng</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-bold text-slate-600 block mb-1">Nền tảng</label>
+                <select value={editForm.schedule.platform} onChange={e => setEditForm(prev => ({...prev!, schedule: {...prev!.schedule, platform: e.target.value}}))} className="w-full p-3 rounded-xl border border-slate-200 font-bold focus:ring-2 focus:ring-blue-500">
+                  {platforms.map(p => <option key={p.id} value={p.id}>{p.id}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-bold text-slate-600 block mb-1">Ngày đăng</label>
+                <input type="date" value={editForm.schedule.date} onChange={e => setEditForm(prev => ({...prev!, schedule: {...prev!.schedule, date: e.target.value}}))} className="w-full p-3 rounded-xl border border-slate-200 font-bold focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="text-sm font-bold text-slate-600 block mb-1">Giờ đăng (24h)</label>
+                <select value={editForm.schedule.time} onChange={e => setEditForm(prev => ({...prev!, schedule: {...prev!.schedule, time: e.target.value}}))} className="w-full p-3 rounded-xl border border-slate-200 font-bold focus:ring-2 focus:ring-blue-500">
+                  {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-3 pt-4 border-t border-slate-100">
+              <button onClick={() => setEditForm(null)} className="flex-1 bg-slate-100 font-bold text-slate-600 py-3 rounded-xl hover:bg-slate-200">Hủy</button>
+              <button onClick={handleSaveSchedule} className="flex-1 bg-blue-600 font-bold text-white py-3 rounded-xl hover:bg-blue-700 shadow-lg">Lưu lại</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 // --- Section: Giao Việc ---
 function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTask }: { 
   tasks: Task[], 
