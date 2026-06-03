@@ -640,7 +640,7 @@ export default function App() {
                   <Settings size={22} />
                 </button>
               </div>
-              
+
               {/* Thanh chuyển đổi Tab (Sub-tabs) */}
               <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-slate-100 w-fit">
                 <button
@@ -675,6 +675,7 @@ export default function App() {
                   <p className="text-slate-400 text-center mt-20 font-medium">Bảng Lịch "Kế Hoạch Dự Án" (Tháng/Tuần) sẽ được lắp ghép ở bước sau.</p>
                 </div>
               )}
+            </div>
           )}
           {activeSection === 'danh-gia' && <DanhGiaCongViec tasks={tasks} />}
           {activeSection === 'search' && <SearchSection tasks={tasks} selectedId={selectedTaskId} onClearSelection={() => setSelectedTaskId(null)} onDelete={deleteTask} />}
