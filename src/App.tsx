@@ -2136,7 +2136,9 @@ function GlobalViewModal({ task, onClose, onDelete }: {
                   Nội dung chi tiết
                 </h4>
                 <div className="bg-slate-50 p-6 rounded-2xl text-sm text-slate-700 leading-relaxed whitespace-pre-wrap min-h-[150px]">
-                  {task.description}
+                  <div className="text-sm text-slate-800 whitespace-pre-wrap break-words leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100 shadow-inner min-h-[80px] h-auto">
+  {task.description}
+</div>
                 </div>
               </div>
 
@@ -2163,7 +2165,7 @@ function GlobalViewModal({ task, onClose, onDelete }: {
                     </div>
                     <div>
                       <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ghi chú</span>
-                      <p className="text-sm text-slate-700 italic">{task.note || 'Không có ghi chú'}</p>
+                      <div className="text-sm text-slate-700 italic whitespace-pre-wrap break-words leading-relaxed">{task.note || 'Không có ghi chú'}</div>
                     </div>
                   </div>
                 </div>
