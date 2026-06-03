@@ -144,6 +144,13 @@ type Toast = {
 export default function App() {
   // --- BỘ NHỚ LƯU TRẠNG THÁI TAB KHI F5 ---
   const [activeSection, setActiveSection] = useState(() => {
+    // --- BỘ NHỚ CHO PHÂN HỆ SOCIAL MEDIA ---
+  const [activeSocialTab, setActiveSocialTab] = useState('danh-sach');
+  const [showSocialSettings, setShowSocialSettings] = useState(false);
+  const [socialColumns, setSocialColumns] = useState({
+    facebook: true, zalo: true, oaZalo: true, tiktok: true, shopee: true
+  });
+  const [isAutoSchedule, setIsAutoSchedule] = useState(false);
     // Kiểm tra xem trình duyệt có lưu tab nào trước đó không
     const savedSection = localStorage.getItem('savedActiveSection');
     // Nếu có thì lấy tab đó, nếu không thì mặc định mở tab Công Việc Hằng Ngày
@@ -634,11 +641,40 @@ export default function App() {
                 </button>
               </div>
               
-              {/* Khu vực này tạm thời để trống để kiểm tra hệ thống */}
-              <div className="bg-white p-12 rounded-3xl border border-dashed border-slate-200 text-center text-slate-400">
-                Hệ thống khung đã kích hoạt thành công. Đang đợi cấu hình dữ liệu ở bước tiếp theo...
+              {/* Thanh chuyển đổi Tab (Sub-tabs) */}
+              <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-slate-100 w-fit">
+                <button
+                  onClick={() => setActiveSocialTab('danh-sach')}
+                  className={twMerge(
+                    "px-6 py-2.5 rounded-xl font-medium transition-all duration-200",
+                    activeSocialTab === 'danh-sach' ? "bg-blue-50 text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                  )}
+                >
+                  Danh sách Dự án
+                </button>
+                <button
+                  onClick={() => setActiveSocialTab('ke-hoach')}
+                  className={twMerge(
+                    "px-6 py-2.5 rounded-xl font-medium transition-all duration-200",
+                    activeSocialTab === 'ke-hoach' ? "bg-blue-50 text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                  )}
+                >
+                  Kế Hoạch Dự Án
+                </button>
               </div>
-            </div>
+
+              {/* Vùng hiển thị nội dung theo Tab */}
+              {activeSocialTab === 'danh-sach' && (
+                <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm min-h-[500px]">
+                  <p className="text-slate-400 text-center mt-20 font-medium">Khu vực kéo thả "Danh sách Dự án" sẽ được lắp ghép ở bước sau.</p>
+                </div>
+              )}
+
+              {activeSocialTab === 'ke-hoach' && (
+                <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm min-h-[500px]">
+                  <p className="text-slate-400 text-center mt-20 font-medium">Bảng Lịch "Kế Hoạch Dự Án" (Tháng/Tuần) sẽ được lắp ghép ở bước sau.</p>
+                </div>
+              )}
           )}
           {activeSection === 'danh-gia' && <DanhGiaCongViec tasks={tasks} />}
           {activeSection === 'search' && <SearchSection tasks={tasks} selectedId={selectedTaskId} onClearSelection={() => setSelectedTaskId(null)} onDelete={deleteTask} />}
