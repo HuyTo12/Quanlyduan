@@ -539,7 +539,7 @@ export default function App() {
 
       {/* Main Content */}
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto p-4 md:p-10 relative">
+      <main className="flex-1 overflow-y-auto p-4 md:p-7 relative">
         <div className="fixed top-4 right-4 z-[999] flex flex-col gap-2">
           
           {/* Thanh Tiến độ Tải File */}
@@ -596,7 +596,7 @@ export default function App() {
           ))}
         </div>
 
-        <div className="max-w-[90rem] mx-auto">
+        <div className="max-w-[112rem] mx-auto">
           {activeSection === 'giao-viec' && <GiaoViec tasks={tasks} onAdd={addTask} onDelete={deleteTask} onUpdate={updateTask} showToast={showToast} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'cong-viec-hang-ngay' && <CongViecHangNgay tasks={tasks} onUpdate={updateTask} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'timeline' && <TimelineCongViec tasks={tasks} onSelectTask={(id) => {
@@ -873,12 +873,12 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
               <tr className="bg-blue-600 text-white">
                 <th className="p-4 font-semibold text-base w-16">Sửa</th>
                 <th className="p-4 font-semibold text-base w-16">STT</th>
-                <th className="p-4 font-semibold text-base min-w-[188px]">Dự án</th>
-                <th className="p-4 font-semibold text-base max-w-[375px]">Mô tả</th>
-                <th className="p-4 font-semibold text-base w-24">File</th>
-                <th className="p-4 font-semibold text-base w-32 whitespace-nowrap">Deadline</th>
-                <th className="p-4 font-semibold text-base w-24 whitespace-nowrap">KPI</th>
-                <th className="p-4 font-semibold text-base max-w-[250px]">Ghi chú</th>
+                <th className="p-4 font-semibold text-base min-w-[235px]">Dự án</th>
+                <th className="p-4 font-semibold text-base max-w-[470px]">Mô tả</th>
+                <th className="p-4 font-semibold text-base w-28">File</th>
+                <th className="p-4 font-semibold text-base w-40 whitespace-nowrap">Deadline</th>
+                <th className="p-4 font-semibold text-base w-28 whitespace-nowrap">KPI</th>
+                <th className="p-4 font-semibold text-base max-w-[315px]">Ghi chú</th>
                 <th className="p-4 font-semibold text-base w-16">Xóa</th>
               </tr>
             </thead>
@@ -910,13 +910,13 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
                     </td>
                     <td className="p-4 text-sm font-medium">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                     <td className="p-4 text-sm align-top"><ExpandableText text={task.project} isProject /></td>
-                    <td className="p-4 text-sm align-top max-w-[375px]"><ExpandableText text={task.description} /></td>
+                    <td className="p-4 text-sm align-top max-w-[470px]"><ExpandableText text={task.description} /></td>
                     <td className="p-4 text-sm align-top whitespace-nowrap">
                       <span className={cn("px-3 py-1 rounded-full text-white text-xs font-bold", (isPastDeadline || isCompleted) && "opacity-60")} style={{ backgroundColor: isCompleted ? '#94a3b8' : KPI_CONFIG[task.kpiLevel].color }}>
                         {KPI_CONFIG[task.kpiLevel].label}
                       </span>
                     </td>
-                    <td className="p-4 text-sm align-top max-w-[250px]"><ExpandableText text={task.note || ''} /></td>
+                    <td className="p-4 text-sm align-top max-w-[315px]"><ExpandableText text={task.note || ''} /></td>
                         <Trash2 size={18} />
                       </button>
                     </td>
@@ -1104,12 +1104,12 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
               <tr className="bg-blue-600 text-white">
                 <th className="p-4 font-semibold text-base w-44">Tiến độ</th>
                 <th className="p-4 font-semibold text-base w-16">STT</th>
-                <th className="p-4 font-semibold text-base min-w-[188px]">Dự án</th>
-                <th className="p-4 font-semibold text-base max-w-[375px]">Mô tả</th>
-                <th className="p-4 font-semibold text-base w-24">File</th>
-                <th className="p-4 font-semibold text-base w-32 whitespace-nowrap">Deadline</th>
-                <th className="p-4 font-semibold text-base w-24 whitespace-nowrap">KPI</th>
-                <th className="p-4 font-semibold text-base max-w-[250px]">Ghi chú</th>
+                <th className="p-4 font-semibold text-base min-w-[235px]">Dự án</th>
+                <th className="p-4 font-semibold text-base max-w-[470px]">Mô tả</th>
+                <th className="p-4 font-semibold text-base w-28">File</th>
+                <th className="p-4 font-semibold text-base w-40 whitespace-nowrap">Deadline</th>
+                <th className="p-4 font-semibold text-base w-28 whitespace-nowrap">KPI</th>
+                <th className="p-4 font-semibold text-base max-w-[315px]">Ghi chú</th>
               </tr>
             </thead>
             <tbody>
@@ -1158,7 +1158,7 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
                     </td>
                     <td className="p-4 text-sm font-medium">{index + 1}</td>
                     <td className="p-4 text-sm align-top"><ExpandableText text={task.project} isProject /></td>
-                    <td className="p-4 text-sm align-top max-w-[375px]"><ExpandableText text={task.description} /></td>
+                    <td className="p-4 text-sm align-top max-w-[470px]"><ExpandableText text={task.description} /></td>
                     <td className="p-4 text-sm align-top"><ExpandableFiles files={task.files} /></td>
                     <td className={cn(
                       "p-4 text-sm align-top whitespace-nowrap",
@@ -1173,7 +1173,7 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
                         {KPI_CONFIG[task.kpiLevel].label}
                       </span>
                     </td>
-                    <td className="p-4 text-sm align-top max-w-[250px]">
+                    <td className="p-4 text-sm align-top max-w-[315px]">
                       <ExpandableText text={task.note || ''} />
                     </td>
                   </tr>
@@ -1228,7 +1228,7 @@ function SearchSection({ tasks, selectedId, onClearSelection, onDelete }: {
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[70rem] mx-auto">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[87rem] mx-auto">
       <h2 className="text-3xl font-bold text-center text-blue-900 mb-12">Tìm Kiếm</h2>
       
       <div className="relative">
@@ -1984,7 +1984,7 @@ function GlobalEditModal({ task, onClose, onUpdate, onDelete, showToast }: {
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={onClose}></div>
-      <div className="bg-white w-full max-w-7xl min-h-[65vh] rounded-3xl shadow-2xl relative z-10 flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+      <div className="bg-white w-full max-w-[100rem] min-h-[65vh] rounded-3xl shadow-2xl relative z-10 flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
         <div className="px-8 py-5 border-b border-slate-100 bg-slate-50 rounded-t-3xl">
           <h3 className="text-2xl font-bold text-blue-900">Chỉnh Sửa Công Việc</h3>
         </div>
@@ -2103,7 +2103,7 @@ function GlobalViewModal({ task, onClose, onDelete }: {
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={onClose}></div>
       
-      <div className="bg-white w-full max-w-[70rem] rounded-3xl shadow-2xl relative z-10 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+      <div className="bg-white w-full max-w-[87rem] rounded-3xl shadow-2xl relative z-10 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
         <div className="p-8 overflow-y-auto">
            {/* Header */}
            <div className="flex justify-between items-start border-b border-blue-50 pb-6 mb-8">
