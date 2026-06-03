@@ -92,8 +92,7 @@ function ExpandableText({ text, isProject = false }: { text: string, isProject?:
   return (
     <div className="relative max-w-[300px]">
       <div className={cn(
-        "text-sm transition-all duration-200 break-words whitespace-pre-wrap text-slate-600", 
-        !expanded && "line-clamp-2"
+        "text-sm transition-all duration-200 whitespace-pre-wrap break-words leading-relaxed",
       )}>
         {text}
       </div>
