@@ -1,8 +1,24 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
-  LayoutDashboard, CalendarDays, CalendarRange, BarChart3, Plus, FileUp, ChevronLeft, ChevronRight,
-  ChevronDown, ChevronUp, FileText, Paperclip, Trash2, Download, Search, Edit, CheckCircle2, Clock, AlertCircle,
-  Share2, MessageSquare, Music, Facebook, ShoppingBag, Video, Image as ImageIcon, MessageCircle, Settings, X, Eye
+  LayoutDashboard, 
+  CalendarDays, 
+  CalendarRange, 
+  BarChart3, 
+  Plus, 
+  FileUp, 
+  ChevronLeft, 
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  Paperclip,
+  Trash2,
+  Download,
+  Search,
+  Edit,
+  CheckCircle2,
+  Clock,
+  AlertCircle
 } from 'lucide-react';
 import { 
   format, 
@@ -114,21 +130,7 @@ function ExpandableFiles({ files }: { files: string[] }) {
   );
 }
 
-type Section = 'giao-viec' | 'cong-viec-hang-ngay' | 'timeline' | 'danh-gia' | 'search' | 'social-media';
-
-// --- BỘ CÔNG CỤ SOCIAL MEDIA ---
-export type SMSchedule = { platform: string; date: string; time: string; };
-export type SMData = { format: 'Hình' | 'Video'; schedules: SMSchedule[]; status: string; };
-export const getSMData = (task: any): { note: string, smData: SMData | null } => {
-  if (task.note && task.note.includes('SM_DATA:::')) {
-    try {
-      const [note, smString] = task.note.split('SM_DATA:::');
-      return { note, smData: JSON.parse(smString) };
-    } catch { return { note: task.note || '', smData: null }; }
-  }
-  return { note: task.note || '', smData: null };
-};
-export const encodeSMData = (note: string, smData: SMData): string => `${note || ''}SM_DATA:::${JSON.stringify(smData)}`;
+type Section = 'giao-viec' | 'cong-viec-hang-ngay' | 'timeline' | 'danh-gia' | 'search';
 
 type Toast = {
   id: number;
@@ -526,7 +528,6 @@ export default function App() {
           <SidebarItem icon={<CalendarDays size={20} />} label="Công việc hằng ngày" active={activeSection === 'cong-viec-hang-ngay'} onClick={() => setActiveSection('cong-viec-hang-ngay')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<CalendarRange size={20} />} label="Timeline công việc" active={activeSection === 'timeline'} onClick={() => setActiveSection('timeline')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<Plus size={20} />} label="Giao việc" active={activeSection === 'giao-viec'} onClick={() => setActiveSection('giao-viec')} collapsed={!isSidebarOpen} />
-          <SidebarItem icon={<Share2 size={20} />} label="Social Media" active={activeSection === 'social-media'} onClick={() => setActiveSection('social-media')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<BarChart3 size={20} />} label="Đánh giá công việc" active={activeSection === 'danh-gia'} onClick={() => setActiveSection('danh-gia')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<Search size={20} />} label="Tìm kiếm" active={activeSection === 'search'} onClick={() => setActiveSection('search')} collapsed={!isSidebarOpen} />
         </nav>
@@ -596,7 +597,6 @@ export default function App() {
         </div>
 
         <div className="max-w-[1440px] mx-auto">
-          {activeSection === 'social-media' && <SocialMedia tasks={tasks} onAdd={addTask} onUpdate={updateTask} onDelete={deleteTask} showToast={showToast} />}
           {activeSection === 'giao-viec' && <GiaoViec tasks={tasks} onAdd={addTask} onDelete={deleteTask} onUpdate={updateTask} showToast={showToast} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'cong-viec-hang-ngay' && <CongViecHangNgay tasks={tasks} onUpdate={updateTask} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'timeline' && <TimelineCongViec tasks={tasks} onSelectTask={(id) => {
@@ -652,168 +652,7 @@ function SidebarItem({ icon, label, active, onClick, collapsed }: {
     </button>
   );
 }
-// ==========================================
-// TÍNH NĂNG SOCIAL MEDIA TOÀN DIỆN
-// ==========================================
-function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast }: any) {
-  const [activeTab, setActiveTab] = useState<'list' | 'calendar'>('list');
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [calendarMode, setCalendarMode] = useState<'month' | 'week'>('month');
-  const [showSettings, setShowSettings] = useState(false);
-  const [columns, setColumns] = useState({ progress: true, Facebook: true, Zalo: true, 'OA Zalo': true, Tiktok: true, Shopee: true });
-  
-  const platforms = [
-    { id: 'Facebook', color: '#2563eb', bg: 'bg-blue-600', icon: Facebook },
-    { id: 'Zalo', color: '#3b82f6', bg: 'bg-blue-500', icon: MessageCircle },
-    { id: 'OA Zalo', color: '#60a5fa', bg: 'bg-blue-400', icon: MessageSquare },
-    { id: 'Tiktok', color: '#000000', bg: 'bg-black', icon: Music },
-    { id: 'Shopee', color: '#f97316', bg: 'bg-orange-500', icon: ShoppingBag }
-  ];
 
-  const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== null), [tasks]);
-
-  // Cập nhật ngày giờ & Auto KPI
-  const handleScheduleChange = (task: any, platform: string, field: 'date' | 'time', value: string) => {
-    const { note, smData } = getSMData(task);
-    if (!smData) return;
-    
-    let schedIndex = smData.schedules.findIndex((s: any) => s.platform === platform);
-    if (schedIndex === -1) {
-      smData.schedules.push({ platform, date: format(currentDate, 'yyyy-MM-dd'), time: '12:00' });
-      schedIndex = smData.schedules.length - 1;
-    }
-    smData.schedules[schedIndex] = { ...smData.schedules[schedIndex], [field]: value };
-
-    // Tự động tính KPI: Hình=1(Level 1), Video=2.5(Level 3). Có Zalo/OA + 0.5 (Tăng 1 Level)
-    let newKpi = smData.format === 'Video' ? 3 : 1;
-    if (smData.schedules.some((s: any) => s.platform === 'Zalo' || s.platform === 'OA Zalo')) newKpi += 1;
-    if (newKpi > 5) newKpi = 5;
-
-    onUpdate({ ...task, note: encodeSMData(note, smData), kpiLevel: newKpi });
-  };
-
-  const handleDoubleClick = (task: any) => {
-    // Mở bảng sửa toàn cầu
-    window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: task }));
-  };
-
-  return (
-    <div className="space-y-6 h-full flex flex-col relative animate-in fade-in duration-500 max-w-[1440px] mx-auto">
-      
-      {/* HEADER & TABS */}
-      <div className="flex items-center justify-between bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
-        <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
-          <button onClick={() => setActiveTab('list')} className={cn("px-6 py-2.5 rounded-lg font-bold transition-all", activeTab === 'list' ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:bg-slate-200")}>Danh sách Dự án</button>
-          <button onClick={() => setActiveTab('calendar')} className={cn("px-6 py-2.5 rounded-lg font-bold transition-all", activeTab === 'calendar' ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:bg-slate-200")}>Kế Hoạch Dự Án</button>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-xl border border-slate-200">
-            <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="p-1 hover:bg-slate-200 rounded text-slate-600"><ChevronLeft size={20}/></button>
-            <span className="font-bold text-slate-700 text-sm">Tháng {format(currentDate, 'MM/yyyy')}</span>
-            <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="p-1 hover:bg-slate-200 rounded text-slate-600"><ChevronRight size={20}/></button>
-          </div>
-          <button onClick={() => setShowSettings(true)} className="p-3 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-700 transition-all"><Settings size={20}/></button>
-        </div>
-      </div>
-
-      {/* TAB 1: DANH SÁCH */}
-      {activeTab === 'list' && (
-        <div className="flex-1 bg-white rounded-3xl shadow-xl border border-blue-100 overflow-hidden flex flex-col min-h-[750px]">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  {columns.progress && <th className="p-4 font-semibold text-sm w-32">Tiến độ</th>}
-                  <th className="p-4 font-semibold text-sm w-12">STT</th>
-                  <th className="p-4 font-semibold text-sm min-w-[200px]">Dự án & Nội dung</th>
-                  <th className="p-4 font-semibold text-sm">Định dạng</th>
-                  {platforms.map(p => columns[p.id as keyof typeof columns] && (
-                    <th key={p.id} className="p-4 font-semibold text-sm text-center min-w-[140px] border-l border-slate-100">{p.id}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {smTasks.length === 0 ? (
-                  <tr>
-                    <td colSpan={10} className="p-8">
-                      <div className="w-full py-10 bg-blue-50/50 border-2 border-dashed border-blue-200 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-blue-100 transition-all" onClick={() => window.dispatchEvent(new CustomEvent('SWITCH_TAB', { detail: 'giao-viec' }))}>
-                        <Plus size={32} className="text-blue-500 mb-2" />
-                        <span className="font-bold text-blue-600">Thêm Dự Án Social Media Mới</span>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  smTasks.map((t: any, idx) => {
-                    const { smData } = getSMData(t);
-                    return (
-                      <tr key={t.id} onDoubleClick={() => handleDoubleClick(t)} className="hover:bg-slate-50 border-b border-slate-100 transition-colors group cursor-pointer">
-                        {columns.progress && (
-                          <td className="p-4 text-sm font-bold">
-                            <span className="bg-slate-100 px-3 py-1 rounded-lg text-slate-600 text-xs">{t.status === 'COMPLETED' ? 'Đã xong' : 'Đang làm'}</span>
-                          </td>
-                        )}
-                        <td className="p-4 text-sm font-bold text-slate-500">{idx + 1}</td>
-                        <td className="p-4 text-sm align-top">
-                          <div className="font-bold text-blue-900 mb-1">{t.project}</div>
-                          <div className="text-xs text-slate-500 line-clamp-2">{t.description}</div>
-                        </td>
-                        <td className="p-4 text-sm font-bold text-slate-600">{smData?.format}</td>
-                        
-                        {platforms.map(p => {
-                          if (!columns[p.id as keyof typeof columns]) return null;
-                          const schedule = smData?.schedules.find((s: any) => s.platform === p.id);
-                          return (
-                            <td key={p.id} className="p-2 border-l border-slate-100 align-top">
-                              <div className="flex flex-col gap-1.5 p-2 rounded-xl border border-slate-100 bg-white hover:border-blue-300">
-                                <input type="date" value={schedule?.date || ''} onChange={(e) => handleScheduleChange(t, p.id, 'date', e.target.value)} className="w-full text-xs p-1.5 rounded bg-slate-50 border-none outline-none font-medium text-slate-700 cursor-pointer" title="Chọn ngày đăng"/>
-                                <input type="time" step="1800" value={schedule?.time || ''} onChange={(e) => handleScheduleChange(t, p.id, 'time', e.target.value)} className="w-full text-xs p-1.5 rounded bg-slate-50 border-none outline-none font-bold text-blue-600 cursor-pointer" title="Chọn giờ đăng (Mỗi 30p)"/>
-                              </div>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 2: KẾ HOẠCH (LỊCH) */}
-      {activeTab === 'calendar' && (
-        <div className="flex-1 bg-white rounded-3xl shadow-xl border border-blue-100 p-6 min-h-[750px] flex items-center justify-center flex-col gap-4 text-slate-400">
-           <CalendarDays size={48} className="opacity-20"/>
-           <p className="font-bold">Lịch đăng bài tự động đồng bộ từ tab Danh sách.</p>
-           <p className="text-sm italic">(Hãy thêm ngày giờ ở Danh sách để thấy thẻ bài viết xuất hiện tại đây)</p>
-        </div>
-      )}
-
-      {/* MODAL CÀI ĐẶT */}
-      {showSettings && (
-        <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
-          <div className="bg-white p-6 rounded-3xl w-full max-w-md shadow-2xl space-y-6">
-            <h3 className="text-xl font-bold text-blue-900 border-b border-slate-100 pb-4 flex items-center gap-2"><Settings size={20}/> Tùy chỉnh hiển thị Cột</h3>
-            <div className="space-y-3">
-              {Object.keys(columns).map(key => (
-                <label key={key} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl cursor-pointer hover:bg-blue-50 transition-colors">
-                  <span className="font-bold text-slate-700 capitalize">{key === 'progress' ? 'Cột Tiến độ' : `Nền tảng ${key}`}</span>
-                  <input type="checkbox" checked={columns[key as keyof typeof columns]} onChange={(e) => setColumns(prev => ({...prev, [key]: e.target.checked}))} className="w-5 h-5 rounded text-blue-600" />
-                </label>
-              ))}
-            </div>
-            <div className="flex gap-3 pt-4 border-t border-slate-100">
-              <button onClick={() => setShowSettings(false)} className="flex-1 bg-slate-100 text-slate-700 font-bold py-3 rounded-xl hover:bg-slate-200">Đóng</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-// ==========================================
 // --- Section: Giao Việc ---
 function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTask }: { 
   tasks: Task[], 
