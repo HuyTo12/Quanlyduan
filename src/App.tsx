@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   LayoutDashboard, 
-  CalendarDays, 
+  Share2,
+  Settings,
+  CalendarDays,
   CalendarRange, 
   BarChart3, 
   Plus, 
@@ -504,6 +506,21 @@ export default function App() {
               <button onClick={() => setDeleteConfirmTask(null)} className="flex-1 bg-blue-900 text-white font-bold py-3 rounded-xl hover:bg-blue-800 transition-colors">
                 {pendingDeleteIds.includes(deleteConfirmTask.id) ? 'Hủy xóa' : 'Hủy'}
               </button>
+              {/* Mục Social Media mới bổ sung */}
+<button
+  onClick={() => setActiveSection('social_media')}
+  className={twMerge(
+    "w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200 group relative",
+    activeSection === 'social_media'
+      ? "bg-blue-600 text-white shadow-lg shadow-blue-200"
+      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+  )}
+>
+  <Share2 size={20} className={activeSection === 'social_media' ? "text-white" : "text-slate-400 group-hover:text-slate-600"} />
+  <span className={clsx("transition-opacity duration-200", !isSidebarExpanded && "md:hidden opacity-0 w-0 overflow-hidden")}>
+    Social Media
+  </span>
+</button>
               <button 
                 onClick={() => executeDelete(deleteConfirmTask, pendingDeleteIds.includes(deleteConfirmTask.id))} 
                 className="flex-1 bg-red-500 text-white font-bold py-3 rounded-xl hover:bg-red-600 shadow-lg shadow-red-200 transition-colors"
@@ -603,6 +620,25 @@ export default function App() {
             const taskToView = tasks.find(t => t.id === id);
             if (taskToView) window.dispatchEvent(new CustomEvent('TRIGGER_VIEW', { detail: taskToView }));
           }} onDoubleClickTask={setTimelineActionTask} />}
+          {/* Vùng hiển thị của Social Media */}
+          {activeSection === 'social_media' && (
+            <div className="space-y-6 animate-in fade-in duration-300">
+              <div className="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                <div>
+                  <h1 className="text-2xl font-bold text-slate-900">Quản lý Social Media</h1>
+                  <p className="text-sm text-slate-500 mt-1">Hệ thống lập kế hoạch và tối ưu lịch đăng bài đa nền tảng</p>
+                </div>
+                <button className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors">
+                  <Settings size={22} />
+                </button>
+              </div>
+              
+              {/* Khu vực này tạm thời để trống để kiểm tra hệ thống */}
+              <div className="bg-white p-12 rounded-3xl border border-dashed border-slate-200 text-center text-slate-400">
+                Hệ thống khung đã kích hoạt thành công. Đang đợi cấu hình dữ liệu ở bước tiếp theo...
+              </div>
+            </div>
+          )}
           {activeSection === 'danh-gia' && <DanhGiaCongViec tasks={tasks} />}
           {activeSection === 'search' && <SearchSection tasks={tasks} selectedId={selectedTaskId} onClearSelection={() => setSelectedTaskId(null)} onDelete={deleteTask} />}
         </div>
