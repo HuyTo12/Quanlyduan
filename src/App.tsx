@@ -1,9 +1,24 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
-  LayoutDashboard, CalendarDays, CalendarRange, BarChart3, Plus, FileUp, ChevronLeft, ChevronRight,
-  ChevronDown, ChevronUp, FileText, Paperclip, Trash2, Download, Search, Edit, CheckCircle2, Clock, AlertCircle,
-  Share2, MessageSquare, Music, Facebook, ShoppingBag, Video, Image as ImageIcon, MessageCircle, Settings,
-  Eye, EyeOff, Calendar, List, GripVertical
+  LayoutDashboard, 
+  CalendarDays, 
+  CalendarRange, 
+  BarChart3, 
+  Plus, 
+  FileUp, 
+  ChevronLeft, 
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  Paperclip,
+  Trash2,
+  Download,
+  Search,
+  Edit,
+  CheckCircle2,
+  Clock,
+  AlertCircle
 } from 'lucide-react';
 import { 
   format, 
@@ -513,7 +528,6 @@ export default function App() {
           <SidebarItem icon={<CalendarDays size={20} />} label="Công việc hằng ngày" active={activeSection === 'cong-viec-hang-ngay'} onClick={() => setActiveSection('cong-viec-hang-ngay')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<CalendarRange size={20} />} label="Timeline công việc" active={activeSection === 'timeline'} onClick={() => setActiveSection('timeline')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<Plus size={20} />} label="Giao việc" active={activeSection === 'giao-viec'} onClick={() => setActiveSection('giao-viec')} collapsed={!isSidebarOpen} />
-          <SidebarItem icon={<Share2 size={20} />} label="Social Media Pro" active={activeSection === 'social-media'} onClick={() => setActiveSection('social-media')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<BarChart3 size={20} />} label="Đánh giá công việc" active={activeSection === 'danh-gia'} onClick={() => setActiveSection('danh-gia')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<Search size={20} />} label="Tìm kiếm" active={activeSection === 'search'} onClick={() => setActiveSection('search')} collapsed={!isSidebarOpen} />
         </nav>
@@ -583,7 +597,6 @@ export default function App() {
         </div>
 
         <div className="max-w-[1440px] mx-auto">
-          {activeSection === 'social-media' && <SocialMediaPro tasks={tasks} onAdd={addTask} onUpdate={updateTask} onDelete={deleteTask} showToast={showToast} />}
           {activeSection === 'giao-viec' && <GiaoViec tasks={tasks} onAdd={addTask} onDelete={deleteTask} onUpdate={updateTask} showToast={showToast} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'cong-viec-hang-ngay' && <CongViecHangNgay tasks={tasks} onUpdate={updateTask} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'timeline' && <TimelineCongViec tasks={tasks} onSelectTask={(id) => {
@@ -639,234 +652,7 @@ function SidebarItem({ icon, label, active, onClick, collapsed }: {
     </button>
   );
 }
-// ==========================================
-// MÔ-ĐUN SOCIAL MEDIA PRO (PHIÊN BẢN CAO CẤP)
-// ==========================================
-function SocialMediaPro({ tasks, onAdd, onUpdate, onDelete, showToast }: any) {
-  const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
-  const [calendarMode, setCalendarMode] = useState<'month' | 'week'>('month');
-  const [currentDate, setCurrentDate] = useState(new Date());
-  
-  // States cho Cài đặt (Bánh răng)
-  const [showSettings, setShowSettings] = useState(false);
-  const [cols, setCols] = useState({ progress: true, kpi: true, Facebook: true, Zalo: true, OAZalo: true, Tiktok: true, Shopee: true });
-  const [autoSchedule, setAutoSchedule] = useState({ active: false, mainPlat: 'Facebook', rules: [] as { plat: string, offset: number }[] });
-  
-  // States Phân trang & Modal
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-  const [actionModal, setActionModal] = useState<{task: any} | null>(null);
 
-  // Định nghĩa nền tảng
-  const platforms = [
-    { id: 'Facebook', key: 'Facebook', color: '#2563eb', bg: 'bg-blue-600', icon: Facebook },
-    { id: 'Zalo', key: 'Zalo', color: '#3b82f6', bg: 'bg-blue-500', icon: MessageCircle },
-    { id: 'OA Zalo', key: 'OAZalo', color: '#60a5fa', bg: 'bg-blue-400', icon: MessageSquare },
-    { id: 'Tiktok', key: 'Tiktok', color: '#000000', bg: 'bg-black', icon: Music },
-    { id: 'Shopee', key: 'Shopee', color: '#f97316', bg: 'bg-orange-500', icon: ShoppingBag },
-  ];
-
-  // Hàm xử lý Dữ liệu ngầm
-  const getSM = (t: any) => {
-    if (t.note?.includes('SM_PRO:::')) {
-      try { const [n, d] = t.note.split('SM_PRO:::'); return { note: n, data: JSON.parse(d) }; } catch { return { note: t.note, data: { format: 'Hình ảnh', schedules: {} } }; }
-    }
-    return { note: t.note || '', data: { format: 'Hình ảnh', schedules: {} } };
-  };
-  const encodeSM = (n: string, d: any) => `${n || ''}SM_PRO:::${JSON.stringify(d)}`;
-
-  // Tính toán KPI theo Format
-  const calcKPI = (data: any) => {
-    let kpi = data.format === 'Video' ? 2.5 : 1.0;
-    if (data.schedules['Zalo']?.date || data.schedules['OA Zalo']?.date) kpi += 0.5;
-    return kpi; // Tương đương Mức KPI nếu cần quy đổi
-  };
-
-  // Lọc và Phân trang dữ liệu
-  const smTasks = useMemo(() => tasks.filter((t: any) => t.note?.includes('SM_PRO:::')).sort((a:any,b:any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [tasks]);
-  const totalPages = Math.max(1, Math.ceil(smTasks.length / itemsPerPage));
-  const paginatedTasks = smTasks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-  // Xử lý Thay đổi Lịch đăng & Auto Schedule
-  const updateSchedule = (task: any, platId: string, date: string, time: string) => {
-    const { note, data } = getSM(task);
-    data.schedules[platId] = { date, time };
-
-    // Kích hoạt Auto Schedule nếu thỏa điều kiện
-    if (autoSchedule.active && autoSchedule.mainPlat === platId && date) {
-      const baseDate = parseISO(date);
-      autoSchedule.rules.forEach(rule => {
-        if (!data.schedules[rule.plat]?.date) {
-           data.schedules[rule.plat] = { date: format(addDays(baseDate, rule.offset), 'yyyy-MM-dd'), time: time };
-        }
-      });
-    }
-
-    onUpdate({ ...task, note: encodeSM(note, data), kpiLevel: Math.round(calcKPI(data)) }); // Update level gần đúng
-  };
-
-  // Tạo Dự án mới bằng Dấu +
-  const handleAddNew = () => {
-    onAdd({ project: 'Dự án Social Mới', description: '', note: encodeSM('', { format: 'Hình ảnh', schedules: {} }), files: [], kpiLevel: 1, deadline: format(new Date(), 'yyyy-MM-dd') });
-    showToast('Đã tạo khung dự án mới. Hãy bấm đúp để sửa!', 'success');
-  };
-
-  return (
-    <div className="space-y-4 animate-in fade-in duration-500 max-w-full">
-      {/* HEADER: TAB & SETTINGS */}
-      <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex items-center justify-between">
-        <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
-          <button onClick={() => setViewMode('calendar')} className={cn("px-6 py-2.5 rounded-lg font-bold flex items-center gap-2 transition-all", viewMode === 'calendar' ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:bg-slate-200")}><Calendar size={18}/> Kế Hoạch Dự Án</button>
-          <button onClick={() => setViewMode('list')} className={cn("px-6 py-2.5 rounded-lg font-bold flex items-center gap-2 transition-all", viewMode === 'list' ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:bg-slate-200")}><List size={18}/> Danh sách Dự án</button>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-xl border border-blue-100">
-            <button onClick={() => setCurrentDate(subDays(currentDate, viewMode === 'calendar' && calendarMode === 'week' ? 7 : 30))}><ChevronLeft className="text-blue-600 hover:scale-110 transition-transform"/></button>
-            <span className="font-bold text-blue-900 min-w-[120px] text-center">{format(currentDate, 'MM/yyyy')}</span>
-            <button onClick={() => setCurrentDate(addDays(currentDate, viewMode === 'calendar' && calendarMode === 'week' ? 7 : 30))}><ChevronRight className="text-blue-600 hover:scale-110 transition-transform"/></button>
-          </div>
-          <button onClick={() => setShowSettings(true)} className="p-2.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-xl transition-all"><Settings size={20}/></button>
-        </div>
-      </div>
-
-      {/* CHẾ ĐỘ 1: DANH SÁCH DỰ ÁN (List View) */}
-      {viewMode === 'list' && (
-        <div className="bg-white rounded-3xl shadow-xl border border-slate-100 flex flex-col min-h-[750px]">
-          <div className="overflow-x-auto flex-1 p-2">
-            <table className="w-full text-left whitespace-nowrap">
-              <thead className="bg-slate-50 text-slate-600 text-sm">
-                <tr>
-                  <th className="p-3 w-10"></th>
-                  {cols.progress && <th className="p-3 font-bold border-r border-slate-200">Tiến độ</th>}
-                  {cols.kpi && <th className="p-3 font-bold">Mức KPI</th>}
-                  <th className="p-3 font-bold w-12">STT</th>
-                  <th className="p-3 font-bold min-w-[200px]">Tên Dự án</th>
-                  <th className="p-3 font-bold">Định dạng</th>
-                  {platforms.map(p => cols[p.key as keyof typeof cols] && <th key={p.id} className={cn("p-3 font-bold text-white text-center rounded-t-lg mx-1", p.bg)}>{p.id}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedTasks.length === 0 ? (
-                  <tr><td colSpan={10} className="p-4"><div onClick={handleAddNew} className="w-full py-6 bg-blue-50 border-2 border-dashed border-blue-200 rounded-xl text-blue-600 font-bold flex flex-col items-center cursor-pointer hover:bg-blue-100"><Plus size={32} className="mb-2"/> Nhấn để Thêm Dự án Đầu tiên</div></td></tr>
-                ) : (
-                  paginatedTasks.map((t: any, i) => {
-                    const { data } = getSM(t);
-                    return (
-                      <tr key={t.id} onDoubleClick={() => setActionModal({task: t})} className="border-b border-slate-100 hover:bg-slate-50 transition-colors group">
-                        <td className="p-3 text-slate-300 cursor-grab active:cursor-grabbing hover:text-blue-500"><GripVertical size={20}/></td>
-                        {cols.progress && <td className="p-3 border-r border-slate-200">
-                           <select value={t.status} onChange={e => onUpdate({...t, status: e.target.value})} className="p-1.5 text-xs font-bold rounded-lg bg-slate-100 outline-none">
-                             <option value="NOT_STARTED">Mới tạo</option><option value="IN_PROGRESS">Đang làm</option><option value="COMPLETED">Hoàn thành</option>
-                           </select>
-                        </td>}
-                        {cols.kpi && <td className="p-3"><span className="px-3 py-1 bg-yellow-100 text-yellow-700 font-bold rounded-lg text-sm">{calcKPI(data)}đ</span></td>}
-                        <td className="p-3 font-bold text-slate-500">{(currentPage - 1) * itemsPerPage + i + 1}</td>
-                        <td className="p-3 font-bold text-blue-900 max-w-[250px] truncate">{t.project}</td>
-                        <td className="p-3">
-                          <select value={data.format} onChange={e => { data.format = e.target.value; onUpdate({...t, note: encodeSM(getSM(t).note, data)}); }} className="p-1.5 bg-emerald-50 text-emerald-700 font-bold text-xs rounded-lg outline-none">
-                            <option value="Hình ảnh">Hình ảnh (1đ)</option><option value="Video">Video (2.5đ)</option>
-                          </select>
-                        </td>
-                        {platforms.map(p => cols[p.key as keyof typeof cols] && (
-                          <td key={p.id} className="p-2 border-l border-slate-100 bg-slate-50/50">
-                            <div className="flex flex-col gap-1 items-center">
-                              <input type="date" value={data.schedules[p.id]?.date || ''} onChange={e => updateSchedule(t, p.id, e.target.value, data.schedules[p.id]?.time || '12:00')} className="p-1 text-xs border border-slate-200 rounded-md font-bold text-slate-600 outline-none focus:border-blue-400 w-[110px]" />
-                              <input type="time" step="1800" value={data.schedules[p.id]?.time || ''} onChange={e => updateSchedule(t, p.id, data.schedules[p.id]?.date || format(new Date(), 'yyyy-MM-dd'), e.target.value)} className="p-1 text-xs border border-slate-200 rounded-md font-bold text-slate-600 outline-none focus:border-blue-400 w-[110px]" />
-                            </div>
-                          </td>
-                        ))}
-                      </tr>
-                    )
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-          
-          {/* PHÂN TRANG (PAGINATION) */}
-          <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex justify-center items-center gap-3 mt-auto rounded-b-3xl">
-            <button onClick={() => setCurrentPage(1)} disabled={currentPage===1} className="p-2 rounded-lg bg-white border border-slate-200 disabled:opacity-40"><ChevronLeft size={16} className="-mr-2"/><ChevronLeft size={16}/></button>
-            <button onClick={() => setCurrentPage(p=>Math.max(1, p-1))} disabled={currentPage===1} className="p-2 rounded-lg bg-white border border-slate-200 disabled:opacity-40"><ChevronLeft size={16}/></button>
-            <span className="px-6 py-2 bg-blue-50 text-blue-700 font-bold rounded-lg shadow-inner">Trang {currentPage} / {totalPages}</span>
-            <button onClick={() => setCurrentPage(p=>Math.min(totalPages, p+1))} disabled={currentPage===totalPages} className="p-2 rounded-lg bg-white border border-slate-200 disabled:opacity-40"><ChevronRight size={16}/></button>
-            <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage===totalPages} className="p-2 rounded-lg bg-white border border-slate-200 disabled:opacity-40"><ChevronRight size={16} className="-mr-2"/><ChevronRight size={16}/></button>
-          </div>
-        </div>
-      )}
-
-      {/* CHẾ ĐỘ 2: LỊCH (Calendar View) */}
-      {viewMode === 'calendar' && (
-        <div className="bg-white rounded-3xl shadow-xl border border-slate-100 flex flex-col h-[750px] p-4">
-           {/* (Giao diện Lịch phức tạp sẽ hiển thị ở đây - Rút gọn trong phạm vi code để đảm bảo an toàn Vercel) */}
-           <div className="flex-1 flex items-center justify-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex-col gap-4 text-slate-400">
-              <CalendarDays size={48} className="opacity-50"/>
-              <p className="font-bold">Các dự án đã xếp lịch sẽ hiển thị tại Lịch này.</p>
-              <p className="text-sm italic">Vui lòng sang tab Danh Sách để nhập liệu.</p>
-           </div>
-        </div>
-      )}
-
-      {/* MODAL CÀI ĐẶT BÁNH RĂNG */}
-      {showSettings && (
-        <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-center justify-center">
-          <div className="bg-white p-6 rounded-3xl w-full max-w-lg shadow-2xl space-y-6">
-            <h3 className="text-xl font-bold text-blue-900 border-b border-slate-100 pb-3 flex items-center gap-2"><Settings size={20}/> Tùy chỉnh Social Media</h3>
-            
-            <div className="space-y-3">
-              <label className="font-bold text-slate-700">1. Ẩn/Hiện Cột (Danh sách)</label>
-              <div className="flex flex-wrap gap-2">
-                {Object.keys(cols).map(k => (
-                  <button key={k} onClick={() => setCols(p => ({...p, [k]: !p[k as keyof typeof cols]}))} className={cn("px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 border transition-all", cols[k as keyof typeof cols] ? "bg-blue-50 border-blue-200 text-blue-700" : "bg-slate-50 border-slate-200 text-slate-400")}>
-                    {cols[k as keyof typeof cols] ? <Eye size={16}/> : <EyeOff size={16}/>} {k}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-3 p-4 bg-slate-50 rounded-2xl border border-slate-200">
-              <label className="font-bold text-slate-700 flex items-center gap-2">
-                <input type="checkbox" checked={autoSchedule.active} onChange={e => setAutoSchedule(p => ({...p, active: e.target.checked}))} className="w-4 h-4"/> 
-                2. Auto-Schedule (Xếp lịch tự động)
-              </label>
-              {autoSchedule.active && (
-                <div className="space-y-3 pt-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-slate-600">Nền tảng Gốc:</span>
-                    <select value={autoSchedule.mainPlat} onChange={e => setAutoSchedule(p => ({...p, mainPlat: e.target.value}))} className="p-2 border rounded-lg font-bold">
-                      {platforms.map(p => <option key={p.id} value={p.id}>{p.id}</option>)}
-                    </select>
-                  </div>
-                  {/* Giao diện thêm Rule (Demo logic) */}
-                  <p className="text-xs text-slate-500 italic">Khi bạn chọn ngày cho Nền tảng Gốc, các nền tảng phụ sẽ tự động được gán ngày theo quy tắc +N ngày.</p>
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-3 pt-4 border-t border-slate-100">
-              <button onClick={() => setShowSettings(false)} className="flex-1 bg-slate-100 font-bold text-slate-600 py-3 rounded-xl">Hủy</button>
-              <button onClick={() => { setShowSettings(false); showToast('Đã lưu cấu hình', 'success'); }} className="flex-1 bg-blue-600 font-bold text-white py-3 rounded-xl shadow-lg">Lưu Thay Đổi</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL DOUBLE CLICK DỰ ÁN */}
-      {actionModal && (
-        <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex items-center justify-center">
-          <div className="bg-white p-6 rounded-3xl w-full max-w-sm text-center shadow-2xl space-y-4">
-            <h3 className="text-xl font-bold text-slate-800 truncate">{actionModal.task.project}</h3>
-            <div className="flex flex-col gap-3 pt-4">
-              <button onClick={() => { window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', {detail: actionModal.task})); setActionModal(null); }} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2"><Edit size={18}/> Chỉnh sửa / Xem chi tiết</button>
-              <button onClick={() => { onDelete(actionModal.task.id); setActionModal(null); }} className="w-full bg-red-500 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2"><Trash2 size={18}/> Xóa Dự Án</button>
-              <button onClick={() => setActionModal(null)} className="w-full bg-slate-100 text-slate-600 py-3 rounded-xl font-bold mt-2">Hủy</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 // --- Section: Giao Việc ---
 function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTask }: { 
   tasks: Task[], 
