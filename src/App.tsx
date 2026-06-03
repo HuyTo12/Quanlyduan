@@ -144,10 +144,6 @@ type Toast = {
 export default function App() {
   // --- BỘ NHỚ LƯU TRẠNG THÁI TAB KHI F5 ---
   const [activeSection, setActiveSection] = useState(() => {
-    const [activeSocialTab, setActiveSocialTab] = useState('danh-sach');
-  const [showSocialSettings, setShowSocialSettings] = useState(false);
-  const [socialColumns, setSocialColumns] = useState({
-    facebook: true, zalo: true, oaZalo: true, tiktok: true, shopee: true
   });
   const [isAutoSchedule, setIsAutoSchedule] = useState(false);
     // --- BỘ NHỚ CHO PHÂN HỆ SOCIAL MEDIA ---
@@ -163,6 +159,12 @@ export default function App() {
   }, [activeSection]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+const [activeSocialTab, setActiveSocialTab] = useState('danh-sach');
+  const [showSocialSettings, setShowSocialSettings] = useState(false);
+  const [socialColumns, setSocialColumns] = useState({
+    facebook: true, zalo: true, oaZalo: true, tiktok: true, shopee: true
+  });
+  const [isAutoSchedule, setIsAutoSchedule] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   
