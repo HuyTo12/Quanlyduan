@@ -3,8 +3,8 @@ import {
   LayoutDashboard, 
   Share2,
   Settings,
-  CalendarDays,
-  CalendarRange, 
+  CalendarDays, 
+  CalendarRange,
   BarChart3, 
   Plus, 
   FileUp, 
@@ -144,13 +144,13 @@ type Toast = {
 export default function App() {
   // --- BỘ NHỚ LƯU TRẠNG THÁI TAB KHI F5 ---
   const [activeSection, setActiveSection] = useState(() => {
-    // --- BỘ NHỚ CHO PHÂN HỆ SOCIAL MEDIA ---
-  const [activeSocialTab, setActiveSocialTab] = useState('danh-sach');
+    const [activeSocialTab, setActiveSocialTab] = useState('danh-sach');
   const [showSocialSettings, setShowSocialSettings] = useState(false);
   const [socialColumns, setSocialColumns] = useState({
     facebook: true, zalo: true, oaZalo: true, tiktok: true, shopee: true
   });
   const [isAutoSchedule, setIsAutoSchedule] = useState(false);
+    // --- BỘ NHỚ CHO PHÂN HỆ SOCIAL MEDIA ---
     // Kiểm tra xem trình duyệt có lưu tab nào trước đó không
     const savedSection = localStorage.getItem('savedActiveSection');
     // Nếu có thì lấy tab đó, nếu không thì mặc định mở tab Công Việc Hằng Ngày
