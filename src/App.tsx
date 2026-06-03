@@ -20,7 +20,9 @@ import {
   Edit,
   CheckCircle2,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Share2,
+  Settings
 } from 'lucide-react';
 import { 
   format, 
