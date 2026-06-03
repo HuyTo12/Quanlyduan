@@ -1,24 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
-  LayoutDashboard, 
-  CalendarDays, 
-  CalendarRange, 
-  BarChart3, 
-  Plus, 
-  FileUp, 
-  ChevronLeft, 
-  ChevronRight,
-  ChevronDown,
-  ChevronUp,
-  FileText,
-  Paperclip,
-  Trash2,
-  Download,
-  Search,
-  Edit,
-  CheckCircle2,
-  Clock,
-  AlertCircle
+  LayoutDashboard, CalendarDays, CalendarRange, BarChart3, Plus, FileUp, ChevronLeft, ChevronRight,
+  ChevronDown, ChevronUp, FileText, Paperclip, Trash2, Download, Search, Edit, CheckCircle2, Clock, AlertCircle,
+  Share2, MessageSquare, Music, Facebook, ShoppingBag, Video, Image as ImageIcon, MessageCircle, Settings, Eye, EyeOff, GripVertical, Settings2
 } from 'lucide-react';
 import { 
   format, 
@@ -130,7 +114,32 @@ function ExpandableFiles({ files }: { files: string[] }) {
   );
 }
 
-type Section = 'giao-viec' | 'cong-viec-hang-ngay' | 'timeline' | 'danh-gia' | 'search';
+type Section = 'giao-viec' | 'cong-viec-hang-ngay' | 'timeline' | 'danh-gia' | 'search' | 'social-media';
+
+// --- BỘ CÔNG CỤ XỬ LÝ SOCIAL MEDIA ---
+export type SMPlatform = 'Facebook' | 'Zalo' | 'OA Zalo' | 'Tiktok' | 'Shopee';
+export type SMData = { 
+  format: 'Hình ảnh' | 'Video'; 
+  schedules: Record<string, string>; // platform -> datetime (VD: '2026-06-10T14:30')
+  progress: string;
+};
+export const getSMData = (task: any): { note: string, smData: SMData | null } => {
+  if (task.note && task.note.includes('SM_DATA:::')) {
+    try {
+      const [note, smString] = task.note.split('SM_DATA:::');
+      return { note, smData: JSON.parse(smString) };
+    } catch { return { note: task.note || '', smData: null }; }
+  }
+  return { note: task.note || '', smData: null };
+};
+export const encodeSMData = (note: string, smData: SMData): string => `${note || ''}SM_DATA:::${JSON.stringify(smData)}`;
+
+// Tính KPI Social Media
+export const calculateSMKPI = (smData: SMData) => {
+  let score = smData.format === 'Hình ảnh' ? 1 : 2.5;
+  if (smData.schedules['Zalo'] || smData.schedules['OA Zalo']) score += 0.5;
+  return score;
+};
 
 type Toast = {
   id: number;
@@ -528,6 +537,7 @@ export default function App() {
           <SidebarItem icon={<CalendarDays size={20} />} label="Công việc hằng ngày" active={activeSection === 'cong-viec-hang-ngay'} onClick={() => setActiveSection('cong-viec-hang-ngay')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<CalendarRange size={20} />} label="Timeline công việc" active={activeSection === 'timeline'} onClick={() => setActiveSection('timeline')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<Plus size={20} />} label="Giao việc" active={activeSection === 'giao-viec'} onClick={() => setActiveSection('giao-viec')} collapsed={!isSidebarOpen} />
+          <SidebarItem icon={<Share2 size={20} />} label="Social Media" active={activeSection === 'social-media'} onClick={() => setActiveSection('social-media')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<BarChart3 size={20} />} label="Đánh giá công việc" active={activeSection === 'danh-gia'} onClick={() => setActiveSection('danh-gia')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<Search size={20} />} label="Tìm kiếm" active={activeSection === 'search'} onClick={() => setActiveSection('search')} collapsed={!isSidebarOpen} />
         </nav>
@@ -597,6 +607,7 @@ export default function App() {
         </div>
 
         <div className="max-w-6xl mx-auto">
+          {activeSection === 'social-media' && <SocialMedia tasks={tasks} onAdd={addTask} onUpdate={updateTask} onDelete={deleteTask} showToast={showToast} />}
           {activeSection === 'giao-viec' && <GiaoViec tasks={tasks} onAdd={addTask} onDelete={deleteTask} onUpdate={updateTask} showToast={showToast} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'cong-viec-hang-ngay' && <CongViecHangNgay tasks={tasks} onUpdate={updateTask} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'timeline' && <TimelineCongViec tasks={tasks} onSelectTask={(id) => {
@@ -652,7 +663,319 @@ function SidebarItem({ icon, label, active, onClick, collapsed }: {
     </button>
   );
 }
+// ==========================================
+// COMPONENT SOCIAL MEDIA PRO
+// ==========================================
+function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast }: any) {
+  const [activeTab, setActiveTab] = useState<'list' | 'calendar'>('list');
+  const [calView, setCalView] = useState<'month' | 'week'>('month');
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [showSettings, setShowSettings] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [dblClickTask, setDblClickTask] = useState<any>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
 
+  // Cấu hình Setting
+  const [settings, setSettings] = useState(() => {
+    const saved = localStorage.getItem('sm_settings');
+    return saved ? JSON.parse(saved) : {
+      cols: { progress: true, kpi: true, Facebook: true, Zalo: true, 'OA Zalo': true, Tiktok: true, Shopee: true },
+      autoRules: [] // { primary: 'Facebook', secondary: 'Zalo', days: 0 }
+    };
+  });
+
+  const platforms = [
+    { id: 'Facebook', color: '#2563eb', bg: 'bg-blue-600', icon: Facebook },
+    { id: 'Zalo', color: '#3b82f6', bg: 'bg-blue-500', icon: MessageCircle },
+    { id: 'OA Zalo', color: '#60a5fa', bg: 'bg-blue-400', icon: MessageSquare },
+    { id: 'Tiktok', color: '#000000', bg: 'bg-black', icon: Music },
+    { id: 'Shopee', color: '#f97316', bg: 'bg-orange-500', icon: ShoppingBag },
+  ];
+  const timeOptions = Array.from({ length: 48 }, (_, i) => `${Math.floor(i / 2).toString().padStart(2, '0')}:${i % 2 === 0 ? '00' : '30'}`);
+
+  // Dữ liệu
+  const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== null).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [tasks]);
+  const totalPages = Math.max(1, Math.ceil(smTasks.length / 10));
+  const currentTasks = smTasks.slice((currentPage - 1) * 10, currentPage * 10);
+
+  // Lưu Setting
+  const saveSettings = (newSet: any) => { setSettings(newSet); localStorage.setItem('sm_settings', JSON.stringify(newSet)); setShowSettings(false); showToast('Đã lưu cấu hình', 'success'); };
+
+  // Xử lý đổi ngày giờ Auto Schedule
+  const handleScheduleChange = (task: any, platform: string, dateTime: string) => {
+    let { note, smData } = getSMData(task);
+    if (!smData) return;
+    
+    let newSchedules = { ...smData.schedules, [platform]: dateTime };
+    
+    // Chạy luật Auto-schedule
+    settings.autoRules.forEach((rule: any) => {
+      if (rule.primary === platform && dateTime) {
+        const pDate = parseISO(dateTime);
+        const autoDate = addDays(pDate, rule.days);
+        newSchedules[rule.secondary] = format(autoDate, "yyyy-MM-dd'T'HH:mm");
+      }
+    });
+
+    smData.schedules = newSchedules;
+    onUpdate({ ...task, note: encodeSMData(note, smData) });
+  };
+
+  // Lịch
+  const calendarDays = useMemo(() => {
+    const start = calView === 'month' ? startOfWeek(startOfMonth(currentDate), { weekStartsOn: 1 }) : startOfWeek(currentDate, { weekStartsOn: 1 });
+    const end = calView === 'month' ? endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 }) : endOfWeek(currentDate, { weekStartsOn: 1 });
+    return eachDayOfInterval({ start, end });
+  }, [currentDate, calView]);
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500 h-full flex flex-col">
+      {/* HEADER TABS & SETTING */}
+      <div className="flex items-center justify-between bg-white p-4 rounded-3xl shadow-sm border border-slate-100 shrink-0">
+        <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
+          <button onClick={() => setActiveTab('list')} className={cn("px-6 py-2.5 rounded-lg font-bold transition-all", activeTab === 'list' ? "bg-white text-blue-700 shadow-sm" : "text-slate-500")}>Danh sách Dự án</button>
+          <button onClick={() => setActiveTab('calendar')} className={cn("px-6 py-2.5 rounded-lg font-bold transition-all", activeTab === 'calendar' ? "bg-white text-blue-700 shadow-sm" : "text-slate-500")}>Kế Hoạch Dự Án</button>
+        </div>
+        <div className="flex items-center gap-4">
+          {activeTab === 'calendar' && (
+             <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+                <button onClick={() => setCalView('month')} className={cn("px-4 py-1.5 text-sm font-bold rounded-md", calView === 'month' ? "bg-white shadow" : "text-slate-500")}>Tháng</button>
+                <button onClick={() => setCalView('week')} className={cn("px-4 py-1.5 text-sm font-bold rounded-md", calView === 'week' ? "bg-white shadow" : "text-slate-500")}>Tuần</button>
+             </div>
+          )}
+          <button onClick={() => setShowSettings(true)} className="p-3 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 transition-colors"><Settings size={20}/></button>
+        </div>
+      </div>
+
+      {/* TABS 1: DANH SÁCH (CHIA TRÁI / PHẢI) */}
+      {activeTab === 'list' && (
+        <div className="flex-1 bg-white rounded-3xl shadow-xl border border-blue-100 flex flex-col min-h-[750px] overflow-hidden">
+          <div className="flex-1 overflow-x-auto">
+            <div className="min-w-[1400px] flex">
+              {/* KHU VỰC TRÁI */}
+              <div className="flex-1 border-r-4 border-slate-200/50 bg-slate-50/30">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
+                    <tr>
+                      <th className="w-10 p-3"></th>
+                      {settings.cols.progress && <th className="p-3 font-semibold text-slate-600 text-sm">Tiến độ</th>}
+                      <th className="p-3 font-semibold text-slate-600 text-sm w-12">STT</th>
+                      <th className="p-3 font-semibold text-slate-600 text-sm">Dự án</th>
+                      {settings.cols.kpi && <th className="p-3 font-semibold text-slate-600 text-sm">Mức KPI</th>}
+                      <th className="p-3 font-semibold text-slate-600 text-sm">Định dạng</th>
+                      <th className="p-3 font-semibold text-slate-600 text-sm">Mô tả</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentTasks.length === 0 ? (
+                      <tr><td colSpan={7} className="p-4"><button onClick={() => window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: { isNewSM: true } }))} className="w-full py-4 border-2 border-dashed border-blue-300 rounded-xl bg-blue-50 text-blue-600 font-bold flex items-center justify-center gap-2 hover:bg-blue-100"><Plus size={20}/> Thêm Dự Án Mới</button></td></tr>
+                    ) : (
+                      currentTasks.map((t: any, idx: number) => {
+                        const { smData } = getSMData(t);
+                        return (
+                          <tr key={`left-${t.id}`} onDoubleClick={() => setDblClickTask(t)} className="border-b border-slate-100 hover:bg-white group cursor-pointer h-24">
+                            <td className="p-3 text-slate-300 group-hover:text-slate-500 cursor-grab"><GripVertical size={18}/></td>
+                            {settings.cols.progress && (
+                              <td className="p-3">
+                                <select value={smData?.progress || 'Chưa làm'} onChange={(e) => { const {note, smData} = getSMData(t); smData!.progress = e.target.value; onUpdate({...t, note: encodeSMData(note, smData!)}); }} className="p-2 rounded-lg border text-sm font-bold bg-white text-blue-700 outline-none">
+                                  {['Chưa làm', 'Đang làm', 'Chờ duyệt', 'Sửa đổi', 'Hoàn thành'].map(v => <option key={v} value={v}>{v}</option>)}
+                                </select>
+                              </td>
+                            )}
+                            <td className="p-3 font-bold text-slate-500 text-sm">{(currentPage-1)*10 + idx + 1}</td>
+                            <td className="p-3 font-bold text-blue-900 text-sm">{t.project}</td>
+                            {settings.cols.kpi && <td className="p-3 font-bold text-emerald-600 text-sm bg-emerald-50 rounded-lg text-center border-2 border-white">{calculateSMKPI(smData!)}đ</td>}
+                            <td className="p-3 text-sm font-bold text-slate-600 bg-slate-100 rounded-lg text-center border-2 border-white">{smData?.format}</td>
+                            <td className="p-3 text-xs text-slate-500 max-w-[200px] truncate">{t.description}</td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              
+              {/* KHU VỰC PHẢI (NỀN TẢNG) */}
+              <div className="flex-[1.2] bg-white">
+                 <table className="w-full text-left">
+                  <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
+                    <tr>
+                      {platforms.filter(p => settings.cols[p.id]).map(p => (
+                        <th key={p.id} className="p-3 font-semibold text-slate-600 text-sm text-center">
+                          <div className={cn("inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-white text-xs", p.bg)}><p.icon size={14}/> {p.id}</div>
+                        </th>
+                      ))}
+                      <th className="w-10 p-3 bg-slate-100"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentTasks.map((t: any) => {
+                       const { smData } = getSMData(t);
+                       return (
+                         <tr key={`right-${t.id}`} className="border-b border-slate-100 hover:bg-slate-50 h-24">
+                           {platforms.filter(p => settings.cols[p.id]).map(p => (
+                             <td key={p.id} className="p-2 border-r border-slate-50">
+                               <div className="flex flex-col gap-1 items-center justify-center p-2 rounded-xl bg-slate-50 border border-slate-100 hover:border-blue-300">
+                                  <input type="date" value={smData?.schedules[p.id]?.split('T')[0] || ''} onChange={(e) => handleScheduleChange(t, p.id, e.target.value ? `${e.target.value}T${smData?.schedules[p.id]?.split('T')[1] || '12:00'}` : '')} className="text-xs p-1 rounded border border-slate-200 outline-none w-full text-center font-bold text-slate-600 bg-white"/>
+                                  <select value={smData?.schedules[p.id]?.split('T')[1] || '12:00'} onChange={(e) => handleScheduleChange(t, p.id, `${smData?.schedules[p.id]?.split('T')[0] || format(new Date(), 'yyyy-MM-dd')}T${e.target.value}`)} className="text-xs p-1 rounded border border-slate-200 outline-none w-full text-center font-bold text-slate-600 bg-white">
+                                    <option value="">Giờ</option>
+                                    {timeOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                  </select>
+                               </div>
+                             </td>
+                           ))}
+                           <td className="p-3 bg-slate-50 text-slate-300 hover:text-slate-500 cursor-grab"><GripVertical size={20}/></td>
+                         </tr>
+                       );
+                    })}
+                  </tbody>
+                 </table>
+              </div>
+            </div>
+          </div>
+          {/* PHÂN TRANG */}
+          <div className="flex items-center justify-center gap-2 p-4 border-t border-slate-100 bg-slate-50/50 mt-auto shrink-0">
+            <button onClick={() => setCurrentPage(1)} disabled={currentPage===1} className="p-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 disabled:opacity-40 shadow-sm"><ChevronLeft size={16} className="-mr-1"/><ChevronLeft size={16} /></button>
+            <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage===1} className="p-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 disabled:opacity-40 shadow-sm"><ChevronLeft size={16}/></button>
+            <span className="px-6 py-2 text-sm font-bold text-blue-700 bg-blue-50 rounded-lg border border-blue-100">Trang {currentPage} / {totalPages}</span>
+            <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage===totalPages} className="p-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 disabled:opacity-40 shadow-sm"><ChevronRight size={16}/></button>
+            <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage===totalPages} className="p-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 disabled:opacity-40 shadow-sm"><ChevronRight size={16} className="-mr-1"/><ChevronRight size={16} /></button>
+          </div>
+        </div>
+      )}
+
+      {/* TABS 2: KẾ HOẠCH DỰ ÁN (LỊCH) */}
+      {activeTab === 'calendar' && (
+        <div className="flex-1 flex flex-col bg-white rounded-3xl shadow-xl border border-blue-100 overflow-hidden min-h-[750px]">
+          <div className="flex items-center justify-center gap-4 py-3 bg-slate-50 border-b border-slate-200">
+             <button onClick={() => setCurrentDate(calView === 'month' ? subDays(currentDate, 30) : subDays(currentDate, 7))} className="p-1 hover:bg-slate-200 rounded"><ChevronLeft/></button>
+             <span className="font-bold text-lg text-blue-900 uppercase">{calView === 'month' ? `Tháng ${format(currentDate, 'MM / yyyy')}` : `Tuần ${getWeek(currentDate)} - Năm ${getYear(currentDate)}`}</span>
+             <button onClick={() => setCurrentDate(calView === 'month' ? addDays(currentDate, 30) : addDays(currentDate, 7))} className="p-1 hover:bg-slate-200 rounded"><ChevronRight/></button>
+          </div>
+          
+          <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-100">
+            {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map(d => <div key={d} className="py-2 text-center font-bold text-slate-600">{d}</div>)}
+          </div>
+          
+          <div className="flex-1 bg-slate-200 p-px overflow-y-auto">
+            <div className="grid grid-cols-7 gap-px min-h-full">
+               {calendarDays.map((day, idx) => {
+                 const dayStr = format(day, 'yyyy-MM-dd');
+                 // Tìm các dự án có lịch trong ngày này
+                 const daySchedules: {task: any, p: string, time: string}[] = [];
+                 smTasks.forEach((t: any) => {
+                   const { smData } = getSMData(t);
+                   if (smData) {
+                     Object.entries(smData.schedules).forEach(([p, dt]) => {
+                       if (dt.startsWith(dayStr)) daySchedules.push({ task: t, p, time: dt.split('T')[1] });
+                     });
+                   }
+                 });
+                 // Sắp xếp theo giờ
+                 daySchedules.sort((a, b) => a.time.localeCompare(b.time));
+
+                 return (
+                   <div key={idx} className={cn("bg-white flex flex-col", calView === 'month' ? "min-h-[120px]" : "min-h-[600px]")}>
+                     <div className={cn("text-right p-1 text-xs font-bold", isSameDay(day, new Date()) ? "text-blue-600 bg-blue-50" : "text-slate-400")}>{format(day, 'd')}</div>
+                     <div className="p-1 space-y-1">
+                       {daySchedules.map((s, i) => {
+                         const pStyle = platforms.find(x => x.id === s.p);
+                         const isPast = isBefore(parseISO(`${dayStr}T${s.time}`), new Date());
+                         return (
+                           <div key={i} onClick={() => setDblClickTask(s.task)} className={cn("px-2 py-1 rounded-md text-[10px] font-bold flex justify-between items-center cursor-pointer hover:scale-105 transition-transform shadow-sm", isPast ? "bg-slate-100 text-slate-400 border border-slate-200" : "bg-blue-50 text-blue-900 border border-blue-200")}>
+                             <span className="truncate flex-1 pr-1">{s.task.project}</span>
+                             <div className="flex items-center gap-1 shrink-0">
+                               <span className={isPast ? "text-slate-400" : "text-blue-600"}>{s.time}</span>
+                               {pStyle && <pStyle.icon size={10} style={!isPast ? {color: pStyle.color} : {}}/>}
+                             </div>
+                           </div>
+                         )
+                       })}
+                     </div>
+                   </div>
+                 );
+               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL SETTINGS (BÁNH RĂNG) */}
+      {showSettings && (
+        <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex justify-center items-center">
+          <div className="bg-white rounded-3xl p-8 w-full max-w-lg shadow-2xl">
+             <h3 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2 border-b pb-4"><Settings2/> Tùy Chỉnh Social Media</h3>
+             
+             <div className="space-y-6">
+                <div>
+                  <h4 className="font-bold text-slate-700 mb-3 text-sm uppercase">Hiển thị cột</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    {Object.keys(settings.cols).map(col => (
+                      <label key={col} className="flex items-center gap-2 cursor-pointer bg-slate-50 p-2 rounded-lg border border-slate-200 hover:bg-slate-100">
+                        <input type="checkbox" checked={settings.cols[col]} onChange={(e) => setSettings({...settings, cols: {...settings.cols, [col]: e.target.checked}})} className="w-4 h-4 text-blue-600 rounded"/>
+                        <span className="font-bold text-sm text-slate-700">{col}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t">
+                  <h4 className="font-bold text-slate-700 mb-3 text-sm uppercase flex justify-between">
+                    Tự động xếp ngày 
+                    <button onClick={() => {
+                      if(settings.autoRules.length >= 2) return showToast('Tối đa 2 tùy chọn!', 'error');
+                      setSettings({...settings, autoRules: [...settings.autoRules, {primary: 'Facebook', secondary: 'Zalo', days: 0}]});
+                    }} className="text-blue-600 flex items-center gap-1"><Plus size={16}/> Thêm luật</button>
+                  </h4>
+                  <div className="space-y-3">
+                    {settings.autoRules.map((rule: any, idx: number) => (
+                      <div key={idx} className="flex items-center gap-2 bg-blue-50 p-3 rounded-xl border border-blue-100">
+                        <span className="text-xs font-bold text-slate-500">Khi đổi</span>
+                        <select value={rule.primary} onChange={e => { const nr = [...settings.autoRules]; nr[idx].primary = e.target.value; setSettings({...settings, autoRules: nr}); }} className="p-1 rounded font-bold text-sm bg-white border">
+                          {platforms.map(p => <option key={p.id} value={p.id}>{p.id}</option>)}
+                        </select>
+                        <span className="text-xs font-bold text-slate-500">thì</span>
+                        <select value={rule.secondary} onChange={e => { const nr = [...settings.autoRules]; nr[idx].secondary = e.target.value; setSettings({...settings, autoRules: nr}); }} className="p-1 rounded font-bold text-sm bg-white border">
+                           {platforms.map(p => <option key={p.id} value={p.id}>{p.id}</option>)}
+                        </select>
+                        <span className="text-xs font-bold text-slate-500">+</span>
+                        <input type="number" value={rule.days} onChange={e => { const nr = [...settings.autoRules]; nr[idx].days = parseInt(e.target.value)||0; setSettings({...settings, autoRules: nr}); }} className="w-12 p-1 rounded font-bold text-sm bg-white border text-center" min="0"/>
+                        <span className="text-xs font-bold text-slate-500">ngày</span>
+                        <button onClick={() => setSettings({...settings, autoRules: settings.autoRules.filter((_:any, i:number) => i !== idx)})} className="ml-auto text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
+                      </div>
+                    ))}
+                    {settings.autoRules.length === 0 && <p className="text-xs text-slate-400 italic">Chưa có luật tự động nào.</p>}
+                  </div>
+                </div>
+             </div>
+             
+             <div className="flex gap-4 mt-8 pt-4 border-t">
+               <button onClick={() => setShowSettings(false)} className="flex-1 py-3 bg-slate-100 font-bold rounded-xl text-slate-600 hover:bg-slate-200">Hủy</button>
+               <button onClick={() => saveSettings(settings)} className="flex-1 py-3 bg-blue-600 font-bold rounded-xl text-white hover:bg-blue-700 shadow-lg">Lưu thay đổi</button>
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL TÙY CHỌN DỰ ÁN (CLICK ĐÚP) */}
+      {dblClickTask && (
+        <div className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm flex justify-center items-center">
+          <div className="bg-white rounded-3xl p-8 w-full max-w-sm text-center shadow-2xl">
+            <h3 className="text-xl font-bold text-slate-800 mb-2">Tùy chọn Dự án</h3>
+            <p className="text-sm text-blue-600 font-bold mb-6 truncate">{dblClickTask.project}</p>
+            <div className="space-y-3">
+              <button onClick={() => { window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: dblClickTask })); setDblClickTask(null); }} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-blue-700"><Edit size={18}/> Chỉnh sửa</button>
+              <button onClick={() => { setActiveTab('calendar'); setDblClickTask(null); }} className="w-full py-3 bg-slate-100 text-slate-700 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-slate-200"><Eye size={18}/> Xem lịch</button>
+              <button onClick={() => { onDelete(dblClickTask.id); setDblClickTask(null); }} className="w-full py-3 bg-red-50 text-red-600 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-red-100"><Trash2 size={18}/> Xóa dự án</button>
+              <button onClick={() => setDblClickTask(null)} className="w-full py-3 bg-transparent text-slate-500 rounded-xl font-bold hover:bg-slate-50 mt-2 border border-slate-200">Hủy bỏ</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+// ==========================================
 // --- Section: Giao Việc ---
 function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTask }: { 
   tasks: Task[], 
