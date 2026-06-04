@@ -690,6 +690,14 @@ function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast }: any) {
   });
 
   const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
+  // --- LOGIC LỌC DỮ LIỆU & PHÂN TRANG ---
+const [currentPage, setCurrentPage] = useState(1);
+const itemsPerPage = 10;
+
+// Lọc ra các Dự án thuộc về Social Media
+const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== null), [tasks]);
+const totalPages = Math.ceil(smTasks.length / itemsPerPage) || 1;
+const currentTasks = smTasks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
     <div className="space-y-6 h-full flex flex-col relative animate-in fade-in duration-500">
@@ -709,17 +717,103 @@ function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast }: any) {
       </div>
 
       {/* 2. KHU VỰC HIỂN THỊ CHÍNH */}
-      <div className="flex-1 bg-white rounded-3xl shadow-xl border border-blue-100 overflow-hidden flex flex-col p-6 items-center justify-center">
-         {/* Tạm thời hiển thị thông báo chờ Phần 2 */}
-         <div className="text-center space-y-4">
-            <div className="w-20 h-20 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
-               <Share2 size={40} />
-            </div>
-            <h2 className="text-2xl font-bold text-blue-900">Khung Social Media đã sẵn sàng!</h2>
-            <p className="text-slate-500">Bạn đang ở Tab: {activeTab === 'list' ? 'Danh sách Dự án' : 'Kế Hoạch Dự Án'}.<br/>Hãy thử bấm nút Bánh Răng ở góc trên bên phải.</p>
-         </div>
-      </div>
+      <div className="flex-1 bg-white rounded-3xl shadow-xl border border-blue-100 overflow-hidden flex flex-col">
+        
+        {/* TAB 1: DANH SÁCH DỰ ÁN */}
+        {activeTab === 'list' && (
+          <div className="flex-1 flex flex-col h-full">
+            <div className="flex-1 overflow-auto">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-slate-50 sticky top-0 z-10 border-b border-slate-200">
+                  <tr>
+                    {/* KHU VỰC TRÁI (THÔNG TIN) */}
+                    {visibleCols['Tiến độ'] && <th className="p-4 font-bold text-slate-600 text-sm whitespace-nowrap">Tiến độ</th>}
+                    <th className="p-4 font-bold text-slate-600 text-sm w-12 text-center">STT</th>
+                    <th className="p-4 font-bold text-slate-600 text-sm min-w-[200px]">Dự án</th>
+                    <th className="p-4 font-bold text-slate-600 text-sm whitespace-nowrap">Định dạng</th>
+                    
+                    {/* KHU VỰC PHẢI (NỀN TẢNG) */}
+                    {platforms.map(p => visibleCols[p as keyof typeof visibleCols] && (
+                      <th key={p} className="p-3 font-bold text-slate-600 text-sm text-center border-l border-slate-200 min-w-[120px]">{p}</th>
+                    ))}
+                    
+                    {/* THANH KÉO THẢ NGOÀI CÙNG */}
+                    <th className="p-4 font-bold text-slate-600 text-sm w-12 text-center">≡</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {smTasks.length === 0 ? (
+                    <tr>
+                      <td colSpan={15} className="p-8">
+                        <div onClick={() => { /* Tính năng gọi bảng thêm dự án sẽ gắn ở phần 3 */ }} className="w-full py-12 bg-blue-50 border-2 border-dashed border-blue-200 rounded-3xl flex flex-col items-center justify-center hover:bg-blue-100 hover:border-blue-400 transition-all group cursor-pointer">
+                          <Plus size={40} className="text-blue-500 group-hover:scale-110 transition-transform mb-3" />
+                          <span className="font-bold text-blue-700 text-lg">Giao Dự Án Social Media Mới</span>
+                          <span className="text-sm text-blue-500 mt-1">Hệ thống sẽ tự động tính KPI (Hình=1đ, Video=2.5đ)</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    currentTasks.map((task: any, idx: number) => {
+                      const { smData } = getSMData(task);
+                      return (
+                        <tr key={task.id} onDoubleClick={() => window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: task }))} className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer group">
+                          
+                          {/* DỮ LIỆU KHU VỰC TRÁI */}
+                          {visibleCols['Tiến độ'] && (
+                            <td className="p-3">
+                              <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600">{task.status || 'Mới'}</span>
+                            </td>
+                          )}
+                          <td className="p-3 text-center font-bold text-slate-400">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                          <td className="p-3 font-bold text-blue-900 truncate max-w-[200px]">{task.project}</td>
+                          <td className="p-3">
+                            <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-600">{smData?.format || 'Hình ảnh'}</span>
+                          </td>
 
+                          {/* DỮ LIỆU KHU VỰC PHẢI (CÁC Ô CHỌN NGÀY GIỜ SẼ LẮP Ở PHẦN 3) */}
+                          {platforms.map(p => visibleCols[p as keyof typeof visibleCols] && (
+                            <td key={p} className="p-2 border-l border-slate-100 text-center">
+                              <div className="text-xs text-slate-400 bg-white border border-slate-200 rounded-md py-2 px-1 hover:border-blue-300">
+                                Chưa xếp lịch
+                              </div>
+                            </td>
+                          ))}
+
+                          {/* THANH NẮM KÉO THẢ DÒNG */}
+                          <td className="p-3 text-center text-slate-300 group-hover:text-slate-500 cursor-grab active:cursor-grabbing">
+                            <GripVertical size={18} className="mx-auto" />
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+            
+            {/* THANH ĐIỀU HƯỚNG PHÂN TRANG */}
+            {smTasks.length > 0 && (
+              <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
+                <span className="font-bold text-slate-500 text-sm">Trang {currentPage} / {totalPages}</span>
+                <div className="flex gap-2">
+                  <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-blue-50 disabled:opacity-50 font-bold text-slate-600 text-sm transition-colors">&lt;&lt;</button>
+                  <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-4 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-blue-50 disabled:opacity-50 font-bold text-slate-600 text-sm transition-colors">Trước</button>
+                  <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-4 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-blue-50 disabled:opacity-50 font-bold text-slate-600 text-sm transition-colors">Sau</button>
+                  <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-blue-50 disabled:opacity-50 font-bold text-slate-600 text-sm transition-colors">&gt;&gt;</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 2: KẾ HOẠCH DỰ ÁN */}
+        {activeTab === 'calendar' && (
+          <div className="flex-1 flex flex-col p-10 items-center justify-center bg-slate-50/50">
+            <CalendarDays size={64} className="text-slate-300 mb-4 animate-bounce" />
+            <h3 className="text-xl font-bold text-slate-500">Giao diện Lịch đang được xây dựng (Giai đoạn 3)...</h3>
+          </div>
+        )}
+      </div>
       {/* 3. MODAL CÀI ĐẶT (BÁNH RĂNG) */}
       {showSettings && (
         <div className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
