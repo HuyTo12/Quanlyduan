@@ -614,7 +614,7 @@ export default function App() {
         </div>
 
         <div className="max-w-[1440px] mx-auto">
-          {activeSection === 'social-media' && <SocialMedia tasks={tasks} onAdd={addTask} onUpdate={updateTask} onDelete={deleteTask} showToast={showToast} />}
+          {activeSection === 'social-media' && <SocialMedia tasks={tasks} onAdd={addTask} onUpdate={updateTask} onDelete={deleteTask} showToast={showToast} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'giao-viec' && <GiaoViec tasks={tasks} onAdd={addTask} onDelete={deleteTask} onUpdate={updateTask} showToast={showToast} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'cong-viec-hang-ngay' && <CongViecHangNgay tasks={tasks} onUpdate={updateTask} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'timeline' && <TimelineCongViec tasks={tasks} onSelectTask={(id) => {
@@ -670,11 +670,30 @@ function SidebarItem({ icon, label, active, onClick, collapsed }: {
     </button>
   );
 }
+// --- COMPONENT RÚT GỌN CHỮ (TIÊU ĐỀ / NỘI DUNG / GHI CHÚ) ---
+function ExpandableCell({ text, isTitle = false }: { text: string, isTitle?: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!text) return <span className="text-slate-400 italic text-sm">Trống</span>;
+  return (
+    <div className="relative group cursor-pointer" onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}>
+      <div className={cn("text-sm transition-all duration-200 whitespace-pre-wrap break-words", !expanded && "line-clamp-2", isTitle ? "font-bold text-blue-900" : "text-slate-700")}>
+        {text}
+      </div>
+      {text.length > 50 && (
+        <div className="text-blue-500 mt-0.5 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ==========================================
 // MỤC SOCIAL MEDIA (PHẦN 1: KHUNG & CÀI ĐẶT)
 // ==========================================
-function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast }: any) {
+function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast, onDoubleClickTask }: any) {
   const [activeTab, setActiveTab] = useState<'list' | 'calendar'>('list');
+  const [actionTask, setActionTask] = useState<any>(null); // State cho bảng nháy đúp
   const [showSettings, setShowSettings] = useState(false);
   
   // Trạng thái Cài đặt Cột
@@ -696,7 +715,18 @@ const itemsPerPage = 10;
 
 // Lọc ra các Dự án thuộc về Social Media
 const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== null), [tasks]);
-const totalPages = Math.ceil(smTasks.length / itemsPerPage) || 1;
+const totalPages = Math.ceil((smTasks.length + 1) / itemsPerPage) || 1; // +1 để luôn chừa 1 dòng trống cho nút (+)
+
+// Tự động tô màu Tiến độ
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'Đang làm': return 'bg-orange-100 text-orange-700 border-orange-200';
+    case 'Chờ duyệt': return 'bg-purple-100 text-purple-700 border-purple-200';
+    case 'Đã duyệt': return 'bg-teal-100 text-teal-700 border-teal-200';
+    case 'COMPLETED': return 'bg-green-100 text-green-700 border-green-200';
+    default: return 'bg-blue-50 text-blue-700 border-blue-200'; // Mới
+  }
+};
 const currentTasks = smTasks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   // --- LOGIC PHẦN 3: XỬ LÝ FORM & LỊCH ---
   const [showAddModal, setShowAddModal] = useState(false);
@@ -792,128 +822,138 @@ const currentTasks = smTasks.slice((currentPage - 1) * itemsPerPage, currentPage
           <div className="flex-1 flex flex-col h-full">
             <div className="flex-1 overflow-auto">
               <table className="w-full text-left border-collapse">
-                <thead className="bg-slate-50 sticky top-0 z-10 border-b border-slate-200">
-                  <tr>
-                    {/* KHU VỰC TRÁI (THÔNG TIN) */}
-                    {visibleCols['Tiến độ'] && <th className="p-4 font-bold text-slate-600 text-sm whitespace-nowrap w-36">Tiến độ</th>}
-                    <th className="p-4 font-bold text-slate-600 text-sm w-10 text-center">STT</th>
-                    <th className="p-4 font-bold text-slate-600 text-sm min-w-[150px]">Dự án</th>
-                    <th className="p-4 font-bold text-slate-600 text-sm min-w-[200px]">Nội dung</th>
-                    <th className="p-4 font-bold text-slate-600 text-sm whitespace-nowrap w-32">Định dạng</th>
-                    
-                    {/* KHU VỰC PHẢI (NỀN TẢNG) */}
-                    {platforms.map(p => visibleCols[p as keyof typeof visibleCols] && (
-                      <th key={p} className="p-2 font-bold text-slate-600 text-sm text-center border-l border-slate-200 min-w-[100px] w-[100px]">{p}</th>
-                    ))}
-                    
-                    {/* THANH KÉO THẢ NGOÀI CÙNG */}
-                    <th className="p-4 font-bold text-slate-600 text-sm w-10 text-center">≡</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {smTasks.length === 0 ? (
-                    <tr>
-                      <td colSpan={15} className="p-4">
-                        <div onClick={() => setShowAddModal(true)} className="w-full py-4 bg-blue-50 border-2 border-dashed border-blue-200 rounded-2xl flex flex-col items-center justify-center hover:bg-blue-100 hover:border-blue-400 transition-all cursor-pointer">
-                          <Plus size={32} className="text-blue-500" />
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    currentTasks.map((task: any, idx: number) => {
-                      const { note, smData } = getSMData(task);
-                      return (
-                        <tr key={task.id} onDoubleClick={() => window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: task }))} className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer group">
-                          
-                          {/* DỮ LIỆU KHU VỰC TRÁI */}
-                          {visibleCols['Tiến độ'] && (
-                            <td className="p-2" onDoubleClick={(e) => e.stopPropagation()}>
-                              <select 
-                                value={task.status || 'Mới'} 
-                                onChange={(e) => onUpdate({ ...task, status: e.target.value })}
-                                className={cn("w-full p-2 text-xs font-bold rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 outline-none cursor-pointer shadow-sm", task.status === 'COMPLETED' ? 'bg-slate-200 text-slate-600' : 'bg-white text-blue-700')}
-                              >
-                                <option value="Mới">Mới</option>
-                                <option value="Đang làm">Đang làm</option>
-                                <option value="Chờ duyệt">Chờ duyệt</option>
-                                <option value="Đã duyệt">Đã duyệt</option>
-                                <option value="COMPLETED">Hoàn thành</option>
-                              </select>
-                            </td>
-                          )}
-                          <td className="p-2 text-center font-bold text-slate-400">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                          <td className="p-2 font-bold text-blue-900 truncate max-w-[150px]">{task.project}</td>
-                          <td className="p-2"><div className="line-clamp-2 text-sm text-slate-600" title={task.description}>{task.description}</div></td>
-                          <td className="p-2" onDoubleClick={(e) => e.stopPropagation()}>
+             <thead className="bg-slate-50 sticky top-0 z-10 border-b border-slate-200">
+               <tr>
+                 {/* KHU VỰC TRÁI (THÔNG TIN) */}
+                 {visibleCols['Tiến độ'] && <th className="p-4 font-bold text-slate-600 text-sm whitespace-nowrap w-36">Tiến độ</th>}
+                 <th className="p-4 font-bold text-slate-600 text-sm w-10 text-center">STT</th>
+                 <th className="p-4 font-bold text-slate-600 text-sm min-w-[150px]">Dự án</th>
+                 <th className="p-4 font-bold text-slate-600 text-sm min-w-[200px]">Nội dung</th>
+                 <th className="p-4 font-bold text-slate-600 text-sm min-w-[150px]">Ghi chú</th>
+                 <th className="p-4 font-bold text-slate-600 text-sm whitespace-nowrap w-28">Định dạng</th>
+
+                 {/* KHU VỰC PHẢI (NỀN TẢNG) */}
+                 {platforms.map(p => visibleCols[p as keyof typeof visibleCols] && (
+                   <th key={p} className="p-2 font-bold text-slate-600 text-sm text-center border-l border-slate-200 min-w-[100px] w-[100px]">{p}</th>
+                 ))}
+
+                 {/* THANH KÉO THẢ */}
+                 <th className="p-4 font-bold text-slate-600 text-sm w-10 text-center">≡</th>
+               </tr>
+             </thead>
+             <tbody>
+               {currentTasks.map((task: any, idx: number) => {
+                 const { note, smData } = getSMData(task);
+                 return (
+                   <tr key={task.id} onDoubleClick={() => setActionTask(task)} className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer group">
+
+                     {/* TIẾN ĐỘ */}
+                     {visibleCols['Tiến độ'] && (
+                       <td className="p-2 align-top" onDoubleClick={(e) => e.stopPropagation()}>
+                         <select 
+                           value={task.status || 'Mới'} 
+                           onChange={(e) => onUpdate({ ...task, status: e.target.value })}
+                           className={cn("w-full p-2 text-xs font-bold rounded-lg border focus:ring-2 outline-none cursor-pointer shadow-sm transition-colors", getStatusColor(task.status || 'Mới'))}
+                         >
+                           <option value="Mới" className="bg-white text-slate-800">Mới</option>
+                           <option value="Đang làm" className="bg-white text-slate-800">Đang làm</option>
+                           <option value="Chờ duyệt" className="bg-white text-slate-800">Chờ duyệt</option>
+                           <option value="Đã duyệt" className="bg-white text-slate-800">Đã duyệt</option>
+                           <option value="COMPLETED" className="bg-white text-slate-800">Hoàn thành</option>
+                         </select>
+                       </td>
+                     )}
+                     <td className="p-2 text-center font-bold text-slate-400 align-top">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+
+                     {/* DỰ ÁN, NỘI DUNG, GHI CHÚ */}
+                     <td className="p-2 align-top"><ExpandableCell text={task.project} isTitle={true} /></td>
+                     <td className="p-2 align-top"><ExpandableCell text={task.description} /></td>
+                     <td className="p-2 align-top"><ExpandableCell text={note} /></td>
+
+                     {/* ĐỊNH DẠNG */}
+                     <td className="p-2 align-top" onDoubleClick={(e) => e.stopPropagation()}>
+                        <select 
+                           value={smData?.format || 'Hình ảnh'} 
+                           onChange={(e) => {
+                             const newFormat = e.target.value;
+                             const currentData = smData || { format: 'Hình ảnh', schedules: [] };
+                             currentData.format = newFormat as any;
+                             const hasZalo = currentData.schedules.some((s: any) => s.platform === 'Zalo' || s.platform === 'OA Zalo');
+                             const baseLevel = newFormat === 'Video' ? 3 : 2;
+                             const kpiLevel = Math.min(5, baseLevel + (hasZalo ? 1 : 0));
+                             onUpdate({ ...task, note: encodeSMData(note, currentData), kpiLevel });
+                           }}
+                           className="w-full p-2 text-xs font-bold rounded-lg border border-slate-200 bg-emerald-50 text-emerald-700 focus:ring-2 focus:ring-emerald-400 outline-none cursor-pointer shadow-sm"
+                        >
+                           <option value="Hình ảnh">Hình ảnh</option>
+                           <option value="Video">Video</option>
+                        </select>
+                     </td>
+
+                     {/* CÁC Ô CHỌN NGÀY GIỜ */}
+                     {platforms.map(p => {
+                       if (!visibleCols[p as keyof typeof visibleCols]) return null;
+                       const schedule = smData?.schedules.find((s: any) => s.platform === p);
+                       return (
+                         <td key={p} className="p-2 border-l border-slate-100 text-center bg-white group-hover:bg-slate-50 transition-colors align-top" onDoubleClick={(e) => e.stopPropagation()}>
+                           <div className="flex flex-col gap-1 items-center">
+                             <input 
+                               type="date" 
+                               value={schedule?.date || ''} 
+                               onChange={(e) => updateSMTaskSchedule(task, p, 'date', e.target.value)}
+                               className="text-[13px] p-1 border border-slate-200 rounded-md text-slate-800 font-bold focus:ring-2 focus:ring-blue-400 outline-none w-full cursor-pointer shadow-sm hover:border-blue-300"
+                             />
                              <select 
-                                value={smData?.format || 'Hình ảnh'} 
-                                onChange={(e) => {
-                                  const newFormat = e.target.value;
-                                  const currentData = smData || { format: 'Hình ảnh', schedules: [] };
-                                  currentData.format = newFormat as any;
-                                  const hasZalo = currentData.schedules.some((s: any) => s.platform === 'Zalo' || s.platform === 'OA Zalo');
-                                  const baseLevel = newFormat === 'Video' ? 3 : 2;
-                                  const kpiLevel = Math.min(5, baseLevel + (hasZalo ? 1 : 0));
-                                  onUpdate({ ...task, note: encodeSMData(note, currentData), kpiLevel });
-                                }}
-                                className="w-full p-2 text-xs font-bold rounded-lg border border-slate-200 bg-emerald-50 text-emerald-700 focus:ring-2 focus:ring-emerald-400 outline-none cursor-pointer shadow-sm"
+                               value={schedule?.time || ''} 
+                               onChange={(e) => updateSMTaskSchedule(task, p, 'time', e.target.value)}
+                               className="text-[13px] p-1 border border-slate-200 rounded-md text-slate-800 font-bold focus:ring-2 focus:ring-blue-400 outline-none w-full cursor-pointer shadow-sm hover:border-blue-300"
                              >
-                                <option value="Hình ảnh">Hình ảnh</option>
-                                <option value="Video">Video</option>
+                               <option value="">Giờ đăng</option>
+                               {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
                              </select>
-                          </td>
+                           </div>
+                         </td>
+                       );
+                     })}
 
-                          {/* DỮ LIỆU KHU VỰC PHẢI (CÁC Ô CHỌN NGÀY GIỜ) */}
-                          {platforms.map(p => {
-                            if (!visibleCols[p as keyof typeof visibleCols]) return null;
-                            const schedule = smData?.schedules.find((s: any) => s.platform === p);
-                            return (
-                              <td key={p} className="p-2 border-l border-slate-100 text-center bg-white group-hover:bg-slate-50 transition-colors" onDoubleClick={(e) => e.stopPropagation()}>
-                                <div className="flex flex-col gap-1 items-center">
-                                  <input 
-                                    type="date" 
-                                    value={schedule?.date || ''} 
-                                    onChange={(e) => updateSMTaskSchedule(task, p, 'date', e.target.value)}
-                                    className="text-sm p-1 border border-slate-200 rounded-md text-slate-800 font-bold focus:ring-2 focus:ring-blue-400 outline-none w-[110px] cursor-pointer shadow-sm hover:border-blue-300"
-                                  />
-                                  <select 
-                                    value={schedule?.time || ''} 
-                                    onChange={(e) => updateSMTaskSchedule(task, p, 'time', e.target.value)}
-                                    className="text-sm p-1 border border-slate-200 rounded-md text-slate-800 font-bold focus:ring-2 focus:ring-blue-400 outline-none w-[110px] cursor-pointer shadow-sm hover:border-blue-300"
-                                  >
-                                    <option value="">Giờ đăng</option>
-                                    {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
-                                  </select>
-                                </div>
-                              </td>
-                            );
-                          })}
+                     {/* KÉO THẢ */}
+                     <td className="p-2 text-center text-slate-300 group-hover:text-slate-500 cursor-grab active:cursor-grabbing align-middle" onDoubleClick={(e) => e.stopPropagation()}>
+                       <GripVertical size={18} className="mx-auto" />
+                     </td>
+                   </tr>
+                 );
+               })}
 
-                          {/* THANH NẮM KÉO THẢ DÒNG */}
-                          <td className="p-2 text-center text-slate-300 group-hover:text-slate-500 cursor-grab active:cursor-grabbing" onDoubleClick={(e) => e.stopPropagation()}>
-                            <GripVertical size={18} className="mx-auto" />
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-            
-            {/* THANH ĐIỀU HƯỚNG PHÂN TRANG */}
-            {smTasks.length > 0 && (
-              <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
-                <span className="font-bold text-slate-500 text-sm">Trang {currentPage} / {totalPages}</span>
-                <div className="flex gap-2">
-                  <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-blue-50 disabled:opacity-50 font-bold text-slate-600 text-sm transition-colors">&lt;&lt;</button>
-                  <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-4 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-blue-50 disabled:opacity-50 font-bold text-slate-600 text-sm transition-colors">Trước</button>
-                  <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-4 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-blue-50 disabled:opacity-50 font-bold text-slate-600 text-sm transition-colors">Sau</button>
-                  <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-blue-50 disabled:opacity-50 font-bold text-slate-600 text-sm transition-colors">&gt;&gt;</button>
-                </div>
-              </div>
-            )}
-          </div>
+               {/* THANH DẤU + NẾU CHƯA ĐỦ 10 DÒNG (HOẶC ĐANG Ở TRANG CUỐI CÙNG) */}
+               {currentTasks.length < itemsPerPage && (
+                 <tr>
+                   <td colSpan={16} className="p-2">
+                     <div onClick={() => setShowAddModal(true)} className="w-full py-4 bg-blue-50/50 border-2 border-dashed border-blue-200 rounded-xl flex flex-col items-center justify-center hover:bg-blue-100 hover:border-blue-400 transition-all cursor-pointer group shadow-sm">
+                       <Plus size={28} className="text-blue-400 group-hover:text-blue-600 group-hover:scale-110 transition-transform" />
+                     </div>
+                   </td>
+                 </tr>
+               )}
+             </tbody>
+           </table>
+         </div>
+
+         {/* THANH ĐIỀU HƯỚNG PHÂN TRANG (CĂN GIỮA) */}
+         {smTasks.length >= 0 && (
+           <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col items-center justify-center shrink-0">
+             <div className="flex items-center gap-2">
+               <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-blue-50 disabled:opacity-50 font-bold text-slate-600 transition-colors">&lt;&lt;</button>
+               <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-blue-50 disabled:opacity-50 font-bold text-slate-600 transition-colors">&lt;</button>
+
+               <span className="font-bold text-blue-700 text-sm px-4">Trang {currentPage} / {totalPages}</span>
+
+               <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-blue-50 disabled:opacity-50 font-bold text-slate-600 transition-colors">&gt;</button>
+               <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-blue-50 disabled:opacity-50 font-bold text-slate-600 transition-colors">&gt;&gt;</button>
+             </div>
+           </div>
+         )}
+       </div>
+     )}
         )}
 
         {/* TAB 2: KẾ HOẠCH DỰ ÁN */}
@@ -984,6 +1024,21 @@ const currentTasks = smTasks.slice((currentPage - 1) * itemsPerPage, currentPage
           </div>
         </div>
       )}
+      {/* MODAL HÀNH ĐỘNG (KHI NHÁY ĐÚP CHUỘT) */}
+   {actionTask && (
+     <div className="fixed inset-0 z-[130] bg-black/40 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
+       <div className="bg-white p-8 rounded-3xl max-w-sm w-full text-center space-y-4 shadow-2xl relative">
+         <h3 className="text-xl font-bold text-slate-800">Tùy chọn Dự án</h3>
+         <p className="text-sm text-slate-500 mb-6 truncate">{actionTask.project}</p>
+         <div className="flex flex-col gap-3">
+           <button onClick={() => { onDoubleClickTask(actionTask); setActionTask(null); }} className="w-full bg-blue-100 text-blue-700 py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-blue-200 transition-colors shadow-sm"><FileText size={18}/> Xem dự án</button>
+           <button onClick={() => { window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: actionTask })); setActionTask(null); }} className="w-full bg-slate-100 text-slate-700 py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-slate-200 transition-colors shadow-sm"><Edit size={18}/> Chỉnh sửa</button>
+           <button onClick={() => { onDelete(actionTask.id); setActionTask(null); showToast('Đã xóa dự án', 'delete'); }} className="w-full bg-red-100 text-red-600 py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-red-200 transition-colors shadow-sm"><Trash2 size={18}/> Xóa dự án</button>
+           <button onClick={() => setActionTask(null)} className="w-full bg-white border border-slate-200 text-slate-500 py-3 rounded-xl font-bold hover:bg-slate-50 mt-2 transition-colors">Hủy</button>
+         </div>
+       </div>
+     </div>
+   )}
       {/* 3. MODAL CÀI ĐẶT (BÁNH RĂNG) */}
       {showSettings && (
         <div className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
