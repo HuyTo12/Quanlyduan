@@ -814,6 +814,7 @@ const currentTasks = smTasks.slice((currentPage - 1) * itemsPerPage, currentPage
           </div>
         )}
       </div>
+
       {/* 3. MODAL CÀI ĐẶT (BÁNH RĂNG) */}
       {showSettings && (
         <div className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
