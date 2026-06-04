@@ -745,7 +745,7 @@ const currentTasks = smTasks.slice((currentPage - 1) * itemsPerPage, currentPage
                   {smTasks.length === 0 ? (
                     <tr>
                       <td colSpan={15} className="p-8">
-                        <div onClick={() => setShowAddModal(true)} className="w-full py-12 bg-blue-50 border-2 border-dashed border-blue-200 rounded-3xl flex flex-col items-center justify-center hover:bg-blue-100 hover:border-blue-400 transition-all group cursor-pointer">
+                        <div onClick={() => { /* Tính năng gọi bảng thêm dự án sẽ gắn ở phần 3 */ }} className="w-full py-12 bg-blue-50 border-2 border-dashed border-blue-200 rounded-3xl flex flex-col items-center justify-center hover:bg-blue-100 hover:border-blue-400 transition-all group cursor-pointer">
                           <Plus size={40} className="text-blue-500 group-hover:scale-110 transition-transform mb-3" />
                           <span className="font-bold text-blue-700 text-lg">Giao Dự Án Social Media Mới</span>
                           <span className="text-sm text-blue-500 mt-1">Hệ thống sẽ tự động tính KPI (Hình=1đ, Video=2.5đ)</span>
@@ -770,31 +770,14 @@ const currentTasks = smTasks.slice((currentPage - 1) * itemsPerPage, currentPage
                             <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-600">{smData?.format || 'Hình ảnh'}</span>
                           </td>
 
-                          {/* DỮ LIỆU KHU VỰC PHẢI (CÁC Ô CHỌN NGÀY GIỜ) */}
-                      {platforms.map(p => {
-                        if (!visibleCols[p as keyof typeof visibleCols]) return null;
-                        const schedule = smData?.schedules.find((s: any) => s.platform === p);
-                        return (
-                          <td key={p} className="p-2 border-l border-slate-100 align-middle">
-                            <div className="flex flex-col gap-1.5 items-center">
-                              <input 
-                                type="date" 
-                                value={schedule?.date || ''} 
-                                onChange={(e) => handleScheduleChange(task, p, 'date', e.target.value)}
-                                className="w-[120px] text-xs font-bold p-1.5 border border-slate-200 rounded text-blue-700 bg-slate-50 focus:ring-2 focus:ring-blue-400 focus:bg-white outline-none cursor-pointer transition-all shadow-sm"
-                              />
-                              <select 
-                                value={schedule?.time || ''} 
-                                onChange={(e) => handleScheduleChange(task, p, 'time', e.target.value)}
-                                className="w-[120px] text-xs font-bold p-1.5 border border-slate-200 rounded text-slate-600 focus:ring-2 focus:ring-blue-400 outline-none cursor-pointer hover:border-blue-300 transition-all shadow-sm"
-                              >
-                                <option value="">-- Chọn giờ --</option>
-                                {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
-                              </select>
-                            </div>
-                          </td>
-                        );
-                      })}
+                          {/* DỮ LIỆU KHU VỰC PHẢI (CÁC Ô CHỌN NGÀY GIỜ SẼ LẮP Ở PHẦN 3) */}
+                          {platforms.map(p => visibleCols[p as keyof typeof visibleCols] && (
+                            <td key={p} className="p-2 border-l border-slate-100 text-center">
+                              <div className="text-xs text-slate-400 bg-white border border-slate-200 rounded-md py-2 px-1 hover:border-blue-300">
+                                Chưa xếp lịch
+                              </div>
+                            </td>
+                          ))}
 
                           {/* THANH NẮM KÉO THẢ DÒNG */}
                           <td className="p-3 text-center text-slate-300 group-hover:text-slate-500 cursor-grab active:cursor-grabbing">
@@ -831,59 +814,6 @@ const currentTasks = smTasks.slice((currentPage - 1) * itemsPerPage, currentPage
           </div>
         )}
       </div>
-      {/* 4. MODAL THÊM DỰ ÁN SOCIAL MEDIA MỚI */}
-   {showAddModal && (
-     <div className="fixed inset-0 z-[130] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
-       <div className="bg-white p-8 rounded-3xl w-full max-w-xl shadow-2xl relative">
-         <h3 className="text-2xl font-bold text-blue-900 mb-6 flex items-center gap-2 border-b border-slate-100 pb-4">
-           <Plus size={24}/> Tạo Dự Án Social Media
-         </h3>
-
-         <div className="space-y-5">
-           <div>
-             <label className="text-sm font-bold text-slate-600 block mb-2">Tên Dự án <span className="text-red-500">*</span></label>
-             <input autoFocus value={formData.project} onChange={e => setFormData(prev => ({...prev, project: e.target.value}))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 font-bold text-blue-900 outline-none" placeholder="VD: Video Tết, Bài Post Shopee..." />
-           </div>
-           <div className="grid grid-cols-2 gap-5">
-             <div>
-               <label className="text-sm font-bold text-slate-600 block mb-2">Định dạng (Tính KPI Tự động)</label>
-               <select value={formData.format} onChange={e => setFormData(prev => ({...prev, format: e.target.value}))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 font-bold text-emerald-700 bg-emerald-50 outline-none cursor-pointer">
-                 <option value="Hình ảnh">Hình ảnh</option>
-                 <option value="Video">Video</option>
-               </select>
-             </div>
-             <div>
-               <label className="text-sm font-bold text-slate-600 block mb-2">Mô tả (Tùy chọn)</label>
-               <input value={formData.description} onChange={e => setFormData(prev => ({...prev, description: e.target.value}))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ghi chú thêm..." />
-             </div>
-           </div>
-           <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 flex items-start gap-3 mt-4">
-             <AlertCircle size={20} className="text-blue-500 shrink-0 mt-0.5" />
-             <p className="text-xs text-slate-600 font-medium">Hệ thống sẽ tự động quy đổi định dạng sang điểm KPI cốt lõi (Mức 1 đến 5) để không làm gãy Biểu đồ Đánh Giá. Nếu bạn xếp lịch Zalo, điểm KPI sẽ tự động được cộng thêm.</p>
-           </div>
-         </div>
-
-         <div className="flex gap-4 pt-6 mt-6 border-t border-slate-100">
-           <button onClick={() => setShowAddModal(false)} className="px-6 py-3 rounded-xl bg-slate-100 font-bold text-slate-600 hover:bg-slate-200 transition-colors">Hủy</button>
-           <button onClick={() => {
-             if (!formData.project) return showToast('Vui lòng nhập Tên dự án', 'error');
-             const initialSMData = { format: formData.format as any, schedules: [] };
-             onAdd({
-               project: formData.project, description: formData.description,
-               note: encodeSMData('', initialSMData), files: [],
-               kpiLevel: formData.format === 'Video' ? 3 : 1, 
-               deadline: format(new Date(), 'yyyy-MM-dd')
-             });
-             setFormData({ project: '', description: '', format: 'Hình ảnh' });
-             setShowAddModal(false);
-             showToast('Đã tạo dự án Social Media', 'success');
-           }} className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all">
-             Lưu Dự Án
-           </button>
-         </div>
-       </div>
-     </div>
-   )}
       {/* 3. MODAL CÀI ĐẶT (BÁNH RĂNG) */}
       {showSettings && (
         <div className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
@@ -1003,45 +933,6 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-  // --- TRẠNG THÁI CHO BẢNG TẠO DỰ ÁN ---
-const [showAddModal, setShowAddModal] = useState(false);
-const [formData, setFormData] = useState({ project: '', description: '', format: 'Hình ảnh' });
-
-// --- TẠO DANH SÁCH GIỜ (Mỗi 30 phút) ---
-const timeOptions = useMemo(() => Array.from({ length: 48 }, (_, i) => {
-  const h = Math.floor(i / 2).toString().padStart(2, '0');
-  const m = i % 2 === 0 ? '00' : '30';
-  return `${h}:${m}`;
-}), []);
-
-// --- HÀM TỰ ĐỘNG LƯU LỊCH VÀ TÍNH KPI ---
-const handleScheduleChange = (task: any, platform: string, field: 'date' | 'time', value: string) => {
-  const { note, smData } = getSMData(task);
-  if (!smData) return;
-
-  let schedules = [...smData.schedules];
-  const existingIdx = schedules.findIndex((s: any) => s.platform === platform);
-
-  if (existingIdx >= 0) {
-    schedules[existingIdx] = { ...schedules[existingIdx], [field]: value };
-  } else {
-    schedules.push({ platform: platform as any, date: field === 'date' ? value : '', time: field === 'time' ? value : '12:00' });
-  }
-
-  // Lọc bỏ nếu người dùng xóa sạch cả ngày và giờ
-  schedules = schedules.filter((s: any) => s.date || (s.time && s.time !== '12:00'));
-
-  // LOGIC TÍNH KPI TỰ ĐỘNG:
-  // Để không làm sập biểu đồ KPI hiện tại của website (đang chạy từ Mức 1 đến 5), 
-  // Hệ thống sẽ quy đổi: Hình -> Mức 1 | Video -> Mức 3. Đăng Zalo -> Cộng thêm 1 mức.
-  let sysKpi = smData.format === 'Video' ? 3 : 1; 
-  const hasZalo = schedules.some((s: any) => (s.platform === 'Zalo' || s.platform === 'OA Zalo') && s.date);
-  if (hasZalo) sysKpi += 1;
-  sysKpi = Math.min(sysKpi, 5); // Khóa tối đa Mức 5 để an toàn
-
-  onUpdate({ ...task, kpiLevel: sysKpi, note: encodeSMData(note, { ...smData, schedules }) });
-  if (field === 'date') showToast(`Đã xếp ngày cho ${platform}`, 'success');
-};
   
   // Tham chiếu thanh cuộn ngang
   const scrollContainerRef = useRef<HTMLDivElement>(null);
