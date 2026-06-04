@@ -18,7 +18,8 @@ import {
   Edit,
   CheckCircle2,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Share2, Settings, Facebook, MessageCircle, MessageSquare, Music, ShoppingBag, GripVertical, Image as ImageIcon, Video
 } from 'lucide-react';
 import { 
   format, 
@@ -130,7 +131,22 @@ function ExpandableFiles({ files }: { files: string[] }) {
   );
 }
 
-type Section = 'giao-viec' | 'cong-viec-hang-ngay' | 'timeline' | 'danh-gia' | 'search';
+type Section = 'giao-viec' | 'cong-viec-hang-ngay' | 'timeline' | 'danh-gia' | 'search' | 'social-media';
+
+// --- BỘ CÔNG CỤ XỬ LÝ DỮ LIỆU SOCIAL MEDIA ---
+export type SMPlatform = 'Facebook' | 'Zalo' | 'OA Zalo' | 'Tiktok' | 'Shopee';
+export type SMSchedule = { platform: SMPlatform; date: string; time: string; };
+export type SMData = { format: 'Hình ảnh' | 'Video'; schedules: SMSchedule[]; };
+export const getSMData = (task: any): { note: string, smData: SMData | null } => {
+  if (task.note && task.note.includes('SM_DATA:::')) {
+    try {
+      const [note, smString] = task.note.split('SM_DATA:::');
+      return { note, smData: JSON.parse(smString) };
+    } catch { return { note: task.note || '', smData: null }; }
+  }
+  return { note: task.note || '', smData: null };
+};
+export const encodeSMData = (note: string, smData: SMData): string => `${note || ''}SM_DATA:::${JSON.stringify(smData)}`;
 
 type Toast = {
   id: number;
@@ -528,6 +544,7 @@ export default function App() {
           <SidebarItem icon={<CalendarDays size={20} />} label="Công việc hằng ngày" active={activeSection === 'cong-viec-hang-ngay'} onClick={() => setActiveSection('cong-viec-hang-ngay')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<CalendarRange size={20} />} label="Timeline công việc" active={activeSection === 'timeline'} onClick={() => setActiveSection('timeline')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<Plus size={20} />} label="Giao việc" active={activeSection === 'giao-viec'} onClick={() => setActiveSection('giao-viec')} collapsed={!isSidebarOpen} />
+          <SidebarItem icon={<Share2 size={20} />} label="Social Media" active={activeSection === 'social-media'} onClick={() => setActiveSection('social-media')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<BarChart3 size={20} />} label="Đánh giá công việc" active={activeSection === 'danh-gia'} onClick={() => setActiveSection('danh-gia')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<Search size={20} />} label="Tìm kiếm" active={activeSection === 'search'} onClick={() => setActiveSection('search')} collapsed={!isSidebarOpen} />
         </nav>
@@ -597,6 +614,7 @@ export default function App() {
         </div>
 
         <div className="max-w-[1440px] mx-auto">
+          {activeSection === 'social-media' && <SocialMedia tasks={tasks} onAdd={addTask} onUpdate={updateTask} onDelete={deleteTask} showToast={showToast} />}
           {activeSection === 'giao-viec' && <GiaoViec tasks={tasks} onAdd={addTask} onDelete={deleteTask} onUpdate={updateTask} showToast={showToast} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'cong-viec-hang-ngay' && <CongViecHangNgay tasks={tasks} onUpdate={updateTask} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'timeline' && <TimelineCongViec tasks={tasks} onSelectTask={(id) => {
@@ -652,7 +670,112 @@ function SidebarItem({ icon, label, active, onClick, collapsed }: {
     </button>
   );
 }
+// ==========================================
+// MỤC SOCIAL MEDIA (PHẦN 1: KHUNG & CÀI ĐẶT)
+// ==========================================
+function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast }: any) {
+  const [activeTab, setActiveTab] = useState<'list' | 'calendar'>('list');
+  const [showSettings, setShowSettings] = useState(false);
+  
+  // Trạng thái Cài đặt Cột
+  const [visibleCols, setVisibleCols] = useState({
+    'Tiến độ': true, 'Facebook': true, 'Zalo': true, 'OA Zalo': true, 'Tiktok': true, 'Shopee': true
+  });
 
+  // Trạng thái Quy tắc xếp lịch chéo
+  const [autoSchedule, setAutoSchedule] = useState({
+    enabled: false,
+    mainPlatform: 'Facebook',
+    subPlatforms: [] as { platform: string, offsetDays: number }[]
+  });
+
+  const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
+
+  return (
+    <div className="space-y-6 h-full flex flex-col relative animate-in fade-in duration-500">
+      
+      {/* 1. THANH HEADER (TAB & NÚT BÁNH RĂNG) */}
+      <div className="flex items-center justify-between shrink-0 bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
+        <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
+          <button onClick={() => setActiveTab('list')} className={cn("px-6 py-2.5 rounded-lg font-bold transition-all", activeTab === 'list' ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:bg-slate-200")}>Danh sách Dự án</button>
+          <button onClick={() => setActiveTab('calendar')} className={cn("px-6 py-2.5 rounded-lg font-bold transition-all", activeTab === 'calendar' ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:bg-slate-200")}>Kế Hoạch Dự Án</button>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <button onClick={() => setShowSettings(true)} className="p-3 bg-slate-50 text-slate-600 rounded-xl border border-slate-200 hover:bg-slate-100 hover:text-blue-600 transition-colors shadow-sm active:scale-95" title="Cài đặt hiển thị & Tự động">
+            <Settings size={20} />
+          </button>
+        </div>
+      </div>
+
+      {/* 2. KHU VỰC HIỂN THỊ CHÍNH */}
+      <div className="flex-1 bg-white rounded-3xl shadow-xl border border-blue-100 overflow-hidden flex flex-col p-6 items-center justify-center">
+         {/* Tạm thời hiển thị thông báo chờ Phần 2 */}
+         <div className="text-center space-y-4">
+            <div className="w-20 h-20 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+               <Share2 size={40} />
+            </div>
+            <h2 className="text-2xl font-bold text-blue-900">Khung Social Media đã sẵn sàng!</h2>
+            <p className="text-slate-500">Bạn đang ở Tab: {activeTab === 'list' ? 'Danh sách Dự án' : 'Kế Hoạch Dự Án'}.<br/>Hãy thử bấm nút Bánh Răng ở góc trên bên phải.</p>
+         </div>
+      </div>
+
+      {/* 3. MODAL CÀI ĐẶT (BÁNH RĂNG) */}
+      {showSettings && (
+        <div className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
+          <div className="bg-white p-8 rounded-3xl w-full max-w-xl shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <h3 className="text-2xl font-bold text-blue-900 mb-6 flex items-center gap-2 border-b border-slate-100 pb-4"><Settings size={24}/> Cài Đặt Social Media</h3>
+            
+            <div className="space-y-8">
+              {/* Chức năng 1: Ẩn hiện cột */}
+              <div className="space-y-4">
+                <h4 className="font-bold text-slate-800 text-lg bg-slate-50 p-3 rounded-lg border border-slate-100">1. Tùy chỉnh Hiển thị Cột</h4>
+                <div className="grid grid-cols-2 gap-3 px-2">
+                  {Object.keys(visibleCols).map(col => (
+                    <label key={col} className="flex items-center gap-3 cursor-pointer group">
+                      <input type="checkbox" checked={(visibleCols as any)[col]} onChange={() => setVisibleCols(prev => ({...prev, [col]: !prev[col as keyof typeof prev]}))} className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                      <span className="font-bold text-slate-600 group-hover:text-blue-600 transition-colors">{col}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Chức năng 2: Xếp lịch tự động */}
+              <div className="space-y-4">
+                 <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                    <h4 className="font-bold text-slate-800 text-lg">2. Tự động xếp ngày (Cross-posting)</h4>
+                    <label className="relative inline-flex items-center cursor-pointer ml-auto">
+                      <input type="checkbox" checked={autoSchedule.enabled} onChange={() => setAutoSchedule(prev => ({...prev, enabled: !prev.enabled}))} className="sr-only peer" />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                 </div>
+                 
+                 {autoSchedule.enabled ? (
+                    <div className="p-4 border border-blue-100 rounded-xl bg-blue-50/30 space-y-4">
+                      <div>
+                        <label className="text-sm font-bold text-slate-600 block mb-2">Nền tảng CHÍNH (Gốc - 0 ngày)</label>
+                        <select value={autoSchedule.mainPlatform} onChange={e => setAutoSchedule(prev => ({...prev, mainPlatform: e.target.value, subPlatforms: []}))} className="w-full p-3 rounded-xl border border-slate-200 font-bold text-blue-800">
+                          {platforms.map(p => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                      </div>
+                      <p className="text-xs text-slate-500 italic">Tính năng chọn Nền tảng PHỤ sẽ được kích hoạt ở Giai đoạn 2.</p>
+                    </div>
+                 ) : (
+                    <p className="text-sm text-slate-400 italic px-2">Bật công tắc để kích hoạt tính năng tự động cộng ngày.</p>
+                 )}
+              </div>
+            </div>
+
+            <div className="flex gap-4 pt-6 mt-8 border-t border-slate-100">
+              <button onClick={() => setShowSettings(false)} className="px-6 py-3 rounded-xl bg-slate-100 font-bold text-slate-600 hover:bg-slate-200 transition-colors">Hủy</button>
+              <button onClick={() => { setShowSettings(false); showToast('Đã lưu cài đặt Social Media', 'success'); }} className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all">Lưu thay đổi</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 // --- Section: Giao Việc ---
 function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTask }: { 
   tasks: Task[], 
