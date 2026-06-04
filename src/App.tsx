@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   LayoutDashboard, 
-  Share2,
-  Settings,
   CalendarDays, 
-  CalendarRange,
+  CalendarRange, 
   BarChart3, 
   Plus, 
   FileUp, 
@@ -20,9 +18,7 @@ import {
   Edit,
   CheckCircle2,
   Clock,
-  AlertCircle,
-  Share2,
-  Settings
+  AlertCircle
 } from 'lucide-react';
 import { 
   format, 
@@ -146,9 +142,6 @@ type Toast = {
 export default function App() {
   // --- BỘ NHỚ LƯU TRẠNG THÁI TAB KHI F5 ---
   const [activeSection, setActiveSection] = useState(() => {
-  });
-  const [isAutoSchedule, setIsAutoSchedule] = useState(false);
-    // --- BỘ NHỚ CHO PHÂN HỆ SOCIAL MEDIA ---
     // Kiểm tra xem trình duyệt có lưu tab nào trước đó không
     const savedSection = localStorage.getItem('savedActiveSection');
     // Nếu có thì lấy tab đó, nếu không thì mặc định mở tab Công Việc Hằng Ngày
@@ -161,13 +154,6 @@ export default function App() {
   }, [activeSection]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [activeSocialTab, setActiveSocialTab] = useState('danh-sach');
-  // Tạm ẩn các biến chưa dùng để Vercel không báo lỗi rác
-  // const [showSocialSettings, setShowSocialSettings] = useState(false);
-  // const [socialColumns, setSocialColumns] = useState({
-  //   facebook: true, zalo: true, oaZalo: true, tiktok: true, shopee: true
-  // });
-  // const [isAutoSchedule, setIsAutoSchedule] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   
@@ -518,21 +504,6 @@ export default function App() {
               <button onClick={() => setDeleteConfirmTask(null)} className="flex-1 bg-blue-900 text-white font-bold py-3 rounded-xl hover:bg-blue-800 transition-colors">
                 {pendingDeleteIds.includes(deleteConfirmTask.id) ? 'Hủy xóa' : 'Hủy'}
               </button>
-              {/* Mục Social Media mới bổ sung */}
-<button
-  onClick={() => setActiveSection('social_media')}
-  className={twMerge(
-    "w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200 group relative",
-    activeSection === 'social_media'
-      ? "bg-blue-600 text-white shadow-lg shadow-blue-200"
-      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-  )}
->
-  <Share2 size={20} className={activeSection === 'social_media' ? "text-white" : "text-slate-400 group-hover:text-slate-600"} />
-  <span className={clsx("transition-opacity duration-200", !isSidebarExpanded && "md:hidden opacity-0 w-0 overflow-hidden")}>
-    Social Media
-  </span>
-</button>
               <button 
                 onClick={() => executeDelete(deleteConfirmTask, pendingDeleteIds.includes(deleteConfirmTask.id))} 
                 className="flex-1 bg-red-500 text-white font-bold py-3 rounded-xl hover:bg-red-600 shadow-lg shadow-red-200 transition-colors"
@@ -557,7 +528,6 @@ export default function App() {
           <SidebarItem icon={<CalendarDays size={20} />} label="Công việc hằng ngày" active={activeSection === 'cong-viec-hang-ngay'} onClick={() => setActiveSection('cong-viec-hang-ngay')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<CalendarRange size={20} />} label="Timeline công việc" active={activeSection === 'timeline'} onClick={() => setActiveSection('timeline')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<Plus size={20} />} label="Giao việc" active={activeSection === 'giao-viec'} onClick={() => setActiveSection('giao-viec')} collapsed={!isSidebarOpen} />
-          <SidebarItem icon={<Share2 size={20} />} label="Social Media" active={activeSection === 'social_media'} onClick={() => setActiveSection('social_media')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<BarChart3 size={20} />} label="Đánh giá công việc" active={activeSection === 'danh-gia'} onClick={() => setActiveSection('danh-gia')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<Search size={20} />} label="Tìm kiếm" active={activeSection === 'search'} onClick={() => setActiveSection('search')} collapsed={!isSidebarOpen} />
         </nav>
@@ -633,55 +603,6 @@ export default function App() {
             const taskToView = tasks.find(t => t.id === id);
             if (taskToView) window.dispatchEvent(new CustomEvent('TRIGGER_VIEW', { detail: taskToView }));
           }} onDoubleClickTask={setTimelineActionTask} />}
-          {/* Vùng hiển thị của Social Media */}
-          {activeSection === 'social_media' && (
-            <div className="space-y-6 animate-in fade-in duration-300">
-              <div className="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <div>
-                  <h1 className="text-2xl font-bold text-slate-900">Quản lý Social Media</h1>
-                  <p className="text-sm text-slate-500 mt-1">Hệ thống lập kế hoạch và tối ưu lịch đăng bài đa nền tảng</p>
-                </div>
-                <button className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors">
-                  <Settings size={22} />
-                </button>
-              </div>
-
-              {/* Thanh chuyển đổi Tab (Sub-tabs) */}
-              <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-slate-100 w-fit">
-                <button
-                  onClick={() => setActiveSocialTab('danh-sach')}
-                  className={twMerge(
-                    "px-6 py-2.5 rounded-xl font-medium transition-all duration-200",
-                    activeSocialTab === 'danh-sach' ? "bg-blue-50 text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
-                  )}
-                >
-                  Danh sách Dự án
-                </button>
-                <button
-                  onClick={() => setActiveSocialTab('ke-hoach')}
-                  className={twMerge(
-                    "px-6 py-2.5 rounded-xl font-medium transition-all duration-200",
-                    activeSocialTab === 'ke-hoach' ? "bg-blue-50 text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
-                  )}
-                >
-                  Kế Hoạch Dự Án
-                </button>
-              </div>
-
-              {/* Vùng hiển thị nội dung theo Tab */}
-              {activeSocialTab === 'danh-sach' && (
-                <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm min-h-[500px]">
-                  <p className="text-slate-400 text-center mt-20 font-medium">Khu vực kéo thả "Danh sách Dự án" sẽ được lắp ghép ở bước sau.</p>
-                </div>
-              )}
-
-              {activeSocialTab === 'ke-hoach' && (
-                <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm min-h-[500px]">
-                  <p className="text-slate-400 text-center mt-20 font-medium">Bảng Lịch "Kế Hoạch Dự Án" (Tháng/Tuần) sẽ được lắp ghép ở bước sau.</p>
-                </div>
-              )}
-            </div>
-          )}
           {activeSection === 'danh-gia' && <DanhGiaCongViec tasks={tasks} />}
           {activeSection === 'search' && <SearchSection tasks={tasks} selectedId={selectedTaskId} onClearSelection={() => setSelectedTaskId(null)} onDelete={deleteTask} />}
         </div>
