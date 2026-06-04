@@ -954,7 +954,6 @@ const currentTasks = smTasks.slice((currentPage - 1) * itemsPerPage, currentPage
          )}
        </div>
      )}
-        )}
 
         {/* TAB 2: KẾ HOẠCH DỰ ÁN */}
         {activeTab === 'calendar' && (
