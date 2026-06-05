@@ -955,7 +955,7 @@ const currentTasks = smTasks.slice((currentPage - 1) * itemsPerPage, currentPage
            </table>
          </div>
      )}
-
+            
         {/* TAB 2: KẾ HOẠCH DỰ ÁN */}
         {activeTab === 'calendar' && (
           <div className="flex-1 flex flex-col p-10 items-center justify-center bg-slate-50/50">
@@ -963,7 +963,6 @@ const currentTasks = smTasks.slice((currentPage - 1) * itemsPerPage, currentPage
             <h3 className="text-xl font-bold text-slate-500">Giao diện Lịch đang được xây dựng (Giai đoạn 3)...</h3>
           </div>
         )}
-      </div>
 
       {/* 4. MODAL GIAO DỰ ÁN SOCIAL MEDIA MỚI */}
    {showAddModal && (
