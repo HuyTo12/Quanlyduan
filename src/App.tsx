@@ -723,6 +723,7 @@ const getStatusColor = (status: string) => {
     default: return 'bg-blue-50 text-blue-700 border-blue-200'; // Mới
   }
 };
+const currentTasks = smTasks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   // --- LOGIC PHẦN 3: XỬ LÝ FORM & LỊCH ---
   const [showAddModal, setShowAddModal] = useState(false);
   const [formData, setFormData] = useState({ project: '', description: '', format: 'Hình ảnh', note: '', deadline: '', files: [] as string[] });
@@ -953,6 +954,7 @@ const getStatusColor = (status: string) => {
              </tbody>
            </table>
          </div>
+          </div>
      )}
 
         {/* TAB 2: KẾ HOẠCH DỰ ÁN */}
