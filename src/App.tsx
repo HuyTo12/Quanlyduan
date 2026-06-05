@@ -42,7 +42,9 @@ import {
   startOfDay,
   isBefore,
   getDay,
-  endOfDay
+  endOfDay,
+  isSameMonth,
+  subMonths
 } from 'date-fns';
 import { 
   BarChart, 
@@ -725,11 +727,161 @@ const PLATFORM_COLORS: Record<string, { bg: string; light: string }> = {
 };
 
 // ==========================================
+// MODAL CHỌN NGÀY GIỜ ĐĂNG (SOCIAL MEDIA)
+// ==========================================
+function SchedulePickerModal({
+  platform, initialDate, initialTime, pColor,
+  onSave, onClear, onCancel
+}: {
+  platform: string; initialDate: string; initialTime: string;
+  pColor: { bg: string; light: string };
+  onSave: (date: string, time: string) => void;
+  onClear: () => void;
+  onCancel: () => void;
+}) {
+  const today = new Date();
+  const [viewMonth, setViewMonth] = useState(() => initialDate ? parseISO(initialDate) : today);
+  const [selDate, setSelDate] = useState(initialDate);
+  const [selTime, setSelTime] = useState(initialTime);
+
+  const timeSlots = useMemo(() => Array.from({ length: 48 }, (_, i) => {
+    const h = Math.floor(i / 2).toString().padStart(2, '0');
+    const m = i % 2 === 0 ? '00' : '30';
+    return `${h}:${m}`;
+  }), []);
+
+  const calDays = useMemo(() => {
+    const start = startOfWeek(startOfMonth(viewMonth), { weekStartsOn: 1 });
+    const end   = endOfWeek(endOfMonth(viewMonth),     { weekStartsOn: 1 });
+    return eachDayOfInterval({ start, end });
+  }, [viewMonth]);
+
+  const DAY_LABELS = ['T2','T3','T4','T5','T6','T7','CN'];
+
+  return (
+    <div className="fixed inset-0 z-[160] flex items-center justify-center p-4" onClick={onCancel}>
+      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-200"
+           onClick={e => e.stopPropagation()}>
+
+        {/* Header nền màu thương hiệu */}
+        <div className="px-6 py-4 flex items-center justify-between"
+             style={{ backgroundColor: pColor.bg }}>
+          <span className="text-white font-bold text-lg">{platform}</span>
+          <span className="text-white/80 text-sm">
+            {selDate ? format(parseISO(selDate), 'dd/MM/yyyy') : 'Chưa chọn ngày'}
+            {selTime ? `  •  ${selTime}` : ''}
+          </span>
+        </div>
+
+        <div className="p-5 flex gap-5">
+          {/* LỊCH THÁNG */}
+          <div className="flex-1">
+            {/* Điều hướng tháng */}
+            <div className="flex items-center justify-between mb-3">
+              <button onClick={() => setViewMonth(subMonths(viewMonth, 1))}
+                      className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors">
+                <ChevronLeft size={18} />
+              </button>
+              <span className="font-bold text-slate-700 text-sm">
+                {format(viewMonth, 'MM/yyyy')}
+              </span>
+              <button onClick={() => setViewMonth(addMonths(viewMonth, 1))}
+                      className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors">
+                <ChevronRight size={18} />
+              </button>
+            </div>
+
+            {/* Tên ngày trong tuần */}
+            <div className="grid grid-cols-7 mb-1">
+              {DAY_LABELS.map(d => (
+                <div key={d} className="text-center text-[10px] font-bold text-slate-400 py-1">{d}</div>
+              ))}
+            </div>
+
+            {/* Các ô ngày */}
+            <div className="grid grid-cols-7 gap-0.5">
+              {calDays.map(day => {
+                const iso = format(day, 'yyyy-MM-dd');
+                const isThisMonth = isSameMonth(day, viewMonth);
+                const isSelected  = selDate === iso;
+                const isToday     = isSameDay(day, today);
+                return (
+                  <button
+                    key={iso}
+                    onClick={() => setSelDate(isSelected ? '' : iso)}
+                    className={cn(
+                      "w-full aspect-square rounded-lg text-xs font-bold transition-all",
+                      !isThisMonth && "opacity-30",
+                      isSelected  && "text-white shadow-md",
+                      !isSelected && isToday && "ring-2 text-slate-700 bg-slate-50",
+                      !isSelected && !isToday && "hover:bg-slate-100 text-slate-700"
+                    )}
+                    style={isSelected ? { backgroundColor: pColor.bg } : {}}
+                  >
+                    {format(day, 'd')}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* DANH SÁCH GIỜ */}
+          <div className="w-28 flex flex-col">
+            <p className="text-xs font-bold text-slate-500 mb-2 text-center">Chọn giờ</p>
+            <div className="flex-1 overflow-y-auto max-h-64 space-y-1 pr-1
+                            scrollbar-thin scrollbar-thumb-slate-200">
+              {timeSlots.map(t => (
+                <button
+                  key={t}
+                  onClick={() => setSelTime(t === selTime ? '' : t)}
+                  className={cn(
+                    "w-full py-1.5 rounded-lg text-xs font-bold transition-all",
+                    selTime === t ? "text-white shadow-sm" : "hover:bg-slate-100 text-slate-600"
+                  )}
+                  style={selTime === t ? { backgroundColor: pColor.bg } : {}}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Các nút hành động */}
+        <div className="px-5 pb-5 flex gap-2">
+          <button onClick={onCancel}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-colors text-sm">
+            Hủy
+          </button>
+          <button onClick={onClear}
+                  className="flex-1 py-2.5 rounded-xl bg-red-50 text-red-500 font-bold hover:bg-red-100 transition-colors text-sm">
+            Xóa ngày
+          </button>
+          <button
+            onClick={() => { if (selDate) onSave(selDate, selTime); }}
+            disabled={!selDate}
+            className="flex-1 py-2.5 rounded-xl text-white font-bold transition-all text-sm disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+            style={{ backgroundColor: pColor.bg }}
+          >
+            Lưu
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
 // MỤC SOCIAL MEDIA (PHẦN 1: KHUNG & CÀI ĐẶT)
 // ==========================================
 function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast, onDoubleClickTask }: any) {
   const [activeTab, setActiveTab] = useState<'list' | 'calendar'>('list');
-  const [actionTask, setActionTask] = useState<any>(null); // State cho bảng nháy đúp
+  const [actionTask, setActionTask] = useState<any>(null);
+  const [viewTask, setViewTask] = useState<any>(null);
+  const [schedulePicker, setSchedulePicker] = useState<{
+    task: any; platform: string; date: string; time: string;
+  } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   
  // Trạng thái Cài đặt Cột (Đã thêm Nội dung & Ghi chú)
@@ -901,7 +1053,7 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
 
                      {visibleCols['Ghi chú'] && <td className="p-2 align-top"><ExpandableCell text={note} /></td>}
 
-                     {/* ĐỊNH DẠNG */}
+                     {/* ĐỊNH DẠNG - Hình ảnh: xanh lá, Video: cam */}
                      <td className="p-2 align-top" onDoubleClick={(e) => e.stopPropagation()}>
                         <select 
                            value={smData?.format || 'Hình ảnh'} 
@@ -913,14 +1065,19 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
                              const kpiLevel = Math.min(5, (newFormat === 'Video' ? 3 : 2) + (hasZalo ? 1 : 0));
                              onUpdate({ ...task, note: encodeSMData(note, currentData), kpiLevel });
                            }}
-                           className="w-full p-1.5 text-xs font-bold rounded-md border border-slate-200 bg-emerald-50 text-emerald-700 focus:ring-2 focus:ring-emerald-400 outline-none cursor-pointer shadow-sm"
+                           className={cn(
+                             "w-full p-1.5 text-xs font-bold rounded-md border focus:ring-2 outline-none cursor-pointer shadow-sm transition-colors",
+                             (smData?.format || 'Hình ảnh') === 'Video'
+                               ? "bg-orange-50 text-orange-700 border-orange-200 focus:ring-orange-400"
+                               : "bg-emerald-50 text-emerald-700 border-emerald-200 focus:ring-emerald-400"
+                           )}
                         >
                            <option value="Hình ảnh">Hình ảnh</option>
                            <option value="Video">Video</option>
                         </select>
                      </td>
 
-                     {/* CÁC Ô CHỌN NGÀY GIỜ - ĐỔI MÀU THƯƠNG HIỆU KHI ĐÃ CHỌN NGÀY */}
+                     {/* CÁC Ô NGÀY GIỜ - NHẤN ĐỂ MỞ MODAL CHỌN */}
                      {platforms.map(p => {
                        if (!visibleCols[p as keyof typeof visibleCols]) return null;
                        const schedule = smData?.schedules.find((s: any) => s.platform === p);
@@ -933,50 +1090,26 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
                            style={hasDate ? { backgroundColor: pColor?.light } : {}}
                            onDoubleClick={(e) => e.stopPropagation()}
                          >
-                           <div className="flex flex-col gap-1 items-center w-full">
-                             {/* Nút Ngày */}
-                             <div className="relative w-full cursor-pointer">
-                               <input 
-                                 type="date" 
-                                 value={schedule?.date || ''} 
-                                 onChange={(e) => updateSMTaskSchedule(task, p, 'date', e.target.value)}
-                                 className="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-10"
-                               />
-                               <div
-                                 className="text-[10px] py-1 border rounded font-bold shadow-sm w-full truncate px-0.5 text-center transition-all"
-                                 style={hasDate
-                                   ? { backgroundColor: pColor?.bg, color: '#fff', borderColor: pColor?.bg }
-                                   : {}
-                                 }
-                               >
-                                 <span className={!hasDate ? "text-slate-500" : ""}>
-                                   {hasDate ? format(parseISO(schedule!.date), 'dd/MM') : 'Ngày'}
-                                 </span>
-                               </div>
-                             </div>
-                             {/* Nút Giờ */}
-                             <div className="relative w-full cursor-pointer">
-                               <select 
-                                 value={schedule?.time || ''} 
-                                 onChange={(e) => updateSMTaskSchedule(task, p, 'time', e.target.value)}
-                                 className="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-10"
-                               >
-                                 <option value="">Giờ</option>
-                                 {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
-                               </select>
-                               <div
-                                 className="text-[10px] py-1 border rounded font-bold shadow-sm w-full truncate px-0.5 text-center transition-all"
-                                 style={hasDate
-                                   ? { backgroundColor: pColor?.bg + 'CC', color: '#fff', borderColor: pColor?.bg }
-                                   : {}
-                                 }
-                               >
-                                 <span className={!hasDate ? "text-slate-500" : ""}>
-                                   {schedule?.time || 'Giờ'}
-                                 </span>
-                               </div>
-                             </div>
-                           </div>
+                           <button
+                             className="w-full flex flex-col items-center gap-0.5 rounded-lg py-1 px-0.5 transition-all hover:opacity-80 active:scale-95"
+                             style={hasDate
+                               ? { backgroundColor: pColor?.bg }
+                               : { backgroundColor: '#f1f5f9' }}
+                             onClick={() => setSchedulePicker({
+                               task, platform: p,
+                               date: schedule?.date || '',
+                               time: schedule?.time || ''
+                             })}
+                           >
+                             <span className={cn("text-[10px] font-bold", hasDate ? "text-white" : "text-slate-500")}>
+                               {hasDate ? format(parseISO(schedule!.date), 'dd/MM') : 'Ngày'}
+                             </span>
+                             {hasDate && (
+                               <span className="text-[9px] font-semibold text-white/80">
+                                 {schedule?.time || '- - : - -'}
+                               </span>
+                             )}
+                           </button>
                          </td>
                        );
                      })}
@@ -1085,14 +1218,71 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
      <div className="fixed inset-0 z-[130] bg-black/40 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
        <div className="bg-white p-8 rounded-3xl max-w-sm w-full text-center space-y-4 shadow-2xl relative">
          <h3 className="text-xl font-bold text-slate-800">Tùy chọn Dự án</h3>
-<div className="flex flex-col gap-3">
-           <button onClick={() => { window.dispatchEvent(new CustomEvent('TRIGGER_VIEW', { detail: actionTask })); setActionTask(null); }} className="w-full bg-lime-500 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-lime-600 transition-colors shadow-sm"><FileText size={18}/> Xem dự án</button>
-           <button onClick={() => { window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: actionTask })); setActionTask(null); }} className="w-full bg-sky-500 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-sky-600 transition-colors shadow-sm"><Edit size={18}/> Chỉnh sửa</button>
-           <button onClick={() => { onDelete(actionTask.id); setActionTask(null); showToast('Đã xóa dự án', 'delete'); }} className="w-full bg-red-500 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-red-600 transition-colors shadow-sm"><Trash2 size={18}/> Xóa dự án</button>
-           <button onClick={() => setActionTask(null)} className="w-full bg-white border border-slate-200 text-slate-500 py-3 rounded-xl font-bold hover:bg-slate-50 mt-2 transition-colors">Hủy</button>
+         <div className="flex flex-col gap-3">
+           <button onClick={() => { setViewTask(actionTask); setActionTask(null); }}
+                   className="w-full bg-emerald-500 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-emerald-600 transition-colors shadow-md shadow-emerald-200">
+             <FileText size={18}/> Xem dự án
+           </button>
+           <button onClick={() => { window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: actionTask })); setActionTask(null); }}
+                   className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-blue-700 transition-colors shadow-md shadow-blue-200">
+             <Edit size={18}/> Chỉnh sửa
+           </button>
+           <button onClick={() => { onDelete(actionTask.id); setActionTask(null); showToast('Đã xóa dự án', 'delete'); }}
+                   className="w-full bg-red-500 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-red-600 transition-colors shadow-md shadow-red-200">
+             <Trash2 size={18}/> Xóa dự án
+           </button>
+           <button onClick={() => setActionTask(null)}
+                   className="w-full bg-white border border-slate-200 text-slate-500 py-3 rounded-xl font-bold hover:bg-slate-50 mt-2 transition-colors">
+             Hủy
+           </button>
          </div>
        </div>
      </div>
+   )}
+
+      {/* MODAL CHỌN NGÀY GIỜ */}
+   {schedulePicker && (
+     <SchedulePickerModal
+       platform={schedulePicker.platform}
+       initialDate={schedulePicker.date}
+       initialTime={schedulePicker.time}
+       pColor={PLATFORM_COLORS[schedulePicker.platform] || { bg: '#64748b', light: '#f1f5f9' }}
+       onSave={(date, time) => {
+         // Cập nhật cả ngày và giờ trong một lần để tránh race condition
+         const { note, smData } = getSMData(schedulePicker.task);
+         const currentData = smData || { format: 'Hình ảnh', schedules: [] };
+         let idx = currentData.schedules.findIndex((s: any) => s.platform === schedulePicker.platform);
+         if (idx === -1) {
+           currentData.schedules.push({ platform: schedulePicker.platform, date: '', time: '' });
+           idx = currentData.schedules.length - 1;
+         }
+         currentData.schedules[idx].date = date;
+         currentData.schedules[idx].time = time;
+         onUpdate({ ...schedulePicker.task, note: encodeSMData(note, currentData) });
+         setSchedulePicker(null);
+       }}
+       onClear={() => {
+         const { note, smData } = getSMData(schedulePicker.task);
+         const currentData = smData || { format: 'Hình ảnh', schedules: [] };
+         const idx = currentData.schedules.findIndex((s: any) => s.platform === schedulePicker.platform);
+         if (idx !== -1) {
+           currentData.schedules[idx].date = '';
+           currentData.schedules[idx].time = '';
+         }
+         onUpdate({ ...schedulePicker.task, note: encodeSMData(note, currentData) });
+         setSchedulePicker(null);
+       }}
+       onCancel={() => setSchedulePicker(null)}
+     />
+   )}
+
+      {/* BẢNG XEM CHI TIẾT DỰ ÁN SOCIAL MEDIA */}
+   {viewTask && (
+     <GlobalViewModal
+       task={{ ...viewTask, note: getSMData(viewTask).note }}
+       onClose={() => setViewTask(null)}
+       onDelete={(id) => { onDelete(id); setViewTask(null); }}
+     />
    )}
       {/* 3. MODAL CÀI ĐẶT (BÁNH RĂNG) */}
       {showSettings && (
