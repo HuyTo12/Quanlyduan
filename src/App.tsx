@@ -671,17 +671,29 @@ function SidebarItem({ icon, label, active, onClick, collapsed }: {
   );
 }
 // --- COMPONENT RÚT GỌN CHỮ (TIÊU ĐỀ / NỘI DUNG / GHI CHÚ) ---
+// Ép text vào 2 dòng, không kéo giãn cột ngang, mở rộng chỉ xuống dưới
 function ExpandableCell({ text, isTitle = false }: { text: string, isTitle?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   if (!text) return <span className="text-slate-400 italic text-sm">Trống</span>;
   return (
-    <div className="relative group cursor-pointer" onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}>
-      <div className={cn("text-sm transition-all duration-200 whitespace-pre-wrap break-words", !expanded && "line-clamp-2", isTitle ? "font-bold text-blue-900" : "text-slate-700")}>
+    <div
+      className="group cursor-pointer w-full"
+      style={{ maxWidth: isTitle ? '160px' : '180px' }}
+      onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+    >
+      <div className={cn(
+        "text-sm break-words transition-all duration-200",
+        !expanded ? "line-clamp-2 overflow-hidden" : "whitespace-pre-wrap",
+        isTitle ? "font-bold text-blue-900" : "text-slate-700"
+      )}>
         {text}
       </div>
-      {text.length > 50 && (
-        <div className="text-blue-500 mt-0.5 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+      {text.length > 40 && (
+        <div className={cn(
+          "flex justify-center mt-0.5 transition-opacity text-blue-400",
+          expanded ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+        )}>
+          {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
         </div>
       )}
     </div>
@@ -689,17 +701,28 @@ function ExpandableCell({ text, isTitle = false }: { text: string, isTitle?: boo
 }
 
 // ==========================================
-// HÀM MÀU SẮC TRẠNG THÁI SOCIAL MEDIA
+// HÀM MÀU SẮC TRẠNG THÁI - ĐỒNG BỘ VỚI CÔNG VIỆC HẰNG NGÀY
 // ==========================================
 function getStatusColor(status: string): string {
   switch (status) {
-    case 'Đang làm':  return 'bg-orange-100 text-orange-800 border-orange-200';
-    case 'Chờ duyệt': return 'bg-purple-100 text-purple-800 border-purple-200';
-    case 'Đã duyệt':  return 'bg-cyan-100 text-cyan-800 border-cyan-200';
-    case 'COMPLETED': return 'bg-green-100 text-green-800 border-green-200';
-    default:           return 'bg-slate-100 text-slate-600 border-slate-200'; // 'Mới'
+    case 'IN_PROGRESS': return 'bg-orange-100 text-orange-800 border-orange-200';
+    case 'REVIEW':      return 'bg-purple-100 text-purple-800 border-purple-200';
+    case 'INFO':        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    case 'COMPLETED':   return 'bg-green-100 text-green-800 border-green-200';
+    default:            return 'bg-slate-100 text-slate-600 border-slate-200'; // 'NEW'
   }
 }
+
+// ==========================================
+// MÀU SẮC THƯƠNG HIỆU CÁC NỀN TẢNG
+// ==========================================
+const PLATFORM_COLORS: Record<string, { bg: string; light: string }> = {
+  'Facebook': { bg: '#1877F2', light: '#E7F0FD' },
+  'Zalo':     { bg: '#0068FF', light: '#E0EEFF' },
+  'OA Zalo':  { bg: '#006AF5', light: '#E0EDFF' },
+  'Tiktok':   { bg: '#010101', light: '#E8E8E8' },
+  'Shopee':   { bg: '#EE4D2D', light: '#FDECE8' },
+};
 
 // ==========================================
 // MỤC SOCIAL MEDIA (PHẦN 1: KHUNG & CÀI ĐẶT)
@@ -842,21 +865,22 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
              <tbody>
                {smTasks.map((task: any, idx: number) => {
                  const { note, smData } = getSMData(task);
+                 const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-blue-50/40';
                  return (
-                   <tr key={task.id} onDoubleClick={() => setActionTask(task)} className="border-b border-slate-100 hover:bg-blue-50/30 transition-colors cursor-pointer group">
+                   <tr key={task.id} onDoubleClick={() => setActionTask(task)} className={cn("border-b border-slate-100 hover:brightness-[0.97] transition-colors cursor-pointer group", rowBg)}>
 
-                     {/* TIẾN ĐỘ (Đã FIX LỖI mất dự án khi cập nhật) */}
+                     {/* TIẾN ĐỘ - ĐỒNG BỘ VỚI CÔNG VIỆC HẰNG NGÀY */}
                      {visibleCols['Tiến độ'] && (
                        <td className="p-2 align-top" onDoubleClick={(e) => e.stopPropagation()}>
                          <select 
-                           value={task.status || 'Mới'} 
+                           value={task.status || 'NEW'} 
                            onChange={(e) => onUpdate({ ...task, status: e.target.value, note: task.note })}
-                           className={cn("w-full p-1.5 text-xs font-bold rounded-md border focus:ring-2 outline-none cursor-pointer shadow-sm transition-colors", getStatusColor(task.status || 'Mới'))}
+                           className={cn("w-full p-1.5 text-xs font-bold rounded-md border focus:ring-2 outline-none cursor-pointer shadow-sm transition-colors", getStatusColor(task.status || 'NEW'))}
                          >
-                           <option value="Mới" className="bg-white text-slate-800">Mới</option>
-                           <option value="Đang làm" className="bg-white text-slate-800">Đang làm</option>
-                           <option value="Chờ duyệt" className="bg-white text-slate-800">Chờ duyệt</option>
-                           <option value="Đã duyệt" className="bg-white text-slate-800">Đã duyệt</option>
+                           <option value="NEW" className="bg-white text-slate-800">Dự án mới</option>
+                           <option value="INFO" className="bg-white text-slate-800">Tìm thông tin</option>
+                           <option value="IN_PROGRESS" className="bg-white text-slate-800">Đang thực hiện</option>
+                           <option value="REVIEW" className="bg-white text-slate-800">Chờ xác nhận</option>
                            <option value="COMPLETED" className="bg-white text-slate-800">Hoàn thành</option>
                          </select>
                        </td>
@@ -896,27 +920,42 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
                         </select>
                      </td>
 
-                     {/* CÁC Ô CHỌN NGÀY GIỜ (Hiển thị chữ "Ngày" / "Giờ" cực gọn) */}
+                     {/* CÁC Ô CHỌN NGÀY GIỜ - ĐỔI MÀU THƯƠNG HIỆU KHI ĐÃ CHỌN NGÀY */}
                      {platforms.map(p => {
                        if (!visibleCols[p as keyof typeof visibleCols]) return null;
                        const schedule = smData?.schedules.find((s: any) => s.platform === p);
+                       const hasDate = !!(schedule?.date);
+                       const pColor = PLATFORM_COLORS[p];
                        return (
-                         <td key={p} className="p-1 border-l border-slate-100 text-center align-top" onDoubleClick={(e) => e.stopPropagation()}>
+                         <td
+                           key={p}
+                           className="p-1 border-l border-slate-100 text-center align-top transition-colors"
+                           style={hasDate ? { backgroundColor: pColor?.light } : {}}
+                           onDoubleClick={(e) => e.stopPropagation()}
+                         >
                            <div className="flex flex-col gap-1 items-center w-full">
                              {/* Nút Ngày */}
-                             <div className="relative w-full cursor-pointer group">
+                             <div className="relative w-full cursor-pointer">
                                <input 
                                  type="date" 
                                  value={schedule?.date || ''} 
                                  onChange={(e) => updateSMTaskSchedule(task, p, 'date', e.target.value)}
                                  className="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-10"
                                />
-                               <div className="text-[10px] py-1 border border-slate-200 rounded text-slate-500 font-bold bg-white group-hover:bg-blue-50 group-hover:text-blue-700 transition-colors shadow-sm w-full truncate px-0.5">
-                                 {schedule?.date ? format(parseISO(schedule.date), 'dd/MM') : 'Ngày'}
+                               <div
+                                 className="text-[10px] py-1 border rounded font-bold shadow-sm w-full truncate px-0.5 text-center transition-all"
+                                 style={hasDate
+                                   ? { backgroundColor: pColor?.bg, color: '#fff', borderColor: pColor?.bg }
+                                   : {}
+                                 }
+                               >
+                                 <span className={!hasDate ? "text-slate-500" : ""}>
+                                   {hasDate ? format(parseISO(schedule!.date), 'dd/MM') : 'Ngày'}
+                                 </span>
                                </div>
                              </div>
                              {/* Nút Giờ */}
-                             <div className="relative w-full cursor-pointer group">
+                             <div className="relative w-full cursor-pointer">
                                <select 
                                  value={schedule?.time || ''} 
                                  onChange={(e) => updateSMTaskSchedule(task, p, 'time', e.target.value)}
@@ -925,8 +964,16 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
                                  <option value="">Giờ</option>
                                  {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
                                </select>
-                               <div className="text-[10px] py-1 border border-slate-200 rounded text-slate-500 font-bold bg-white group-hover:bg-blue-50 group-hover:text-blue-700 transition-colors shadow-sm w-full truncate px-0.5">
-                                 {schedule?.time || 'Giờ'}
+                               <div
+                                 className="text-[10px] py-1 border rounded font-bold shadow-sm w-full truncate px-0.5 text-center transition-all"
+                                 style={hasDate
+                                   ? { backgroundColor: pColor?.bg + 'CC', color: '#fff', borderColor: pColor?.bg }
+                                   : {}
+                                 }
+                               >
+                                 <span className={!hasDate ? "text-slate-500" : ""}>
+                                   {schedule?.time || 'Giờ'}
+                                 </span>
                                </div>
                              </div>
                            </div>
