@@ -940,7 +940,10 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
              </tbody>
            </table>
          </div>
-        {/* TAB 2: KẾ HOẠCH DỰ ÁN */}
+            </div>
+          )}
+
+          {/* TAB 2: KẾ HOẠCH DỰ ÁN */}
         {activeTab === 'calendar' && (
           <div className="flex-1 flex flex-col p-10 items-center justify-center bg-slate-50/50">
             <CalendarDays size={64} className="text-slate-300 mb-4 animate-bounce" />
