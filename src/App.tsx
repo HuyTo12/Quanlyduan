@@ -1085,10 +1085,9 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
      <div className="fixed inset-0 z-[130] bg-black/40 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
        <div className="bg-white p-8 rounded-3xl max-w-sm w-full text-center space-y-4 shadow-2xl relative">
          <h3 className="text-xl font-bold text-slate-800">Tùy chọn Dự án</h3>
-         <p className="text-sm text-slate-500 mb-6 truncate">{actionTask.project}</p>
-         <div className="flex flex-col gap-3">
-           <button onClick={() => { onDoubleClickTask(actionTask); setActionTask(null); }} className="w-full bg-blue-100 text-blue-700 py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-blue-200 transition-colors shadow-sm"><FileText size={18}/> Xem dự án</button>
-           <button onClick={() => { window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: actionTask })); setActionTask(null); }} className="w-full bg-slate-100 text-slate-700 py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-slate-200 transition-colors shadow-sm"><Edit size={18}/> Chỉnh sửa</button>
+<div className="flex flex-col gap-3">
+           <button onClick={() => { window.dispatchEvent(new CustomEvent('TRIGGER_VIEW', { detail: actionTask })); setActionTask(null); }} className="w-full bg-emerald-100 text-emerald-700 py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-emerald-200 transition-colors shadow-sm"><FileText size={18}/> Xem dự án</button>
+           <button onClick={() => { window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: actionTask })); setActionTask(null); }} className="w-full bg-blue-100 text-blue-700 py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-blue-200 transition-colors shadow-sm"><Edit size={18}/> Chỉnh sửa</button>
            <button onClick={() => { onDelete(actionTask.id); setActionTask(null); showToast('Đã xóa dự án', 'delete'); }} className="w-full bg-red-100 text-red-600 py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-red-200 transition-colors shadow-sm"><Trash2 size={18}/> Xóa dự án</button>
            <button onClick={() => setActionTask(null)} className="w-full bg-white border border-slate-200 text-slate-500 py-3 rounded-xl font-bold hover:bg-slate-50 mt-2 transition-colors">Hủy</button>
          </div>
