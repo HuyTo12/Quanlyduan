@@ -696,26 +696,22 @@ function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast, onDoubleClic
   const [actionTask, setActionTask] = useState<any>(null); // State cho bảng nháy đúp
   const [showSettings, setShowSettings] = useState(false);
   
-  // Trạng thái Cài đặt Cột
-  const [visibleCols, setVisibleCols] = useState({
-    'Tiến độ': true, 'Facebook': true, 'Zalo': true, 'OA Zalo': true, 'Tiktok': true, 'Shopee': true
-  });
+  // Trạng thái Cài đặt Cột (Bổ sung Nội dung, Link, Ghi chú)
+const [visibleCols, setVisibleCols] = useState({
+  'Tiến độ': true, 'Nội dung': true, 'Link': true, 'Ghi chú': true, 'Facebook': true, 'Zalo': true, 'OA Zalo': true, 'Tiktok': true, 'Shopee': true
+});
 
-  // Trạng thái Quy tắc xếp lịch chéo
-  const [autoSchedule, setAutoSchedule] = useState({
-    enabled: false,
-    mainPlatform: 'Facebook',
-    subPlatforms: [] as { platform: string, offsetDays: number }[]
-  });
+// Trạng thái Quy tắc xếp lịch chéo
+const [autoSchedule, setAutoSchedule] = useState({
+  enabled: false,
+  mainPlatform: 'Facebook',
+  subPlatforms: [] as { platform: string, offsetDays: number }[]
+});
 
-  const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
-  // --- LOGIC LỌC DỮ LIỆU & PHÂN TRANG ---
-const [currentPage, setCurrentPage] = useState(1);
-const itemsPerPage = 10;
+const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
 
-// Lọc ra các Dự án thuộc về Social Media
+// Lọc ra các Dự án Social Media (Đã loại bỏ phân trang, hiển thị toàn bộ)
 const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== null), [tasks]);
-const totalPages = Math.ceil((smTasks.length + 1) / itemsPerPage) || 1; // +1 để luôn chừa 1 dòng trống cho nút (+)
 
 // Tự động tô màu Tiến độ
 const getStatusColor = (status: string) => {
@@ -730,7 +726,7 @@ const getStatusColor = (status: string) => {
 const currentTasks = smTasks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   // --- LOGIC PHẦN 3: XỬ LÝ FORM & LỊCH ---
   const [showAddModal, setShowAddModal] = useState(false);
-  const [formData, setFormData] = useState({ project: '', description: '', format: 'Hình ảnh', note: '', files: [] as string[] });
+  const [formData, setFormData] = useState({ project: '', description: '', format: 'Hình ảnh', note: '', deadline: '', files: [] as string[] });
 
   // Tạo mảng 48 khung giờ (mỗi 30 phút)
   const timeOptions = useMemo(() => Array.from({ length: 48 }, (_, i) => {
@@ -822,38 +818,39 @@ const currentTasks = smTasks.slice((currentPage - 1) * itemsPerPage, currentPage
           <div className="flex-1 flex flex-col h-full">
             <div className="flex-1 overflow-auto">
               <table className="w-full text-left border-collapse">
-             <thead className="bg-slate-50 sticky top-0 z-10 border-b border-slate-200">
+             <thead className="bg-slate-50 sticky top-0 z-10 border-b border-slate-200 shadow-sm">
                <tr>
                  {/* KHU VỰC TRÁI (THÔNG TIN) */}
-                 {visibleCols['Tiến độ'] && <th className="p-4 font-bold text-slate-600 text-sm whitespace-nowrap w-36">Tiến độ</th>}
-                 <th className="p-4 font-bold text-slate-600 text-sm w-10 text-center">STT</th>
-                 <th className="p-4 font-bold text-slate-600 text-sm min-w-[150px]">Dự án</th>
-                 <th className="p-4 font-bold text-slate-600 text-sm min-w-[200px]">Nội dung</th>
-                 <th className="p-4 font-bold text-slate-600 text-sm min-w-[150px]">Ghi chú</th>
-                 <th className="p-4 font-bold text-slate-600 text-sm whitespace-nowrap w-28">Định dạng</th>
+                 {visibleCols['Tiến độ'] && <th className="p-3 font-bold text-slate-600 text-sm whitespace-nowrap w-36">Tiến độ</th>}
+                 <th className="p-3 font-bold text-slate-600 text-sm w-10 text-center">STT</th>
+                 <th className="p-3 font-bold text-slate-600 text-sm min-w-[150px]">Dự án</th>
+                 {visibleCols['Nội dung'] && <th className="p-3 font-bold text-slate-600 text-sm min-w-[150px]">Nội dung</th>}
+                 {visibleCols['Link'] && <th className="p-3 font-bold text-slate-600 text-sm w-16 text-center">Link</th>}
+                 {visibleCols['Ghi chú'] && <th className="p-3 font-bold text-slate-600 text-sm min-w-[100px] w-[100px]">Ghi chú</th>}
+                 <th className="p-3 font-bold text-slate-600 text-sm whitespace-nowrap w-24">Định dạng</th>
 
-                 {/* KHU VỰC PHẢI (NỀN TẢNG) */}
+                 {/* KHU VỰC PHẢI (NỀN TẢNG - ĐÃ THU HẸP 40%) */}
                  {platforms.map(p => visibleCols[p as keyof typeof visibleCols] && (
-                   <th key={p} className="p-2 font-bold text-slate-600 text-sm text-center border-l border-slate-200 min-w-[100px] w-[100px]">{p}</th>
+                   <th key={p} className="p-2 font-bold text-slate-600 text-xs text-center border-l border-slate-200 min-w-[60px] w-[60px]">{p}</th>
                  ))}
 
                  {/* THANH KÉO THẢ */}
-                 <th className="p-4 font-bold text-slate-600 text-sm w-10 text-center">≡</th>
+                 <th className="p-3 font-bold text-slate-600 text-sm w-10 text-center">≡</th>
                </tr>
              </thead>
              <tbody>
-               {currentTasks.map((task: any, idx: number) => {
+               {smTasks.map((task: any, idx: number) => {
                  const { note, smData } = getSMData(task);
                  return (
-                   <tr key={task.id} onDoubleClick={() => setActionTask(task)} className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer group">
+                   <tr key={task.id} onDoubleClick={() => setActionTask(task)} className="border-b border-slate-100 hover:bg-blue-50/30 transition-colors cursor-pointer group">
 
-                     {/* TIẾN ĐỘ */}
+                     {/* TIẾN ĐỘ (Sửa lỗi mất dữ liệu khi cập nhật) */}
                      {visibleCols['Tiến độ'] && (
                        <td className="p-2 align-top" onDoubleClick={(e) => e.stopPropagation()}>
                          <select 
                            value={task.status || 'Mới'} 
-                           onChange={(e) => onUpdate({ ...task, status: e.target.value })}
-                           className={cn("w-full p-2 text-xs font-bold rounded-lg border focus:ring-2 outline-none cursor-pointer shadow-sm transition-colors", getStatusColor(task.status || 'Mới'))}
+                           onChange={(e) => onUpdate({ ...task, status: e.target.value, note: task.note })}
+                           className={cn("w-full p-1.5 text-xs font-bold rounded-md border focus:ring-2 outline-none cursor-pointer shadow-sm transition-colors", getStatusColor(task.status || 'Mới'))}
                          >
                            <option value="Mới" className="bg-white text-slate-800">Mới</option>
                            <option value="Đang làm" className="bg-white text-slate-800">Đang làm</option>
@@ -863,12 +860,23 @@ const currentTasks = smTasks.slice((currentPage - 1) * itemsPerPage, currentPage
                          </select>
                        </td>
                      )}
-                     <td className="p-2 text-center font-bold text-slate-400 align-top">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                     <td className="p-2 text-center font-bold text-slate-400 align-top">{idx + 1}</td>
 
-                     {/* DỰ ÁN, NỘI DUNG, GHI CHÚ */}
                      <td className="p-2 align-top"><ExpandableCell text={task.project} isTitle={true} /></td>
-                     <td className="p-2 align-top"><ExpandableCell text={task.description} /></td>
-                     <td className="p-2 align-top"><ExpandableCell text={note} /></td>
+                     {visibleCols['Nội dung'] && <td className="p-2 align-top"><ExpandableCell text={task.description} /></td>}
+
+                     {/* LINK FILE */}
+                     {visibleCols['Link'] && (
+                       <td className="p-2 align-top text-center" onDoubleClick={(e) => e.stopPropagation()}>
+                         {task.files?.length > 0 ? (
+                           <div className="inline-flex items-center justify-center p-1.5 bg-blue-100 text-blue-700 rounded-lg shadow-sm" title={`${task.files.length} file đính kèm`}>
+                             <Paperclip size={16} />
+                           </div>
+                         ) : <span className="text-slate-300">-</span>}
+                       </td>
+                     )}
+
+                     {visibleCols['Ghi chú'] && <td className="p-2 align-top"><ExpandableCell text={note} /></td>}
 
                      {/* ĐỊNH DẠNG */}
                      <td className="p-2 align-top" onDoubleClick={(e) => e.stopPropagation()}>
@@ -879,38 +887,49 @@ const currentTasks = smTasks.slice((currentPage - 1) * itemsPerPage, currentPage
                              const currentData = smData || { format: 'Hình ảnh', schedules: [] };
                              currentData.format = newFormat as any;
                              const hasZalo = currentData.schedules.some((s: any) => s.platform === 'Zalo' || s.platform === 'OA Zalo');
-                             const baseLevel = newFormat === 'Video' ? 3 : 2;
-                             const kpiLevel = Math.min(5, baseLevel + (hasZalo ? 1 : 0));
+                             const kpiLevel = Math.min(5, (newFormat === 'Video' ? 3 : 2) + (hasZalo ? 1 : 0));
                              onUpdate({ ...task, note: encodeSMData(note, currentData), kpiLevel });
                            }}
-                           className="w-full p-2 text-xs font-bold rounded-lg border border-slate-200 bg-emerald-50 text-emerald-700 focus:ring-2 focus:ring-emerald-400 outline-none cursor-pointer shadow-sm"
+                           className="w-full p-1.5 text-xs font-bold rounded-md border border-slate-200 bg-emerald-50 text-emerald-700 focus:ring-2 focus:ring-emerald-400 outline-none cursor-pointer shadow-sm"
                         >
                            <option value="Hình ảnh">Hình ảnh</option>
                            <option value="Video">Video</option>
                         </select>
                      </td>
 
-                     {/* CÁC Ô CHỌN NGÀY GIỜ */}
+                     {/* CÁC Ô CHỌN NGÀY GIỜ (UI Thu nhỏ cực độ) */}
                      {platforms.map(p => {
                        if (!visibleCols[p as keyof typeof visibleCols]) return null;
                        const schedule = smData?.schedules.find((s: any) => s.platform === p);
                        return (
-                         <td key={p} className="p-2 border-l border-slate-100 text-center bg-white group-hover:bg-slate-50 transition-colors align-top" onDoubleClick={(e) => e.stopPropagation()}>
-                           <div className="flex flex-col gap-1 items-center">
-                             <input 
-                               type="date" 
-                               value={schedule?.date || ''} 
-                               onChange={(e) => updateSMTaskSchedule(task, p, 'date', e.target.value)}
-                               className="text-[13px] p-1 border border-slate-200 rounded-md text-slate-800 font-bold focus:ring-2 focus:ring-blue-400 outline-none w-full cursor-pointer shadow-sm hover:border-blue-300"
-                             />
-                             <select 
-                               value={schedule?.time || ''} 
-                               onChange={(e) => updateSMTaskSchedule(task, p, 'time', e.target.value)}
-                               className="text-[13px] p-1 border border-slate-200 rounded-md text-slate-800 font-bold focus:ring-2 focus:ring-blue-400 outline-none w-full cursor-pointer shadow-sm hover:border-blue-300"
-                             >
-                               <option value="">Giờ đăng</option>
-                               {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
-                             </select>
+                         <td key={p} className="p-1.5 border-l border-slate-100 text-center align-top" onDoubleClick={(e) => e.stopPropagation()}>
+                           <div className="flex flex-col gap-1.5 items-center w-full">
+                             {/* Nút Ngày */}
+                             <div className="relative w-full cursor-pointer group">
+                               <input 
+                                 type="date" 
+                                 value={schedule?.date || ''} 
+                                 onChange={(e) => updateSMTaskSchedule(task, p, 'date', e.target.value)}
+                                 className="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-10"
+                               />
+                               <div className="text-[10px] py-1 border border-slate-200 rounded text-slate-600 font-bold bg-white group-hover:bg-blue-50 group-hover:border-blue-400 group-hover:text-blue-700 transition-colors shadow-sm w-full truncate px-0.5">
+                                 {schedule?.date ? format(parseISO(schedule.date), 'dd/MM') : 'Ngày'}
+                               </div>
+                             </div>
+                             {/* Nút Giờ */}
+                             <div className="relative w-full cursor-pointer group">
+                               <select 
+                                 value={schedule?.time || ''} 
+                                 onChange={(e) => updateSMTaskSchedule(task, p, 'time', e.target.value)}
+                                 className="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-10"
+                               >
+                                 <option value="">Giờ</option>
+                                 {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                               </select>
+                               <div className="text-[10px] py-1 border border-slate-200 rounded text-slate-600 font-bold bg-white group-hover:bg-blue-50 group-hover:border-blue-400 group-hover:text-blue-700 transition-colors shadow-sm w-full truncate px-0.5">
+                                 {schedule?.time || 'Giờ'}
+                               </div>
+                             </div>
                            </div>
                          </td>
                        );
@@ -918,41 +937,23 @@ const currentTasks = smTasks.slice((currentPage - 1) * itemsPerPage, currentPage
 
                      {/* KÉO THẢ */}
                      <td className="p-2 text-center text-slate-300 group-hover:text-slate-500 cursor-grab active:cursor-grabbing align-middle" onDoubleClick={(e) => e.stopPropagation()}>
-                       <GripVertical size={18} className="mx-auto" />
+                       <GripVertical size={16} className="mx-auto" />
                      </td>
                    </tr>
                  );
                })}
 
-               {/* THANH DẤU + NẾU CHƯA ĐỦ 10 DÒNG (HOẶC ĐANG Ở TRANG CUỐI CÙNG) */}
-               {currentTasks.length < itemsPerPage && (
-                 <tr>
-                   <td colSpan={16} className="p-2">
-                     <div onClick={() => setShowAddModal(true)} className="w-full py-4 bg-blue-50/50 border-2 border-dashed border-blue-200 rounded-xl flex flex-col items-center justify-center hover:bg-blue-100 hover:border-blue-400 transition-all cursor-pointer group shadow-sm">
-                       <Plus size={28} className="text-blue-400 group-hover:text-blue-600 group-hover:scale-110 transition-transform" />
-                     </div>
-                   </td>
-                 </tr>
-               )}
+               {/* NÚT THÊM (+) LUÔN NẰM Ở ĐÁY BẢNG */}
+               <tr>
+                 <td colSpan={16} className="p-3">
+                   <div onClick={() => setShowAddModal(true)} className="w-full py-4 bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl flex items-center justify-center hover:bg-blue-50 hover:border-blue-300 transition-colors cursor-pointer group shadow-sm">
+                     <Plus size={24} className="text-slate-400 group-hover:text-blue-600 group-hover:scale-110 transition-transform" />
+                   </div>
+                 </td>
+               </tr>
              </tbody>
            </table>
          </div>
-
-         {/* THANH ĐIỀU HƯỚNG PHÂN TRANG (CĂN GIỮA) */}
-         {smTasks.length >= 0 && (
-           <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col items-center justify-center shrink-0">
-             <div className="flex items-center gap-2">
-               <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-blue-50 disabled:opacity-50 font-bold text-slate-600 transition-colors">&lt;&lt;</button>
-               <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-blue-50 disabled:opacity-50 font-bold text-slate-600 transition-colors">&lt;</button>
-
-               <span className="font-bold text-blue-700 text-sm px-4">Trang {currentPage} / {totalPages}</span>
-
-               <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-blue-50 disabled:opacity-50 font-bold text-slate-600 transition-colors">&gt;</button>
-               <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-blue-50 disabled:opacity-50 font-bold text-slate-600 transition-colors">&gt;&gt;</button>
-             </div>
-           </div>
-         )}
-       </div>
      )}
 
         {/* TAB 2: KẾ HOẠCH DỰ ÁN */}
@@ -965,64 +966,73 @@ const currentTasks = smTasks.slice((currentPage - 1) * itemsPerPage, currentPage
       </div>
 
       {/* 4. MODAL GIAO DỰ ÁN SOCIAL MEDIA MỚI */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
-          <div className="bg-white p-8 rounded-3xl w-full max-w-[1280px] shadow-2xl relative max-h-[90vh] overflow-y-auto">
-            <h3 className="text-2xl font-bold text-blue-900 mb-6 flex items-center gap-2 border-b border-slate-100 pb-4"><Plus size={24}/> Giao Dự Án Social Media</h3>
-            <form onSubmit={handleAddSMSubmit} className="space-y-6">
-              <div className="grid grid-cols-2 gap-8">
-                
-                {/* CỘT TRÁI */}
-                <div className="space-y-5">
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-600">Tên Dự án</label>
-                    <input required value={formData.project} onChange={e => setFormData(prev => ({...prev, project: e.target.value}))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-blue-900" placeholder="Nhập tên dự án..."/>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-600">Định dạng</label>
-                    <select value={formData.format} onChange={e => setFormData(prev => ({...prev, format: e.target.value}))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-emerald-700 bg-emerald-50 cursor-pointer">
-                      <option value="Hình ảnh">Hình ảnh</option>
-                      <option value="Video">Video</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-600">Ghi chú thêm</label>
-                    <input value={formData.note} onChange={e => setFormData(prev => ({...prev, note: e.target.value}))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700"/>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-600">Nội dung (Mô tả)</label>
-                    <textarea rows={4} value={formData.description} onChange={e => setFormData(prev => ({...prev, description: e.target.value}))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700"/>
-                  </div>
-                </div>
+   {showAddModal && (
+     <div className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
+       <div className="bg-white p-8 rounded-3xl w-full max-w-[1100px] shadow-2xl relative max-h-[90vh] overflow-y-auto">
+         <h3 className="text-2xl font-bold text-blue-900 mb-6 flex items-center gap-2 border-b border-slate-100 pb-4"><Plus size={24}/> Giao Dự Án Social Media</h3>
+         <form onSubmit={(e) => {
+            e.preventDefault();
+            if (!formData.project) return;
+            const smData: SMData = { format: formData.format as any, schedules: [] };
+            onAdd({
+              project: formData.project, description: formData.description, note: encodeSMData(formData.note, smData),
+              files: formData.files, kpiLevel: formData.format === 'Video' ? 3 : 2, deadline: formData.deadline || format(new Date(), 'yyyy-MM-dd')
+            });
+            setFormData({ project: '', description: '', format: 'Hình ảnh', note: '', deadline: '', files: [] });
+            setShowAddModal(false);
+            showToast('Đã tạo dự án', 'success');
+         }} className="space-y-6">
 
-                {/* CỘT PHẢI */}
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-600">Đính kèm</label>
-                  <div className="border-2 border-dashed border-slate-200 rounded-2xl p-10 h-[calc(100%-28px)] flex flex-col items-center justify-center bg-slate-50 hover:bg-blue-50 hover:border-blue-300 transition-colors relative cursor-pointer group">
-                    <input type="file" multiple onChange={e => e.target.files && processSMFiles(e.target.files)} className="absolute inset-0 opacity-0 cursor-pointer z-10"/>
-                    <FileUp className="text-slate-400 mb-4 group-hover:scale-110 group-hover:text-blue-500 transition-transform" size={48}/>
-                    <span className="text-slate-500 font-bold text-lg mb-1">Bấm hoặc kéo thả file vào đây</span>
-                    <span className="text-slate-400 text-sm">Hỗ trợ hình ảnh, video, tài liệu...</span>
-                    
-                    {formData.files.length > 0 && (
-                      <div className="mt-6 pt-6 border-t border-slate-200 w-full text-center">
-                        <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-100 text-blue-700 font-bold text-sm">
-                          <Paperclip size={16}/> Đã đính kèm {formData.files.length} file
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-              </div>
-              <div className="flex gap-4 pt-6 border-t border-slate-100">
-                <button type="button" onClick={() => setShowAddModal(false)} className="px-8 py-3 rounded-xl bg-slate-100 font-bold text-slate-600 hover:bg-slate-200 active:scale-95 transition-all">Hủy</button>
-                <button type="submit" className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-blue-700 active:scale-95 transition-all">Lưu Dự Án</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+           {/* KHU VỰC THÔNG TIN (HÀNG NGANG) */}
+           <div className="grid grid-cols-3 gap-5">
+             <div className="space-y-2 col-span-1">
+               <label className="text-sm font-bold text-slate-600">Tên Dự án</label>
+               <input required value={formData.project} onChange={e => setFormData(prev => ({...prev, project: e.target.value}))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-blue-900"/>
+             </div>
+             <div className="space-y-2 col-span-1">
+               <label className="text-sm font-bold text-slate-600">Deadline</label>
+               <input type="date" required value={formData.deadline} onChange={e => setFormData(prev => ({...prev, deadline: e.target.value}))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-700"/>
+             </div>
+             <div className="space-y-2 col-span-1">
+               <label className="text-sm font-bold text-slate-600">Định dạng</label>
+               <select value={formData.format} onChange={e => setFormData(prev => ({...prev, format: e.target.value}))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-emerald-700 bg-emerald-50">
+                 <option value="Hình ảnh">Hình ảnh</option>
+                 <option value="Video">Video</option>
+               </select>
+             </div>
+           </div>
+
+           {/* NỘI DUNG */}
+           <div className="space-y-2">
+             <label className="text-sm font-bold text-slate-600">Nội dung (Mô tả)</label>
+             <textarea rows={2} value={formData.description} onChange={e => setFormData(prev => ({...prev, description: e.target.value}))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700"/>
+           </div>
+
+           {/* KHU VỰC GHI CHÚ VÀ FILE (NẰM NGANG CÙNG HÀNG) */}
+           <div className="grid grid-cols-2 gap-5">
+             <div className="space-y-2 flex flex-col">
+               <label className="text-sm font-bold text-slate-600">Ghi chú thêm</label>
+               <textarea rows={4} value={formData.note} onChange={e => setFormData(prev => ({...prev, note: e.target.value}))} className="w-full flex-1 p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700"/>
+             </div>
+             <div className="space-y-2 flex flex-col">
+               <label className="text-sm font-bold text-slate-600">Đính kèm</label>
+               <div className="border-2 border-dashed border-slate-200 rounded-2xl flex-1 flex flex-col items-center justify-center bg-slate-50 hover:bg-blue-50 cursor-pointer relative group transition-colors min-h-[120px]">
+                 <input type="file" multiple onChange={e => e.target.files && processSMFiles(e.target.files)} className="absolute inset-0 opacity-0 cursor-pointer z-10"/>
+                 <FileUp className="text-slate-400 mb-2 group-hover:text-blue-500 group-hover:scale-110 transition-transform" size={28}/>
+                 <span className="text-slate-500 font-bold text-sm">Thả hoặc bấm chọn File</span>
+                 {formData.files.length > 0 && <span className="mt-2 text-xs font-bold bg-blue-100 text-blue-700 px-3 py-1 rounded-full">Đã đính kèm {formData.files.length} file</span>}
+               </div>
+             </div>
+           </div>
+
+           <div className="flex gap-4 pt-6 border-t border-slate-100">
+             <button type="button" onClick={() => setShowAddModal(false)} className="px-8 py-3 rounded-xl bg-slate-100 font-bold text-slate-600 hover:bg-slate-200 active:scale-95 transition-all">Hủy</button>
+             <button type="submit" className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-blue-700 active:scale-95 transition-all">Lưu Dự Án</button>
+           </div>
+         </form>
+       </div>
+     </div>
+   )}
       {/* MODAL HÀNH ĐỘNG (KHI NHÁY ĐÚP CHUỘT) */}
    {actionTask && (
      <div className="fixed inset-0 z-[130] bg-black/40 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
