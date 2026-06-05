@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
+  X,
   Share2, Settings, Facebook, MessageCircle, MessageSquare, Music, ShoppingBag, GripVertical, Image as ImageIcon, Video
 } from 'lucide-react';
 import { 
@@ -1059,11 +1060,21 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
                      <td className="p-2 align-top"><ExpandableCell text={task.project} isTitle={true} /></td>
                      {visibleCols['Nội dung'] && <td className="p-2 align-top"><ExpandableCell text={task.description} /></td>}
 
-                     {/* CỘT LINK ĐÍNH KÈM */}
+                     {/* CỘT LINK ĐÍNH KÈM - nhấn để mở từng file */}
                      <td className="p-2 align-top text-center" onDoubleClick={(e) => e.stopPropagation()}>
                        {task.files?.length > 0 ? (
-                         <div className="inline-flex items-center justify-center p-1.5 bg-blue-100 text-blue-700 rounded-lg shadow-sm" title={`${task.files.length} file đính kèm`}>
-                           <Paperclip size={14} />
+                         <div className="flex flex-wrap gap-1 justify-center">
+                           {task.files.map((fileData: string, fi: number) => {
+                             const url = fileData.includes('|||') ? fileData.split('|||')[0] : fileData;
+                             const name = fileData.includes('|||') ? fileData.split('|||')[1] : `File ${fi + 1}`;
+                             return (
+                               <a key={fi} href={url} target="_blank" rel="noopener noreferrer"
+                                  title={name}
+                                  className="inline-flex items-center justify-center p-1.5 bg-blue-100 text-blue-700 rounded-lg shadow-sm hover:bg-blue-200 transition-colors">
+                                 <Paperclip size={13} />
+                               </a>
+                             );
+                           })}
                          </div>
                        ) : <span className="text-slate-300">-</span>}
                      </td>
@@ -1162,25 +1173,28 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
         )}
       </div>
 
-      {/* MODAL GIAO DỰ ÁN SOCIAL MEDIA MỚI - layout giống GiaoViec */}
+      {/* MODAL GIAO DỰ ÁN SOCIAL MEDIA MỚI */}
    {showAddModal && (
      <div className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in p-4">
-       <div className="bg-white rounded-3xl w-full max-w-3xl shadow-2xl relative max-h-[92vh] overflow-y-auto">
+       <div className="bg-white w-full max-w-[1280px] min-h-[65vh] rounded-3xl shadow-2xl relative flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
 
-         {/* Header */}
-         <div className="px-8 pt-8 pb-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10 rounded-t-3xl">
-           <h3 className="text-2xl font-bold text-blue-900 flex items-center gap-2">
-             <Plus size={24} className="text-blue-500"/> Giao Dự Án Social Media
+         {/* Header - giống edit form */}
+         <div className="px-8 py-5 border-b border-slate-100 bg-slate-50 rounded-t-3xl flex items-center justify-between">
+           <h3 className="text-3xl font-bold text-blue-900 flex items-center gap-3">
+             <Plus size={28} className="text-blue-500"/> Giao Dự Án Social Media
            </h3>
-           <button onClick={() => setShowAddModal(false)} className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors">
-             <Trash2 size={20}/>
+           <button
+             onClick={() => setShowAddModal(false)}
+             className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors"
+             title="Đóng"
+           >
+             <X size={24}/>
            </button>
          </div>
 
          <form onSubmit={(e) => {
            e.preventDefault();
            if (!formData.project) return;
-           // Kiểm tra ngày nghỉ
            const deadlineDate = parseISO(formData.deadline);
            if (isWeekend(deadlineDate)) {
              showToast('Không thể giao Deadline vào ngày nghỉ (Thứ 7, Chủ nhật)', 'error');
@@ -1197,21 +1211,21 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
            setFormData({ project: '', description: '', format: 'Hình ảnh', note: '', deadline: '', files: [] });
            setShowAddModal(false);
            showToast('Đã tạo dự án Social Media', 'success');
-         }} className="p-8 space-y-6">
+         }} className="p-8 overflow-y-auto flex-1 space-y-7" id="sm-add-form">
 
-           {/* HÀNG 1: Dự án + Deadline */}
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-             <div className="space-y-2">
-               <label className="text-base font-semibold text-slate-600">Dự án</label>
+           {/* HÀNG 1: Dự án (2/3) + Deadline (1/3) */}
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+             <div className="md:col-span-2 space-y-2">
+               <label className="text-xl font-semibold text-slate-600">Dự án</label>
                <input
                  required value={formData.project}
                  onChange={e => setFormData(prev => ({...prev, project: e.target.value}))}
                  placeholder="Tên dự án Social Media..."
-                 className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-blue-900 transition-all"
+                 className="w-full p-4 text-lg rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-blue-900 transition-all"
                />
              </div>
-             <div className="space-y-2">
-               <label className="text-base font-semibold text-slate-600">Deadline</label>
+             <div className="md:col-span-1 space-y-2">
+               <label className="text-xl font-semibold text-slate-600">Deadline</label>
                <input
                  type="date" required
                  value={formData.deadline}
@@ -1223,58 +1237,58 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
                    }
                    setFormData(prev => ({...prev, deadline: v}));
                  }}
-                 className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-700 transition-all"
+                 className="w-full p-4 text-lg rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-700 transition-all"
                />
              </div>
            </div>
 
            {/* HÀNG 2: Mô tả (full width) */}
            <div className="space-y-2">
-             <label className="text-base font-semibold text-slate-600">Mô tả và thông tin</label>
+             <label className="text-xl font-semibold text-slate-600">Mô tả và thông tin</label>
              <textarea
                value={formData.description}
                onChange={e => setFormData(prev => ({...prev, description: e.target.value}))}
                placeholder="Chi tiết nội dung dự án..."
-               rows={4}
-               className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 transition-all"
+               rows={5}
+               className="w-full p-4 text-lg rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 transition-all"
              />
            </div>
 
-           {/* HÀNG 3: Định dạng + Ghi chú */}
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-             <div className="space-y-2">
-               <label className="text-base font-semibold text-slate-600">Định dạng</label>
+           {/* HÀNG 3: Định dạng + Ghi chú (mỗi cái 1/3 + 2/3) */}
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+             <div className="md:col-span-1 space-y-2">
+               <label className="text-xl font-semibold text-slate-600">Định dạng</label>
                <select
                  value={formData.format}
                  onChange={e => setFormData(prev => ({...prev, format: e.target.value}))}
                  className={cn(
-                   "w-full p-3 rounded-xl border focus:ring-2 outline-none font-bold transition-all",
+                   "w-full p-4 text-lg rounded-xl border focus:ring-2 outline-none font-bold transition-all",
                    formData.format === 'Video'
                      ? "border-orange-200 bg-orange-50 text-orange-700 focus:ring-orange-400"
                      : "border-emerald-200 bg-emerald-50 text-emerald-700 focus:ring-emerald-400"
                  )}
                >
-                 <option value="Hình ảnh">Hình ảnh</option>
-                 <option value="Video">Video</option>
+                 <option value="Hình ảnh">🖼 Hình ảnh</option>
+                 <option value="Video">🎬 Video</option>
                </select>
              </div>
-             <div className="space-y-2">
-               <label className="text-base font-semibold text-slate-600">Ghi chú</label>
+             <div className="md:col-span-2 space-y-2">
+               <label className="text-xl font-semibold text-slate-600">Ghi chú</label>
                <input
                  type="text" value={formData.note}
                  onChange={e => setFormData(prev => ({...prev, note: e.target.value}))}
                  placeholder="Ghi chú thêm..."
-                 className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 transition-all"
+                 className="w-full p-4 text-lg rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 transition-all"
                />
              </div>
            </div>
 
-           {/* HÀNG 4: File đính kèm - toàn màn hình */}
+           {/* HÀNG 4: File đính kèm (full width) */}
            <div className="space-y-3">
-             <label className="text-base font-semibold text-slate-600">Hình ảnh và file đính kèm</label>
+             <label className="text-xl font-semibold text-slate-600">Hình ảnh và file đính kèm</label>
              <div
                className={cn(
-                 "border-2 border-dashed rounded-2xl p-6 text-center transition-colors cursor-pointer relative",
+                 "border-2 border-dashed rounded-2xl p-8 text-center transition-colors cursor-pointer relative",
                  isDragging ? "border-blue-400 bg-blue-50" : "border-slate-200 hover:border-blue-400"
                )}
                onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
@@ -1289,40 +1303,41 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
                  onChange={e => e.target.files && processSMFiles(e.target.files)}
                  className="absolute inset-0 opacity-0 cursor-pointer z-10"
                />
-               <FileUp className="mx-auto text-slate-400 mb-2 pointer-events-none" size={32} />
-               <p className="text-slate-500 text-sm pointer-events-none">
+               <FileUp className="mx-auto text-slate-400 mb-3 pointer-events-none" size={40} />
+               <p className="text-slate-500 text-lg pointer-events-none font-medium">
                  Kéo thả file vào bất cứ đâu trên màn hình hoặc click vào đây
                </p>
 
-               {/* Danh sách file đã đính kèm - có thể nhấn để xem + xóa */}
+               {/* Danh sách file — nhấn tên để xem, nút × để xóa từng file */}
                {formData.files.length > 0 && (
-                 <div className="mt-4 flex flex-wrap gap-2 justify-center" onClick={e => e.stopPropagation()}>
+                 <div className="mt-5 flex flex-wrap gap-3 justify-center" onClick={e => e.stopPropagation()}>
                    {formData.files.map((fileData, i) => {
                      const displayName = fileData.includes('|||')
                        ? fileData.split('|||')[1]
-                       : fileData.includes('drive.google.com')
-                         ? 'Thư mục Drive'
-                         : `File ${i + 1}`;
+                       : fileData.includes('drive.google.com') ? 'Thư mục Drive' : `File ${i + 1}`;
                      return (
-                       <div key={i} className="group relative flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-lg text-sm font-medium text-blue-700 shadow-sm hover:bg-blue-100 transition-all">
-                         {/* Nhấn vào tên file → mở xem */}
+                       <div key={i} className="group flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-xl text-base font-medium text-blue-700 shadow-sm hover:bg-blue-100 transition-all">
+                         {/* Nhấn tên → mở file */}
                          <button
                            type="button"
                            onClick={() => openSMFile(fileData)}
-                           className="flex items-center gap-1.5 hover:underline"
+                           className="flex items-center gap-2 hover:underline"
                            title="Nhấn để xem file"
                          >
-                           <Paperclip size={13} className="shrink-0" />
-                           <span className="truncate max-w-[200px]">{displayName}</span>
+                           <Paperclip size={16} className="shrink-0" />
+                           <span className="truncate max-w-[260px]">{displayName}</span>
                          </button>
-                         {/* Nút xóa file */}
+                         {/* Nút × xóa riêng từng file */}
                          <button
                            type="button"
-                           onClick={() => setFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) }))}
-                           className="ml-1 text-slate-400 hover:text-red-500 transition-colors shrink-0"
-                           title="Xóa file"
+                           onClick={() => setFormData(prev => ({
+                             ...prev,
+                             files: prev.files.filter((_, idx) => idx !== i)
+                           }))}
+                           className="ml-1 p-0.5 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                           title="Xóa file này"
                          >
-                           <Trash2 size={13} />
+                           <X size={16} />
                          </button>
                        </div>
                      );
@@ -1331,24 +1346,30 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
                )}
              </div>
            </div>
-
-           {/* Nút hành động */}
-           <div className="flex gap-4 pt-2 border-t border-slate-100">
-             <button
-               type="button"
-               onClick={() => setShowAddModal(false)}
-               className="px-8 py-3 rounded-xl bg-slate-100 font-bold text-slate-600 hover:bg-slate-200 active:scale-95 transition-all"
-             >
-               Hủy
-             </button>
-             <button
-               type="submit"
-               className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-blue-700 active:scale-95 transition-all"
-             >
-               Lưu Dự Án
-             </button>
-           </div>
          </form>
+
+         {/* Footer - giống edit form */}
+         <div className="px-8 py-5 border-t border-slate-100 bg-slate-50 rounded-b-3xl flex gap-4 mt-auto">
+           <button
+             type="button"
+             onClick={() => setShowAddModal(false)}
+             className="flex-1 bg-white border border-slate-300 text-slate-700 p-4 text-lg rounded-xl font-bold hover:bg-slate-100 active:scale-95 transition-all"
+           >
+             Hủy
+           </button>
+           <button
+             type="submit"
+             form="sm-add-form"
+             onClick={() => {
+               // trigger submit via hidden form id workaround
+               const form = document.querySelector('#sm-add-form') as HTMLFormElement;
+               form?.requestSubmit();
+             }}
+             className="flex-[2] bg-blue-600 text-white p-4 text-lg rounded-xl font-bold shadow-lg hover:bg-blue-700 active:scale-95 transition-all"
+           >
+             Lưu Dự Án
+           </button>
+         </div>
        </div>
      </div>
    )}
