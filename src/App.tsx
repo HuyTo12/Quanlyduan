@@ -1183,13 +1183,7 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
            <h3 className="text-2xl font-bold text-blue-900 flex items-center gap-3">
              <Plus size={28} className="text-blue-500"/> Giao Dự Án Social Media
            </h3>
-           <button
-             onClick={() => setShowAddModal(false)}
-             className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors"
-             title="Đóng"
-           >
-             <X size={24}/>
-           </button>
+          
          </div>
 
          <form onSubmit={(e) => {
@@ -1316,30 +1310,23 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
                        ? fileData.split('|||')[1]
                        : fileData.includes('drive.google.com') ? 'Thư mục Drive' : `File ${i + 1}`;
                      return (
-                       <div key={i} className="group flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-xl text-base font-medium text-blue-700 shadow-sm hover:bg-blue-100 transition-all">
-                         {/* Nhấn tên → mở file */}
-                         <button
-                           type="button"
-                           onClick={() => openSMFile(fileData)}
-                           className="flex items-center gap-2 hover:underline"
-                           title="Nhấn để xem file"
-                         >
-                           <Paperclip size={16} className="shrink-0" />
-                           <span className="truncate max-w-[260px]">{displayName}</span>
-                         </button>
-                         {/* Nút × xóa riêng từng file */}
-                         <button
-                           type="button"
-                           onClick={() => setFormData(prev => ({
-                             ...prev,
-                             files: prev.files.filter((_, idx) => idx !== i)
-                           }))}
-                           className="ml-1 p-0.5 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
-                           title="Xóa file này"
-                         >
-                           <X size={16} />
-                         </button>
-                       </div>
+                       <div key={i} className="group relative px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-sm font-medium text-blue-700 shadow-sm hover:bg-blue-100 hover:pr-10 transition-all flex items-center gap-2">
+                        <Paperclip size={16} className="shrink-0" />
+                        <span className="truncate max-w-[260px] cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); openSMFile(fileData); }} title="Nhấn để xem file">
+                          {displayName}
+                        </span>
+                        <button 
+                          type="button" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) }));
+                          }} 
+                          className="absolute right-3 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity"
+                          title="Xóa file này"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                      );
                    })}
                  </div>
@@ -1352,7 +1339,7 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
          <div className="px-8 py-5 border-t border-slate-100 bg-slate-50 rounded-b-3xl flex gap-4 mt-auto">
            <button
              type="button"
-             onClick={() => setShowAddModal(false)}
+             onClick={() => { setFormData({ project: '', description: '', format: 'Hình ảnh', note: '', deadline: '', files: [] }); setShowAddModal(false); }}
              className="flex-1 bg-white border border-slate-300 text-slate-700 p-4 text-base rounded-xl font-bold hover:bg-slate-100 active:scale-95 transition-all"
            >
              Hủy
