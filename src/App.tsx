@@ -1180,7 +1180,7 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
 
          {/* Header - giống edit form */}
          <div className="px-8 py-5 border-b border-slate-100 bg-slate-50 rounded-t-3xl flex items-center justify-between">
-           <h3 className="text-3xl font-bold text-blue-900 flex items-center gap-3">
+           <h3 className="text-2xl font-bold text-blue-900 flex items-center gap-3">
              <Plus size={28} className="text-blue-500"/> Giao Dự Án Social Media
            </h3>
            <button
@@ -1216,16 +1216,16 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
            {/* HÀNG 1: Dự án (2/3) + Deadline (1/3) */}
            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
              <div className="md:col-span-2 space-y-2">
-               <label className="text-xl font-semibold text-slate-600">Dự án</label>
+               <label className="text-base font-semibold text-slate-600">Dự án</label>
                <input
                  required value={formData.project}
                  onChange={e => setFormData(prev => ({...prev, project: e.target.value}))}
                  placeholder="Tên dự án Social Media..."
-                 className="w-full p-4 text-lg rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-blue-900 transition-all"
+                 className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-blue-900 transition-all"
                />
              </div>
              <div className="md:col-span-1 space-y-2">
-               <label className="text-xl font-semibold text-slate-600">Deadline</label>
+               <label className="text-base font-semibold text-slate-600">Deadline</label>
                <input
                  type="date" required
                  value={formData.deadline}
@@ -1237,32 +1237,32 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
                    }
                    setFormData(prev => ({...prev, deadline: v}));
                  }}
-                 className="w-full p-4 text-lg rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-700 transition-all"
+                 className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-700 transition-all"
                />
              </div>
            </div>
 
            {/* HÀNG 2: Mô tả (full width) */}
            <div className="space-y-2">
-             <label className="text-xl font-semibold text-slate-600">Mô tả và thông tin</label>
+             <label className="text-base font-semibold text-slate-600">Mô tả và thông tin</label>
              <textarea
                value={formData.description}
                onChange={e => setFormData(prev => ({...prev, description: e.target.value}))}
                placeholder="Chi tiết nội dung dự án..."
                rows={5}
-               className="w-full p-4 text-lg rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 transition-all"
+               className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 transition-all"
              />
            </div>
 
            {/* HÀNG 3: Định dạng + Ghi chú (mỗi cái 1/3 + 2/3) */}
            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
              <div className="md:col-span-1 space-y-2">
-               <label className="text-xl font-semibold text-slate-600">Định dạng</label>
+               <label className="text-base font-semibold text-slate-600">Định dạng</label>
                <select
                  value={formData.format}
                  onChange={e => setFormData(prev => ({...prev, format: e.target.value}))}
                  className={cn(
-                   "w-full p-4 text-lg rounded-xl border focus:ring-2 outline-none font-bold transition-all",
+                   "w-full p-4 text-base rounded-xl border focus:ring-2 outline-none font-bold transition-all",
                    formData.format === 'Video'
                      ? "border-orange-200 bg-orange-50 text-orange-700 focus:ring-orange-400"
                      : "border-emerald-200 bg-emerald-50 text-emerald-700 focus:ring-emerald-400"
@@ -1273,19 +1273,19 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
                </select>
              </div>
              <div className="md:col-span-2 space-y-2">
-               <label className="text-xl font-semibold text-slate-600">Ghi chú</label>
+               <label className="text-base font-semibold text-slate-600">Ghi chú</label>
                <input
                  type="text" value={formData.note}
                  onChange={e => setFormData(prev => ({...prev, note: e.target.value}))}
                  placeholder="Ghi chú thêm..."
-                 className="w-full p-4 text-lg rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 transition-all"
+                 className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 transition-all"
                />
              </div>
            </div>
 
            {/* HÀNG 4: File đính kèm (full width) */}
            <div className="space-y-3">
-             <label className="text-xl font-semibold text-slate-600">Hình ảnh và file đính kèm</label>
+             <label className="text-base font-semibold text-slate-600">Hình ảnh và file đính kèm</label>
              <div
                className={cn(
                  "border-2 border-dashed rounded-2xl p-8 text-center transition-colors cursor-pointer relative",
@@ -1304,7 +1304,7 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
                  className="absolute inset-0 opacity-0 cursor-pointer z-10"
                />
                <FileUp className="mx-auto text-slate-400 mb-3 pointer-events-none" size={40} />
-               <p className="text-slate-500 text-lg pointer-events-none font-medium">
+               <p className="text-slate-500 text-sm pointer-events-none font-medium">
                  Kéo thả file vào bất cứ đâu trên màn hình hoặc click vào đây
                </p>
 
@@ -1353,7 +1353,7 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
            <button
              type="button"
              onClick={() => setShowAddModal(false)}
-             className="flex-1 bg-white border border-slate-300 text-slate-700 p-4 text-lg rounded-xl font-bold hover:bg-slate-100 active:scale-95 transition-all"
+             className="flex-1 bg-white border border-slate-300 text-slate-700 p-4 text-base rounded-xl font-bold hover:bg-slate-100 active:scale-95 transition-all"
            >
              Hủy
            </button>
@@ -1365,7 +1365,7 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
                const form = document.querySelector('#sm-add-form') as HTMLFormElement;
                form?.requestSubmit();
              }}
-             className="flex-[2] bg-blue-600 text-white p-4 text-lg rounded-xl font-bold shadow-lg hover:bg-blue-700 active:scale-95 transition-all"
+             className="flex-[2] bg-blue-600 text-white p-4 text-base rounded-xl font-bold shadow-lg hover:bg-blue-700 active:scale-95 transition-all"
            >
              Lưu Dự Án
            </button>
