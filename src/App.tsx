@@ -1288,7 +1288,6 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
                onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
                onDragLeave={() => setIsDragging(false)}
                onDrop={e => {
-                 e.preventDefault(); setIsDragging(false);
                  if (e.dataTransfer.files) processSMFiles(e.dataTransfer.files);
                }}
              >
@@ -1310,9 +1309,9 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
                        ? fileData.split('|||')[1]
                        : fileData.includes('drive.google.com') ? 'Thư mục Drive' : `File ${i + 1}`;
                      return (
-                       <div key={i} className="group relative px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-sm font-medium text-blue-700 shadow-sm hover:bg-blue-100 hover:pr-10 transition-all flex items-center gap-2">
+                       <div key={i} className="group relative px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-sm font-medium text-blue-700 shadow-sm hover:bg-blue-100 hover:pr-12 transition-all flex items-center gap-2">
                         <Paperclip size={16} className="shrink-0" />
-                        <span className="truncate max-w-[260px] cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); openSMFile(fileData); }} title="Nhấn để xem file">
+                        <span className="truncate max-w-[240px] cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); openSMFile(fileData); }} title="Nhấn để xem file">
                           {displayName}
                         </span>
                         <button 
@@ -1321,10 +1320,10 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
                             e.stopPropagation();
                             setFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) }));
                           }} 
-                          className="absolute right-3 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity"
+                          className="absolute right-2 opacity-0 group-hover:opacity-100 bg-red-500 text-white p-1.5 rounded-lg hover:bg-red-600 transition-all shadow-sm flex items-center justify-center"
                           title="Xóa file này"
                         >
-                          <Trash2 size={16} />
+                          <Trash2 size={14} />
                         </button>
                       </div>
                      );
