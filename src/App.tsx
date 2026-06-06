@@ -962,6 +962,8 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
 
   // Hàm xử lý file đính kèm cho Social Media
   const [isDragging, setIsDragging] = useState(false);
+  // Cờ chặn xử lý file 2 lần (local onDrop + global GLOBAL_FILE_DROP)
+  const localDropRef = useRef(false);
 
   const processSMFiles = (files: FileList) => {
     if (!files) return;
@@ -975,6 +977,11 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
   // Nhận file kéo thả toàn màn hình (giống GiaoViec)
   useEffect(() => {
     const handleGlobalDrop = (e: any) => {
+      // Nếu drop đã được xử lý bởi local onDrop thì bỏ qua, tránh thêm file 2 lần
+      if (localDropRef.current) {
+        localDropRef.current = false;
+        return;
+      }
       if (!document.getElementById('global-edit-form')) processSMFiles(e.detail);
     };
     window.addEventListener('GLOBAL_FILE_DROP', handleGlobalDrop);
@@ -1288,6 +1295,8 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
                onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
                onDragLeave={() => setIsDragging(false)}
                onDrop={e => {
+                 e.preventDefault(); setIsDragging(false);
+                 localDropRef.current = true; // Đánh dấu: file đã xử lý local, global handler bỏ qua
                  if (e.dataTransfer.files) processSMFiles(e.dataTransfer.files);
                }}
              >
@@ -1301,31 +1310,31 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
                  Kéo thả file vào bất cứ đâu trên màn hình hoặc click vào đây
                </p>
 
-               {/* Danh sách file — nhấn tên để xem, nút × để xóa từng file */}
+               {/* Danh sách file — 1 file mỗi hàng, hover hiện nút xóa nền đỏ */}
                {formData.files.length > 0 && (
-                 <div className="mt-5 flex flex-wrap gap-3 justify-center" onClick={e => e.stopPropagation()}>
+                 <div className="mt-5 flex flex-col gap-2 text-left" onClick={e => e.stopPropagation()}>
                    {formData.files.map((fileData, i) => {
                      const displayName = fileData.includes('|||')
                        ? fileData.split('|||')[1]
                        : fileData.includes('drive.google.com') ? 'Thư mục Drive' : `File ${i + 1}`;
                      return (
-                       <div key={i} className="group relative px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-sm font-medium text-blue-700 shadow-sm hover:bg-blue-100 hover:pr-12 transition-all flex items-center gap-2">
-                        <Paperclip size={16} className="shrink-0" />
-                        <span className="truncate max-w-[240px] cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); openSMFile(fileData); }} title="Nhấn để xem file">
-                          {displayName}
-                        </span>
-                        <button 
-                          type="button" 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) }));
-                          }} 
-                          className="absolute right-2 opacity-0 group-hover:opacity-100 bg-red-500 text-white p-1.5 rounded-lg hover:bg-red-600 transition-all shadow-sm flex items-center justify-center"
-                          title="Xóa file này"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                       <div key={i} className="group flex items-center gap-2 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-sm font-medium text-blue-700 shadow-sm hover:bg-blue-100 transition-all">
+                         <Paperclip size={16} className="shrink-0" />
+                         <span className="truncate flex-1 cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); openSMFile(fileData); }} title="Nhấn để xem file">
+                           {displayName}
+                         </span>
+                         <button
+                           type="button"
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             setFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) }));
+                           }}
+                           className="opacity-0 group-hover:opacity-100 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-lg transition-all shrink-0"
+                           title="Xóa file này"
+                         >
+                           <Trash2 size={14} />
+                         </button>
+                       </div>
                      );
                    })}
                  </div>
