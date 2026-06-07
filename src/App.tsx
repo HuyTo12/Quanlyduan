@@ -1278,33 +1278,40 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
            </div>
 
            {/* HÀNG 4: File đính kèm (full width) */}
-            <div className="space-y-2">
+            <div className="space-y-3">
               <label className="text-base font-semibold text-slate-600">Hình ảnh và file đính kèm</label>
               <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors cursor-pointer relative">
                 <input 
-                  type="file" multiple 
+                  type="file" 
+                  multiple 
                   onChange={e => e.target.files && processSMFiles(e.target.files)} 
                   className="absolute inset-0 opacity-0 cursor-pointer z-10" 
                 />
                 <FileUp className="mx-auto text-slate-400 mb-2" size={32} />
                 <p className="text-slate-500 text-sm">Kéo thả file vào bất cứ đâu trên màn hình hoặc click vào đây</p>
                 
-                {/* Danh sách file hiển thị giao diện giống hệt Giao Việc */}
                 {formData.files.length > 0 && (
-                  <div className="mt-4 flex flex-wrap gap-2 justify-center" onClick={e => e.stopPropagation()}>
+                  <div className="mt-4 flex flex-wrap gap-2 justify-center" onClick={(e) => e.stopPropagation()}>
                     {formData.files.map((fileData, i) => {
-                      const displayName = fileData.includes('|||')
-                        ? fileData.split('|||')[1]
-                        : fileData.includes('drive.google.com') ? 'Thư mục Drive' : `File ${i + 1}`;
+                      let displayName = "File đính kèm";
+                      if (fileData.includes("|||")) displayName = fileData.split("|||")[1];
+                      else if (fileData.includes("drive.google.com")) displayName = "Thư mục Drive đã lưu";
+                      
                       return (
-                        <div key={i} className="group relative px-3 py-1.5 bg-blue-100 rounded-lg flex items-center text-blue-600 text-sm font-medium gap-2 shadow-sm hover:pr-8 transition-all cursor-pointer" onClick={() => openSMFile(fileData)} title="Nhấn để xem file">
+                        <div key={i} className="group relative px-3 py-1.5 bg-blue-100 rounded-lg flex items-center text-blue-600 text-sm font-medium gap-2 shadow-sm hover:pr-8 transition-all">
                           <Paperclip size={14} className="shrink-0" />
-                          <span className="truncate max-w-[250px] hover:underline">{displayName}</span>
+                          <span 
+                            className="truncate max-w-[250px] cursor-pointer hover:underline" 
+                            onClick={(e) => { e.stopPropagation(); openSMFile(fileData); }} 
+                            title="Nhấn để xem file"
+                          >
+                            {displayName}
+                          </span>
                           <button 
                             type="button" 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) }));
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) })); 
                             }} 
                             className="absolute right-2 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity"
                             title="Xóa file này"
