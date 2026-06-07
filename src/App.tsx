@@ -961,8 +961,6 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
   };
 
   // Hàm xử lý file đính kèm cho Social Media
-  const [isDragging, setIsDragging] = useState(false);
-
   const processSMFiles = (files: FileList) => {
     if (!files) return;
     Array.from(files).forEach((file: File) => {
@@ -980,12 +978,6 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
     window.addEventListener('GLOBAL_FILE_DROP', handleGlobalDrop);
     return () => window.removeEventListener('GLOBAL_FILE_DROP', handleGlobalDrop);
   }, []);
-
-  // Mở file đính kèm trong tab mới
-  const openSMFile = (fileData: string) => {
-    const url = fileData.includes('|||') ? fileData.split('|||')[0] : fileData;
-    window.open(url, '_blank');
-  };
 
   return (
     <div className="space-y-6 h-full flex flex-col relative animate-in fade-in duration-500">
@@ -1278,55 +1270,44 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
            </div>
 
            {/* HÀNG 4: File đính kèm (full width) */}
-            <div className="space-y-3">
-              <label className="text-base font-semibold text-slate-600">Hình ảnh và file đính kèm</label>
-              <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors cursor-pointer relative">
-                <input 
-                  type="file" 
-                  multiple 
-                  onChange={e => e.target.files && processSMFiles(e.target.files)} 
-                  className="absolute inset-0 opacity-0 cursor-pointer z-10" 
-                />
-                <FileUp className="mx-auto text-slate-400 mb-2" size={32} />
-                <p className="text-slate-500 text-sm">Kéo thả file vào bất cứ đâu trên màn hình hoặc click vào đây</p>
-                
-                {formData.files.length > 0 && (
-                  <div className="mt-5 flex flex-wrap gap-3 justify-center" onClick={e => e.stopPropagation()}>
-                    {formData.files.map((fileData, i) => {
-                      const displayName = fileData.includes('|||')
-                        ? fileData.split('|||')[1]
-                        : fileData.includes('drive.google.com') ? 'Thư mục Drive' : `File ${i + 1}`;
-                      return (
-                        <div key={i} className="group relative px-4 py-2 bg-blue-50 border border-blue-200 rounded-xl text-sm font-medium text-blue-700 shadow-sm hover:pr-10 transition-all flex items-center gap-2">
-                          {/* Nhấn tên → mở file */}
-                          <div
-                            className="flex items-center gap-2 cursor-pointer hover:underline"
-                            onClick={() => openSMFile(fileData)}
-                            title="Nhấn để xem file"
-                          >
-                            <Paperclip size={16} className="shrink-0" />
-                            <span className="truncate max-w-[200px]">{displayName}</span>
-                          </div>
-                          
-                          {/* Nút thùng rác hiện ra khi rê chuột (group-hover) */}
-                          <button
-                            type="button"
-                            onClick={() => setFormData(prev => ({
-                              ...prev,
-                              files: prev.files.filter((_, idx) => idx !== i)
-                            }))}
-                            className="absolute right-3 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity"
-                            title="Xóa file này"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
+           <div className="space-y-2">
+             <label className="text-base font-semibold text-slate-600">Hình ảnh và file đính kèm</label>
+             <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors cursor-pointer relative">
+               <input
+                 type="file" multiple
+                 onChange={e => e.target.files && processSMFiles(e.target.files)}
+                 className="absolute inset-0 opacity-0 cursor-pointer"
+               />
+               <FileUp className="mx-auto text-slate-400 mb-2" size={32} />
+               <p className="text-slate-500 text-sm">Kéo thả file vào bất cứ đâu trên màn hình hoặc click vào đây</p>
+
+               {formData.files.length > 0 && (
+                 <div className="mt-4 flex flex-wrap gap-2 justify-center">
+                   {formData.files.map((fileData, i) => {
+                     let displayName = "File đính kèm";
+                     if (fileData.includes("|||")) displayName = fileData.split("|||")[1];
+                     else if (fileData.includes("drive.google.com")) displayName = "Thư mục Drive đã lưu";
+                     return (
+                       <div key={i} className="group relative px-3 py-1.5 bg-blue-100 rounded-lg flex items-center text-blue-600 text-sm font-medium gap-2 shadow-sm hover:pr-8 transition-all">
+                         <Paperclip size={14} className="shrink-0" />
+                         <span className="truncate max-w-[250px]">{displayName}</span>
+                         <button
+                           type="button"
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             setFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) }));
+                           }}
+                           className="absolute right-2 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity"
+                         >
+                           <Trash2 size={16} />
+                         </button>
+                       </div>
+                     );
+                   })}
+                 </div>
+               )}
+             </div>
+           </div>
          </form>
 
          {/* Footer - giống edit form */}
