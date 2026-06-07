@@ -1302,31 +1302,31 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
                  Kéo thả file vào bất cứ đâu trên màn hình hoặc click vào đây
                </p>
 
-               {/* Danh sách file — nhấn tên để xem, nút × để xóa từng file */}
+               {/* Danh sách file — mỗi file 1 hàng, hover hiện nút xóa nền đỏ bên phải */}
                {formData.files.length > 0 && (
-                 <div className="mt-5 flex flex-wrap gap-3 justify-center" onClick={e => e.stopPropagation()}>
+                 <div className="mt-5 flex flex-col gap-2 w-full text-left" onClick={e => e.stopPropagation()}>
                    {formData.files.map((fileData, i) => {
                      const displayName = fileData.includes('|||')
                        ? fileData.split('|||')[1]
                        : fileData.includes('drive.google.com') ? 'Thư mục Drive' : `File ${i + 1}`;
                      return (
-                       <div key={i} className="group relative px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-sm font-medium text-blue-700 shadow-sm hover:bg-blue-100 hover:pr-10 transition-all flex items-center gap-2">
-                        <Paperclip size={16} className="shrink-0" />
-                        <span className="truncate max-w-[260px] cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); openSMFile(fileData); }} title="Nhấn để xem file">
-                          {displayName}
-                        </span>
-                        <button 
-                          type="button" 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) }));
-                          }} 
-                          className="absolute right-3 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity"
-                          title="Xóa file này"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
+                       <div key={i} className="group relative w-full px-4 py-2.5 pr-12 bg-blue-50 border border-blue-200 rounded-xl text-sm font-medium text-blue-700 shadow-sm hover:bg-blue-100 transition-all flex items-center gap-2">
+                         <Paperclip size={16} className="shrink-0" />
+                         <span className="truncate flex-1 cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); openSMFile(fileData); }} title="Nhấn để xem file">
+                           {displayName}
+                         </span>
+                         <button
+                           type="button"
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             setFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) }));
+                           }}
+                           className="absolute right-2 opacity-0 group-hover:opacity-100 bg-red-500 hover:bg-red-600 text-white rounded-md p-1 transition-opacity"
+                           title="Xóa file này"
+                         >
+                           <Trash2 size={14} />
+                         </button>
+                       </div>
                      );
                    })}
                  </div>
