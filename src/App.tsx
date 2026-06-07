@@ -1277,120 +1277,47 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
              </div>
            </div>
 
-           {/* HÀNG 4: Media đính kèm — lưới xem trước */}
-           <div className="space-y-3">
-             <div className="flex items-center justify-between">
-               <label className="text-base font-semibold text-slate-600">Hình ảnh và video đính kèm</label>
-               {formData.files.length > 0 && (
-                 <span className="text-sm text-slate-400 font-medium">{formData.files.length} file đã chọn</span>
-               )}
-             </div>
-
-             {/* LƯỚI XEM TRƯỚC MEDIA (hiện khi đã có file) */}
-             {formData.files.length > 0 && (
-               <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                 <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-                   {formData.files.map((fileData, i) => {
-                     const url = fileData.includes('|||') ? fileData.split('|||')[0] : fileData;
-                     const name = fileData.includes('|||') ? fileData.split('|||')[1] : `File ${i + 1}`;
-                     const isImage = url.startsWith('data:image') || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(name);
-                     const isVideo = url.startsWith('data:video') || /\.(mp4|mov|avi|webm|mkv)$/i.test(name);
-                     return (
-                       <div
-                         key={i}
-                         className="relative group aspect-square rounded-xl overflow-hidden border-2 border-transparent hover:border-blue-400 transition-all shadow-sm cursor-pointer"
-                         onClick={() => openSMFile(fileData)}
-                       >
-                         {isImage ? (
-                           <img src={url} alt={name} className="w-full h-full object-cover" />
-                         ) : isVideo ? (
-                           <div className="w-full h-full bg-slate-800 flex flex-col items-center justify-center gap-1 p-1">
-                             <Video size={22} className="text-orange-400 shrink-0" />
-                             <span className="text-white/70 text-[9px] text-center line-clamp-2 break-all leading-tight">{name}</span>
-                           </div>
-                         ) : (
-                           <div className="w-full h-full bg-slate-100 flex flex-col items-center justify-center gap-1 p-1">
-                             <Paperclip size={18} className="text-slate-400 shrink-0" />
-                             <span className="text-slate-400 text-[9px] text-center line-clamp-2 break-all leading-tight">{name}</span>
-                           </div>
-                         )}
-
-                         {/* Overlay nút xóa khi hover */}
-                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                           <button
-                             type="button"
-                             onClick={(e) => { e.stopPropagation(); setFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) })); }}
-                             className="p-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 shadow-lg transition-colors"
-                             title="Xóa file này"
-                           >
-                             <Trash2 size={13} />
-                           </button>
-                         </div>
-
-                         {/* Badge loại file */}
-                         <div className="absolute top-1 left-1 pointer-events-none">
-                           {isVideo
-                             ? <span className="px-1 py-0.5 bg-orange-500 text-white text-[8px] font-bold rounded shadow-sm">VID</span>
-                             : isImage
-                             ? <span className="px-1 py-0.5 bg-emerald-500 text-white text-[8px] font-bold rounded shadow-sm">IMG</span>
-                             : <span className="px-1 py-0.5 bg-blue-500 text-white text-[8px] font-bold rounded shadow-sm">FILE</span>
-                           }
-                         </div>
-                       </div>
-                     );
-                   })}
-
-                   {/* Ô (+) thêm file mới trong lưới */}
-                   <div
-                     className="relative aspect-square rounded-xl border-2 border-dashed border-slate-200 hover:border-blue-400 transition-colors cursor-pointer flex items-center justify-center bg-white hover:bg-blue-50"
-                     onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
-                     onDragLeave={() => setIsDragging(false)}
-                     onDrop={e => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files) processSMFiles(e.dataTransfer.files); }}
-                   >
-                     <input
-                       type="file" multiple
-                       onChange={e => e.target.files && processSMFiles(e.target.files)}
-                       className="absolute inset-0 opacity-0 cursor-pointer z-10"
-                     />
-                     <Plus size={20} className="text-slate-400" />
-                   </div>
-                 </div>
-               </div>
-             )}
-
-             {/* ZONE THẢ FILE (hiện khi chưa có file nào) */}
-             {formData.files.length === 0 && (
-               <div
-                 className={cn(
-                   "border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer relative",
-                   isDragging ? "border-blue-400 bg-blue-50 scale-[1.005]" : "border-slate-200 hover:border-blue-300 hover:bg-slate-50"
-                 )}
-                 onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
-                 onDragLeave={() => setIsDragging(false)}
-                 onDrop={e => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files) processSMFiles(e.dataTransfer.files); }}
-               >
-                 <input
-                   type="file" multiple
-                   onChange={e => e.target.files && processSMFiles(e.target.files)}
-                   className="absolute inset-0 opacity-0 cursor-pointer z-10"
-                 />
-                 <div className="flex justify-center gap-4 mb-4 pointer-events-none">
-                   <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100">
-                     <ImageIcon size={28} className="text-emerald-500" />
-                   </div>
-                   <div className="p-3 bg-orange-50 rounded-2xl border border-orange-100">
-                     <Video size={28} className="text-orange-500" />
-                   </div>
-                 </div>
-                 <p className="text-slate-600 text-sm font-semibold pointer-events-none mb-1">
-                   Kéo thả hình ảnh & video vào đây
-                 </p>
-                 <p className="text-slate-400 text-xs pointer-events-none">
-                   hoặc click để chọn · JPG, PNG, MP4, MOV và các định dạng khác
-                 </p>
-               </div>
-             )}
-           </div>
+           {/* HÀNG 4: File đính kèm (full width) */}
+            <div className="space-y-2">
+              <label className="text-base font-semibold text-slate-600">Hình ảnh và file đính kèm</label>
+              <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors cursor-pointer relative">
+                <input 
+                  type="file" multiple 
+                  onChange={e => e.target.files && processSMFiles(e.target.files)} 
+                  className="absolute inset-0 opacity-0 cursor-pointer z-10" 
+                />
+                <FileUp className="mx-auto text-slate-400 mb-2" size={32} />
+                <p className="text-slate-500 text-sm">Kéo thả file vào bất cứ đâu trên màn hình hoặc click vào đây</p>
+                
+                {/* Danh sách file hiển thị giao diện giống hệt Giao Việc */}
+                {formData.files.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2 justify-center" onClick={e => e.stopPropagation()}>
+                    {formData.files.map((fileData, i) => {
+                      const displayName = fileData.includes('|||')
+                        ? fileData.split('|||')[1]
+                        : fileData.includes('drive.google.com') ? 'Thư mục Drive' : `File ${i + 1}`;
+                      return (
+                        <div key={i} className="group relative px-3 py-1.5 bg-blue-100 rounded-lg flex items-center text-blue-600 text-sm font-medium gap-2 shadow-sm hover:pr-8 transition-all cursor-pointer" onClick={() => openSMFile(fileData)} title="Nhấn để xem file">
+                          <Paperclip size={14} className="shrink-0" />
+                          <span className="truncate max-w-[250px] hover:underline">{displayName}</span>
+                          <button 
+                            type="button" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) }));
+                            }} 
+                            className="absolute right-2 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity"
+                            title="Xóa file này"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
          </form>
 
          {/* Footer - giống edit form */}
