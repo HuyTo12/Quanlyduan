@@ -1298,27 +1298,13 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
                       else if (fileData.includes("drive.google.com")) displayName = "Thư mục Drive đã lưu";
                       
                       return (
-                        <div key={i} className="group relative px-3 py-1.5 bg-blue-100 rounded-lg flex items-center text-blue-600 text-sm font-medium gap-2 shadow-sm hover:pr-10 transition-all">
-                          <Paperclip size={14} className="shrink-0" />
-                          <span 
-                            className="truncate max-w-[250px] cursor-pointer hover:underline" 
-                            onClick={(e) => { e.stopPropagation(); openSMFile(fileData); }} 
-                            title="Nhấn để xem file"
-                          >
-                            {displayName}
-                          </span>
-                          <button 
-                            type="button" 
-                            onClick={(e) => { 
-                              e.stopPropagation(); 
-                              setFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) })); 
-                            }} 
-                            className="absolute right-1.5 opacity-0 group-hover:opacity-100 bg-red-500 text-white p-1 rounded-md hover:bg-red-600 transition-all shadow-sm"
-                            title="Xóa file này"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
+                      <div key={i} className="group relative px-3 py-1.5 bg-blue-100 rounded-lg flex items-center text-blue-600 text-sm font-medium gap-2 shadow-sm hover:pr-8 transition-all">
+                        <Paperclip size={14} className="shrink-0" />
+                        <span className="truncate max-w-[250px]">{displayName}</span>
+                        <button type="button" onClick={() => setFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) }))} className="absolute right-2 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                       );
                     })}
                   </div>
