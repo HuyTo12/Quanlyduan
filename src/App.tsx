@@ -675,13 +675,13 @@ function SidebarItem({ icon, label, active, onClick, collapsed }: {
 }
 // --- COMPONENT RÚT GỌN CHỮ (TIÊU ĐỀ / NỘI DUNG / GHI CHÚ) ---
 // Ép text vào 2 dòng, không kéo giãn cột ngang, mở rộng chỉ xuống dưới
-function ExpandableCell({ text, isTitle = false, maxWidth }: { text: string, isTitle?: boolean, maxWidth?: string }) {
+function ExpandableCell({ text, isTitle = false }: { text: string, isTitle?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   if (!text) return <span className="text-slate-400 italic text-sm">Trống</span>;
   return (
     <div
       className="group cursor-pointer w-full"
-      style={{ maxWidth: maxWidth || (isTitle ? '220px' : '260px') }}
+      style={{ maxWidth: isTitle ? '160px' : '180px' }}
       onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
     >
       <div className={cn(
@@ -900,7 +900,11 @@ const [autoSchedule, setAutoSchedule] = useState({
 const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
 
 // Lọc dữ liệu (Đã loại bỏ phân trang, hiển thị toàn bộ dự án)
-const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== null), [tasks]);
+const smTasks = useMemo(() =>
+  tasks
+    .filter((t: any) => getSMData(t).smData !== null)
+    .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()),
+[tasks]);
   // --- LOGIC PHẦN 3: XỬ LÝ FORM & LỊCH ---
   const [showAddModal, setShowAddModal] = useState(false);
   const [formData, setFormData] = useState({ project: '', description: '', format: 'Hình ảnh', note: '', deadline: '', files: [] as string[] });
@@ -1009,8 +1013,8 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
                  {/* KHU VỰC TRÁI (THÔNG TIN) */}
                  {visibleCols['Tiến độ'] && <th className="p-3 font-bold text-slate-600 text-sm whitespace-nowrap w-32">Tiến độ</th>}
                  <th className="p-3 font-bold text-slate-600 text-sm w-10 text-center">STT</th>
-                 <th className="p-3 font-bold text-slate-600 text-sm min-w-[200px]">Dự án</th>
-                 {visibleCols['Nội dung'] && <th className="p-3 font-bold text-slate-600 text-sm min-w-[240px]">Nội dung</th>}
+                 <th className="p-3 font-bold text-slate-600 text-sm min-w-[150px]">Dự án</th>
+                 {visibleCols['Nội dung'] && <th className="p-3 font-bold text-slate-600 text-sm min-w-[150px]">Nội dung</th>}
                  <th className="p-3 font-bold text-slate-600 text-sm w-14 text-center">Link</th>
                  {visibleCols['Ghi chú'] && <th className="p-3 font-bold text-slate-600 text-sm min-w-[100px] w-[100px]">Ghi chú</th>}
                  <th className="p-3 font-bold text-slate-600 text-sm whitespace-nowrap w-24">Định dạng</th>
