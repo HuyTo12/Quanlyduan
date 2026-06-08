@@ -1027,8 +1027,8 @@ const smTasks = useMemo(() => {
                  {/* KHU VỰC TRÁI (THÔNG TIN) */}
                  {visibleCols['Tiến độ'] && <th className="p-3 font-bold text-slate-600 text-sm whitespace-nowrap w-32">Tiến độ</th>}
                  <th className="p-3 font-bold text-slate-600 text-sm w-10 text-center">STT</th>
-                 <th className="p-3 font-bold text-slate-600 text-sm min-w-[180px]">Dự án</th>
-              {visibleCols['Nội dung'] && <th className="p-3 font-bold text-slate-600 text-sm min-w-[240px]">Nội dung</th>}
+                 <th className="p-3 font-bold text-slate-600 text-sm min-w-[220px]">Dự án</th>
+              {visibleCols['Nội dung'] && <th className="p-3 font-bold text-slate-600 text-sm min-w-[280px]">Nội dung</th>}
                  <th className="p-3 font-bold text-slate-600 text-sm w-14 text-center">Link</th>
                  {visibleCols['Ghi chú'] && <th className="p-3 font-bold text-slate-600 text-sm min-w-[100px] w-[100px]">Ghi chú</th>}
                  <th className="p-3 font-bold text-slate-600 text-sm whitespace-nowrap w-24">Định dạng</th>
