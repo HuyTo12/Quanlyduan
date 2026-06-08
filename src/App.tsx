@@ -692,7 +692,7 @@ function ExpandableCell({ text, isTitle = false }: { text: string, isTitle?: boo
   return (
     <div
       className="group cursor-pointer w-full"
-      style={{ maxWidth: isTitle ? '160px' : '180px' }}
+      style={{ maxWidth: isTitle ? '230px' : '260px' }}
       onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
     >
       <div className={cn(
