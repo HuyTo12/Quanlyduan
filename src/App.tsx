@@ -899,7 +899,39 @@ function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast, onDoubleClic
   // Bộ nhớ lưu tháng đang chọn (mặc định là tháng hiện tại)
   const [selectedMonth, setSelectedMonth] = useState(() => format(new Date(), 'yyyy-MM'));
   
- // Trạng thái Cài đặt Cột (Đã thêm Nội dung & Ghi chú)
+ // --- BƯỚC 1: STATE VÀ HÀM XỬ LÝ KÉO THẢ (DRAG & DROP) ---
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+
+  const handleDragStart = (e: any, index: number) => {
+    setDraggedIdx(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: any) => {
+    e.preventDefault(); // Phải có dòng này trình duyệt mới cho phép thả
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: any, dropIndex: number) => {
+    e.preventDefault();
+    if (draggedIdx === null || draggedIdx === dropIndex) return;
+
+    // Lấy 2 dự án: Cái đang cầm trên tay (dragged) và Cái bị thả đè lên (target)
+    const draggedTask = smTasks[draggedIdx];
+    const targetTask = smTasks[dropIndex];
+
+    // Mẹo hoán đổi thời gian tạo (createdAt) để lưu vĩnh viễn vị trí trên Database
+    const tempTime = draggedTask.createdAt || draggedTask.startDate;
+    const newDraggedTask = { ...draggedTask, createdAt: targetTask.createdAt || targetTask.startDate };
+    const newTargetTask = { ...targetTask, createdAt: tempTime };
+
+    // Gửi lệnh lưu lên Cloud Supabase
+    onUpdate(newDraggedTask);
+    onUpdate(newTargetTask);
+    
+    setDraggedIdx(null); // Reset trạng thái kéo
+  };
+  // Trạng thái Cài đặt Cột (Đã thêm Nội dung & Ghi chú)
 const [visibleCols, setVisibleCols] = useState({
   'Tiến độ': true, 'Nội dung': true, 'Ghi chú': true, 'Facebook': true, 'Zalo': true, 'OA Zalo': true, 'Tiktok': true, 'Shopee': true
 });
@@ -1077,8 +1109,20 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                  const { note, smData } = getSMData(task);
                  const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-blue-50/40';
                  return (
-                   <tr key={task.id} onDoubleClick={() => setActionTask(task)} className={cn("border-b border-slate-100 hover:brightness-[0.97] transition-colors cursor-pointer group", rowBg)}>
-
+                     <tr 
+                       key={task.id} 
+                       draggable 
+                       onDragStart={(e) => handleDragStart(e, idx)}
+                       onDragOver={handleDragOver}
+                       onDrop={(e) => handleDrop(e, idx)}
+                       onDragEnd={() => setDraggedIdx(null)}
+                       onDoubleClick={() => setActionTask(task)} 
+                       className={cn(
+                         "border-b border-slate-100 hover:brightness-[0.97] transition-all cursor-pointer group relative", 
+                         rowBg,
+                         draggedIdx === idx ? "opacity-50 scale-[0.99] border-2 border-dashed border-blue-500 bg-blue-100 shadow-inner z-10" : ""
+                       )}
+                     >
                      {/* TIẾN ĐỘ - ĐỒNG BỘ VỚI CÔNG VIỆC HẰNG NGÀY */}
                      {visibleCols['Tiến độ'] && (
                        <td className="p-2 align-top" onDoubleClick={(e) => e.stopPropagation()}>
