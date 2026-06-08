@@ -910,8 +910,15 @@ const [autoSchedule, setAutoSchedule] = useState({
 
 const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
 
-// Lọc dữ liệu (Đã loại bỏ phân trang, hiển thị toàn bộ dự án)
-const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== null), [tasks]);
+// Lọc dữ liệu và sắp xếp theo lượt tạo từ cũ nhất đến mới nhất (trên xuống dưới)
+const smTasks = useMemo(() => {
+  const filtered = tasks.filter((t: any) => getSMData(t).smData !== null);
+  return filtered.sort((a: any, b: any) => {
+    const dateA = new Date(a.createdAt || a.startDate).getTime();
+    const dateB = new Date(b.createdAt || b.startDate).getTime();
+    return dateA - dateB; // Sắp xếp tăng dần: Cũ nhất ở trên, mới nhất ở dưới
+  });
+}, [tasks]);
   // --- LOGIC PHẦN 3: XỬ LÝ FORM & LỊCH ---
   const [showAddModal, setShowAddModal] = useState(false);
   const [formData, setFormData] = useState({ project: '', description: '', format: 'Hình ảnh', note: '', deadline: '', files: [] as string[] });
