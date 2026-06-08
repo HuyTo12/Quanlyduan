@@ -1865,7 +1865,6 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                  ) : (
                     <p className="text-sm text-slate-400 italic px-2">Bật công tắc để kích hoạt tính năng tự động cộng ngày.</p>
                  )}
-                 )}
               </div>
             </div>
 
