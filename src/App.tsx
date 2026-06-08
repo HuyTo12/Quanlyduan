@@ -969,10 +969,25 @@ function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast, onDoubleClic
     setDraggedItem(null);
   };
 
-  // Trạng thái Cài đặt Cột (Đã thêm Nội dung & Ghi chú)
-const [visibleCols, setVisibleCols] = useState({
-  'Tiến độ': true, 'Nội dung': true, 'Ghi chú': true, 'Facebook': true, 'Zalo': true, 'OA Zalo': true, 'Tiktok': true, 'Shopee': true
+  // Trạng thái Cài đặt Cột (Đã thêm Nội dung & Ghi chú) - ĐÃ CẬP NHẬT LƯU BỘ NHỚ
+const [visibleCols, setVisibleCols] = useState(() => {
+  // 1. Kiểm tra xem trước đó người dùng có lưu cài đặt không
+  const savedCols = localStorage.getItem('smVisibleCols');
+  if (savedCols) {
+    try {
+      return JSON.parse(savedCols);
+    } catch (e) {
+      // Bỏ qua lỗi nếu dữ liệu hỏng
+    }
+  }
+  // 2. Mặc định nếu mới vào lần đầu
+  return { 'Tiến độ': true, 'Nội dung': true, 'Ghi chú': true, 'Facebook': true, 'Zalo': true, 'OA Zalo': true, 'Tiktok': true, 'Shopee': true };
 });
+
+// 3. Tự động lưu lại mỗi khi bạn tích/bỏ tích bất kỳ cột nào
+useEffect(() => {
+  localStorage.setItem('smVisibleCols', JSON.stringify(visibleCols));
+}, [visibleCols]);
 
 // Trạng thái Quy tắc xếp lịch chéo
 const [autoSchedule, setAutoSchedule] = useState({
