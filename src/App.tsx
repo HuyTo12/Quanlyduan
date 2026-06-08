@@ -1463,6 +1463,7 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
             </div>
           );
         })()}
+        </div>
 
       {/* MODAL GIAO DỰ ÁN SOCIAL MEDIA MỚI */}
    {showAddModal && (
