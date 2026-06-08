@@ -675,13 +675,13 @@ function SidebarItem({ icon, label, active, onClick, collapsed }: {
 }
 // --- COMPONENT RÚT GỌN CHỮ (TIÊU ĐỀ / NỘI DUNG / GHI CHÚ) ---
 // Ép text vào 2 dòng, không kéo giãn cột ngang, mở rộng chỉ xuống dưới
-function ExpandableCell({ text, isTitle = false, maxWidth }: { text: string, isTitle?: boolean, maxWidth?: string }) {
+function ExpandableCell({ text, isTitle = false }: { text: string, isTitle?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   if (!text) return <span className="text-slate-400 italic text-sm">Trống</span>;
   return (
     <div
       className="group cursor-pointer w-full"
-      style={{ maxWidth: maxWidth || (isTitle ? '220px' : '260px') }}
+      style={{ maxWidth: isTitle ? '260px' : '320px' }}
       onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
     >
       <div className={cn(
@@ -1009,8 +1009,8 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
                  {/* KHU VỰC TRÁI (THÔNG TIN) */}
                  {visibleCols['Tiến độ'] && <th className="p-3 font-bold text-slate-600 text-sm whitespace-nowrap w-32">Tiến độ</th>}
                  <th className="p-3 font-bold text-slate-600 text-sm w-10 text-center">STT</th>
-                 <th className="p-3 font-bold text-slate-600 text-sm min-w-[200px]">Dự án</th>
-                 {visibleCols['Nội dung'] && <th className="p-3 font-bold text-slate-600 text-sm min-w-[240px]">Nội dung</th>}
+                 <th className="p-3 font-bold text-slate-600 text-sm min-w-[260px] border-r border-slate-200">Dự án</th>
+                 {visibleCols['Nội dung'] && <th className="p-3 font-bold text-slate-600 text-sm min-w-[320px]">Nội dung</th>}
                  <th className="p-3 font-bold text-slate-600 text-sm w-14 text-center">Link</th>
                  {visibleCols['Ghi chú'] && <th className="p-3 font-bold text-slate-600 text-sm min-w-[100px] w-[100px]">Ghi chú</th>}
                  <th className="p-3 font-bold text-slate-600 text-sm whitespace-nowrap w-24">Định dạng</th>
@@ -1049,7 +1049,7 @@ const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== n
                      )}
                      <td className="p-2 text-center font-bold text-slate-400 align-top">{idx + 1}</td>
 
-                     <td className="p-2 align-top"><ExpandableCell text={task.project} isTitle={true} /></td>
+                     <td className="p-2 align-top border-r border-slate-200"><ExpandableCell text={task.project} isTitle={true} /></td>
                      {visibleCols['Nội dung'] && <td className="p-2 align-top"><ExpandableCell text={task.description} /></td>}
 
                      {/* CỘT LINK ĐÍNH KÈM - nhấn để mở từng file */}
