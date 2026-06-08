@@ -313,7 +313,7 @@ export default function App() {
   // --- HÀM THÊM / SỬA CÓ TÍNH % TẢI FILE ---
   const addTask = async (newTask: Omit<Task, 'id' | 'startDate' | 'workingDays' | 'dailyKpiPoints' | 'createdAt' | 'status'>) => {
     let driveLinks: string[] = [];
-    const filesToUpload = newTask.files?.filter(f => f.startsWith('data:')) || [];
+    const filesToUpload = newTask.files?.filter((f: any) => f.startsWith('data:')) || [];
     
     if (filesToUpload.length > 0) {
       setUploadProgress({ current: 0, total: filesToUpload.length, percentage: 0 });
@@ -339,7 +339,7 @@ export default function App() {
       ...newTask,
       id: crypto.randomUUID(),
       startDate: startDate.toISOString(),
-      workingDays: workingDays.map(d => d.toISOString()),
+      workingDays: workingDays.map((d: any) => d.toISOString()),
       dailyKpiPoints: kpiPoints / workingDays.length,
       createdAt: new Date().toISOString(),
       status: 'NEW', // ĐÃ SỬA: Mặc định mọi dự án mới giao đều là "Dự án mới" (NEW)
@@ -357,14 +357,14 @@ export default function App() {
     let driveLinks: string[] = [];
     let existingFolderId = "";
 
-    const oldLink = updatedTask.files.find(f => f.includes('drive.google.com'));
+    const oldLink = updatedTask.files.find((f: any) => f.includes('drive.google.com'));
     if (oldLink) {
       driveLinks.push(oldLink);
       const match = oldLink.match(/folders\/([a-zA-Z0-9_-]+)/);
       if (match) existingFolderId = match[1];
     }
 
-    const filesToUpload = updatedTask.files?.filter(f => f.startsWith('data:')) || [];
+    const filesToUpload = updatedTask.files?.filter((f: any) => f.startsWith('data:')) || [];
     
     if (filesToUpload.length > 0) {
       setUploadProgress({ current: 0, total: filesToUpload.length, percentage: 0 });
@@ -955,21 +955,6 @@ function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast, onDoubleClic
     setDraggedItem(null);
   };
 
-    // Lấy 2 dự án: Cái đang cầm trên tay (dragged) và Cái bị thả đè lên (target)
-    const draggedTask = smTasks[draggedIdx];
-    const targetTask = smTasks[dropIndex];
-
-    // Mẹo hoán đổi thời gian tạo (createdAt) để lưu vĩnh viễn vị trí trên Database
-    const tempTime = draggedTask.createdAt || draggedTask.startDate;
-    const newDraggedTask = { ...draggedTask, createdAt: targetTask.createdAt || targetTask.startDate };
-    const newTargetTask = { ...targetTask, createdAt: tempTime };
-
-    // Gửi lệnh lưu lên Cloud Supabase
-    onUpdate(newDraggedTask);
-    onUpdate(newTargetTask);
-    
-    setDraggedIdx(null); // Reset trạng thái kéo
-  };
   // Trạng thái Cài đặt Cột (Đã thêm Nội dung & Ghi chú)
 const [visibleCols, setVisibleCols] = useState({
   'Tiến độ': true, 'Nội dung': true, 'Ghi chú': true, 'Facebook': true, 'Zalo': true, 'OA Zalo': true, 'Tiktok': true, 'Shopee': true
@@ -1062,7 +1047,7 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
       project: formData.project, description: formData.description, note: encodeSMData(formData.note, smData),
       files: formData.files, kpiLevel: formData.format === 'Video' ? 3 : 2, deadline: format(new Date(), 'yyyy-MM-dd')
     });
-    setFormData({ project: '', description: '', format: 'Hình ảnh', note: '', files: [] });
+    setFormData({ project: '', description: '', format: 'Hình ảnh', note: '', deadline: '', files: [] });
     setShowAddModal(false);
     showToast('Đã tạo dự án Social Media', 'success');
   };
@@ -1517,7 +1502,7 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
          const currentData = smData || { format: 'Hình ảnh', schedules: [] };
          let idx = currentData.schedules.findIndex((s: any) => s.platform === schedulePicker.platform);
          if (idx === -1) {
-           currentData.schedules.push({ platform: schedulePicker.platform, date: '', time: '' });
+           currentData.schedules.push({ platform: schedulePicker.platform as SMPlatform, date: '', time: '' });
            idx = currentData.schedules.length - 1;
          }
          currentData.schedules[idx].date = date;
@@ -1603,7 +1588,7 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
       )}
     </div>
   );
-)}
+}
 // --- Section: Giao Việc ---
 function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTask }: { 
   tasks: Task[], 
@@ -1745,7 +1730,7 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
           <div className="space-y-2">
             <label className="text-base font-semibold text-slate-600">Đánh giá KPI</label>
             <select value={formData.kpiLevel} onChange={e => setFormData(prev => ({ ...prev, kpiLevel: parseInt(e.target.value) }))} className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-base">
-              {Object.entries(KPI_CONFIG).map(([level, config]) => (
+              {(Object.entries(KPI_CONFIG) as [string, {label:string; displayHours:string; points:number; color:string}][]).map(([level, config]) => (
                 <option key={level} value={level}>{config.label} ({config.displayHours} - {config.points}đ)</option>
               ))}
             </select>
@@ -1931,7 +1916,7 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
     
     // Add future days that have tasks
     tasks.forEach(task => {
-      task.workingDays.forEach(day => {
+      task.workingDays.forEach((day: any) => {
         const date = startOfDay(parseISO(day)).getTime();
         if (date > today.getTime()) {
           dates.add(date);
@@ -1961,7 +1946,7 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
     return tasks
       .filter(task => {
         // 1. Công việc có lịch làm việc đúng vào ngày đang chọn trên lịch
-        const isScheduledForSelectedDate = task.workingDays.some(day => isSameDay(parseISO(day), selectedDate));
+        const isScheduledForSelectedDate = task.workingDays.some((day: any) => isSameDay(parseISO(day), selectedDate));
         
         // 2. Dồn việc CHƯA XONG về ngày "Hôm nay" (trừ Thứ 7, CN)
         const isToday = isSameDay(selectedDate, today);
@@ -2582,7 +2567,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                         const item = timelineData[i];
                         
                         // 1. Kiểm tra ngày hiển thị gốc trên lịch
-                        const isTaskInOriginalItem = task.workingDays.some(day => {
+                        const isTaskInOriginalItem = task.workingDays.some((day: any) => {
                           const d = parseISO(day);
                           return d >= item.start && d <= item.end;
                         });
@@ -2616,7 +2601,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                             // Tính độ dài tự nhiên đối với các công việc trong hạn bình thường
                             for (let j = i + 1; j < timelineData.length; j++) {
                               const nextItem = timelineData[j];
-                              const isTaskInNextItem = task.workingDays.some(day => {
+                              const isTaskInNextItem = task.workingDays.some((day: any) => {
                                 const d = parseISO(day);
                                 return d >= nextItem.start && d <= nextItem.end;
                               });
@@ -2743,7 +2728,7 @@ function DanhGiaCongViec({ tasks }: { tasks: Task[] }) {
 
       let totalKpi = 0;
       tasks.forEach(task => {
-        if (task.workingDays.some(d => isSameDay(parseISO(d), day))) {
+        if (task.workingDays.some((d: any) => isSameDay(parseISO(d), day))) {
           totalKpi += task.dailyKpiPoints;
         }
       });
@@ -2829,7 +2814,7 @@ function DanhGiaCongViec({ tasks }: { tasks: Task[] }) {
                 axisLine={false} 
                 tickLine={false} 
                 tick={{ fill: '#64748b', fontSize: 10 }}
-                tickFormatter={(val) => val.startsWith('gap-') ? '' : val}
+                tickFormatter={(val: any) => val.startsWith('gap-') ? '' : val}
               />
               <YAxis 
                 axisLine={false} 
@@ -2839,7 +2824,7 @@ function DanhGiaCongViec({ tasks }: { tasks: Task[] }) {
               <Tooltip 
                 cursor={{ fill: '#f1f5f9' }}
                 contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                labelFormatter={(label) => label.startsWith('gap-') ? '' : `Ngày ${label}`}
+                labelFormatter={(label: any) => label.startsWith('gap-') ? '' : `Ngày ${label}`}
                 formatter={(value: any) => value === null ? [] : [value.toFixed(2), 'KPI']}
               />
               <Bar dataKey="kpi" radius={[4, 4, 0, 0]} label={{ position: 'top', fill: '#1e3a8a', fontSize: 9, fontWeight: 'bold', formatter: (val: any) => val === null ? '' : val.toFixed(2) }}>
@@ -2908,7 +2893,7 @@ function GlobalEditModal({ task, onClose, onUpdate, onDelete, showToast }: {
       ...task,
       ...editFormData,
       startDate: startDate.toISOString(),
-      workingDays: workingDays.map(d => d.toISOString()),
+      workingDays: workingDays.map((d: any) => d.toISOString()),
       dailyKpiPoints: kpiPoints / workingDays.length,
     };
     onUpdate(updatedTask);
@@ -2963,7 +2948,7 @@ function GlobalEditModal({ task, onClose, onUpdate, onDelete, showToast }: {
               <div className="md:col-span-1 space-y-2">
                 <label className="text-base font-semibold text-slate-600">Đánh giá KPI</label>
                 <select value={editFormData.kpiLevel} onChange={e => setEditFormData(prev => ({ ...prev, kpiLevel: parseInt(e.target.value) }))} className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none">
-                  {Object.entries(KPI_CONFIG).map(([level, config]) => (
+                  {(Object.entries(KPI_CONFIG) as [string, {label:string; displayHours:string; points:number; color:string}][]).map(([level, config]) => (
                     <option key={level} value={level}>{config.label}</option>
                   ))}
                 </select>
@@ -2991,14 +2976,14 @@ function GlobalEditModal({ task, onClose, onUpdate, onDelete, showToast }: {
                   <p className="text-slate-500 text-sm">Click để tải thêm file</p>
                   {editFormData.files.length > 0 && (
                     <div className="mt-4 flex flex-wrap gap-2 justify-center">
-                      {editFormData.files.map((fileData, i) => {
+                      {editFormData.files.map((fileData: any, i: any) => {
                         let displayName = "File đính kèm";
                         if (fileData.includes("|||")) displayName = fileData.split("|||")[1];
                         else if (fileData.includes("drive.google.com")) displayName = "Thư mục Drive đã lưu";
                         return (
                           <div key={i} className="group relative px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-lg flex items-center text-blue-600 text-sm gap-2 hover:pr-8 transition-all">
                             <span className="truncate max-w-[300px]">{displayName}</span>
-                            <button type="button" onClick={() => setEditFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) }))} className="absolute right-2 opacity-0 group-hover:opacity-100 text-red-500">
+                            <button type="button" onClick={() => setEditFormData(prev => ({ ...prev, files: prev.files.filter((_: any, idx: any) => idx !== i) }))} className="absolute right-2 opacity-0 group-hover:opacity-100 text-red-500">
                               <Trash2 size={16} />
                             </button>
                           </div>
@@ -3054,7 +3039,7 @@ function GlobalViewModal({ task, onClose, onDelete }: {
   };
 
   const currentStatus = task.status || 'NEW';
-  const statusInfo = STATUS_CONFIG[currentStatus] || STATUS_CONFIG['NEW'];
+  const statusInfo = STATUS_CONFIG[currentStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG['NEW'];
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
