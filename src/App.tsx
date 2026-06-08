@@ -901,6 +901,18 @@ function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast, onDoubleClic
   // Bộ nhớ lưu tháng đang chọn (mặc định là tháng hiện tại)
   const [selectedMonth, setSelectedMonth] = useState(() => format(new Date(), 'yyyy-MM'));
   
+  // --- BỘ NHỚ VÀ ĐỒNG BỘ CHO CHẾ ĐỘ XEM LỊCH (THÁNG / TUẦN) ---
+  const [smCalViewMode, setSmCalViewMode] = useState<'month' | 'week'>('month');
+  const [smCalCenterDate, setSmCalCenterDate] = useState(() => new Date());
+
+  useEffect(() => {
+    if (smCalViewMode === 'week') setSelectedMonth(format(smCalCenterDate, 'yyyy-MM'));
+  }, [smCalCenterDate, smCalViewMode]);
+
+  useEffect(() => {
+    if (selectedMonth && smCalViewMode === 'month') setSmCalCenterDate(parseISO(`${selectedMonth}-01`));
+  }, [selectedMonth, smCalViewMode]);
+  
  // --- BƯỚC 1.5: THUẬT TOÁN KÉO THẢ ĐỘC LẬP 2 KHU VỰC ---
   const dragTypeRef = useRef<'AREA1' | 'AREA2' | 'BOTH'>('BOTH');
   const [draggedItem, setDraggedItem] = useState<{idx: number, type: string} | null>(null);
@@ -1287,179 +1299,199 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
 
           {/* TAB 2: KẾ HOẠCH DỰ ÁN (VẼ LỊCH VÀ SIDEBAR) */}
         {activeTab === 'calendar' && (() => {
-          // Thuật toán tính toán số ngày cần vẽ trên lưới lịch
-          const calMonthDate = selectedMonth ? parseISO(`${selectedMonth}-01`) : new Date();
-          const calStart = startOfWeek(startOfMonth(calMonthDate), { weekStartsOn: 1 });
-          const calEnd = endOfWeek(endOfMonth(calMonthDate), { weekStartsOn: 1 });
-          const calendarDays = eachDayOfInterval({ start: calStart, end: calEnd });
+          // Thuật toán tính toán số ngày cần vẽ trên lưới lịch (Tuần hoặc Tháng)
+          let calendarDays: Date[] = [];
+          let currentTitle = "";
+
+          if (smCalViewMode === 'week') {
+             const startW = startOfWeek(smCalCenterDate, { weekStartsOn: 1 });
+             const endW = endOfWeek(smCalCenterDate, { weekStartsOn: 1 });
+             calendarDays = eachDayOfInterval({ start: startW, end: endW });
+             currentTitle = `Tuần ${getWeek(smCalCenterDate)} (${format(startW, 'dd/MM')} - ${format(endW, 'dd/MM')})`;
+          } else {
+             const calMonthDate = selectedMonth ? parseISO(`${selectedMonth}-01`) : new Date();
+             const calStart = startOfWeek(startOfMonth(calMonthDate), { weekStartsOn: 1 });
+             const calEnd = endOfWeek(endOfMonth(calMonthDate), { weekStartsOn: 1 });
+             calendarDays = eachDayOfInterval({ start: calStart, end: calEnd });
+             currentTitle = `Tháng ${format(calMonthDate, 'MM/yyyy')}`;
+          }
 
           return (
-            <div className="flex-1 flex overflow-hidden bg-slate-50 rounded-b-2xl">
+            <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 rounded-b-2xl">
               
-              {/* KHUNG TRÁI: LƯỚI LỊCH (Chiếm 2/3 hoặc Full) */}
-              <div className={cn("flex flex-col border-r border-slate-200 transition-all duration-300", selectedCalTask ? "w-2/3" : "w-full")}>
-                {/* Thanh ngày trong tuần (Thứ 2 -> CN) */}
-                <div className="grid grid-cols-7 bg-white border-b border-slate-200 shrink-0 shadow-sm z-10">
-                  {['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'].map(d => (
-                    <div key={d} className="py-3 text-center font-bold text-slate-600 text-sm border-r border-slate-100 last:border-0">{d}</div>
-                  ))}
+              {/* THANH CÔNG CỤ LỊCH (Chuyển Tuần/Tháng) */}
+              <div className="flex items-center justify-between p-4 bg-white border-b border-slate-200 shrink-0 z-10">
+                <div className="flex bg-blue-50 p-1 rounded-xl border border-blue-100">
+                  <button onClick={() => setSmCalViewMode('week')} className={cn("px-5 py-2 rounded-lg text-sm font-bold transition-all", smCalViewMode === 'week' ? "bg-white text-blue-700 shadow-sm border border-slate-200" : "text-slate-500 hover:text-blue-600")}>Theo Tuần</button>
+                  <button onClick={() => setSmCalViewMode('month')} className={cn("px-5 py-2 rounded-lg text-sm font-bold transition-all", smCalViewMode === 'month' ? "bg-white text-blue-700 shadow-sm border border-slate-200" : "text-slate-500 hover:text-blue-600")}>Theo Tháng</button>
                 </div>
                 
-                {/* Khu vực chứa các ô vuông ngày */}
-                <div className="flex-1 overflow-y-auto bg-slate-100 p-px">
-                  <div className="grid grid-cols-7 gap-px bg-slate-200 h-full auto-rows-fr">
-                    {calendarDays.map(day => {
-                      const dateStr = format(day, 'yyyy-MM-dd');
-                      const isCurrentMonth = isSameMonth(day, calMonthDate);
-                      const isToday = isSameDay(day, new Date());
-                      
-                      // Dò tìm tất cả lịch đăng rơi trúng vào ngày này
-                      const daySchedules: any[] = [];
-                      smTasks.forEach(task => {
-                        const { smData } = getSMData(task);
-                        if (!smData) return;
-                        smData.schedules.forEach((schedule: any) => {
-                          if (schedule.date === dateStr) {
-                            daySchedules.push({ task, platform: schedule.platform, time: schedule.time });
-                          }
-                        });
-                      });
-                      
-                      // Sắp xếp các thẻ trong cùng 1 ngày theo giờ (Từ sáng đến tối)
-                      daySchedules.sort((a, b) => a.time.localeCompare(b.time));
-
-                      return (
-                        <div key={dateStr} className={cn("bg-white min-h-[140px] p-2 flex flex-col gap-1.5 transition-colors hover:bg-blue-50/30", !isCurrentMonth && "bg-slate-50 opacity-60")}>
-                          {/* Con số Ngày */}
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-[10px] font-semibold text-slate-400">{format(day, 'dd/MM')}</span>
-                            <span className={cn("text-sm font-bold w-7 h-7 flex items-center justify-center rounded-full", isToday ? "bg-blue-600 text-white shadow-md" : "text-slate-600")}>
-                              {format(day, 'd')}
-                            </span>
-                          </div>
-                          
-                          {/* Render các thẻ Dự án */}
-                          <div className="flex-1 flex flex-col gap-1.5 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-slate-200">
-                            {daySchedules.map((sc, i) => {
-                              // Tự động lấy màu chuẩn của từng nền tảng
-                              const pColor = PLATFORM_COLORS[sc.platform] || { bg: '#94a3b8', light: '#f1f5f9' };
-                              const isSelected = selectedCalTask?.task.id === sc.task.id && selectedCalTask?.platform === sc.platform;
-                              
-                              return (
-                                <div 
-                                  key={i} 
-                                  onClick={() => setSelectedCalTask(sc)}
-                                  onDoubleClick={() => setActionTask(sc.task)}
-                                  className={cn(
-                                    "p-1.5 rounded-lg text-white cursor-pointer transition-all flex flex-col gap-0.5 shadow-sm hover:-translate-y-px", 
-                                    isSelected ? "ring-2 ring-offset-2 ring-blue-500 scale-[1.02]" : "hover:shadow-md"
-                                  )} 
-                                  style={{ backgroundColor: pColor.bg }}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] font-bold">{sc.time || '--:--'}</span>
-                                    <span className="text-[9px] font-bold uppercase tracking-wider opacity-90">{sc.platform}</span>
-                                  </div>
-                                  <span className="truncate w-full text-xs font-semibold">{sc.task.project}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                <div className="flex items-center gap-4">
+                  {smCalViewMode === 'week' && (
+                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-inner">
+                      <button onClick={() => setSmCalCenterDate(prev => subDays(prev, 7))} className="p-2 rounded-lg bg-white hover:bg-blue-50 text-slate-600 hover:text-blue-600 transition-colors shadow-sm"><ChevronLeft size={18}/></button>
+                      <span className="font-bold text-blue-800 min-w-[170px] text-center text-sm">{currentTitle}</span>
+                      <button onClick={() => setSmCalCenterDate(prev => addDays(prev, 7))} className="p-2 rounded-lg bg-white hover:bg-blue-50 text-slate-600 hover:text-blue-600 transition-colors shadow-sm"><ChevronRight size={18}/></button>
+                    </div>
+                  )}
+                  {smCalViewMode === 'month' && (
+                    <span className="font-bold text-slate-500 text-sm">{currentTitle} (Thay đổi ở thanh trên)</span>
+                  )}
                 </div>
               </div>
 
-              {/* KHUNG PHẢI: SIDEBAR CHI TIẾT (Chiếm 1/3, chỉ hiện khi click vào thẻ) */}
-              {selectedCalTask && (
-                <div className="w-1/3 bg-white flex flex-col shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)] z-10 animate-in slide-in-from-right-8 duration-300">
-                  <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                    <h3 className="font-bold text-blue-900 flex items-center gap-2">
-                      <FileText size={18}/> Chi tiết lịch đăng
-                    </h3>
-                    <button onClick={() => setSelectedCalTask(null)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                      <X size={20} />
-                    </button>
+              <div className="flex-1 flex overflow-hidden">
+                {/* KHUNG TRÁI: LƯỚI LỊCH */}
+                <div className={cn("flex flex-col border-r border-slate-200 transition-all duration-300", selectedCalTask ? "w-2/3" : "w-full")}>
+                  <div className="grid grid-cols-7 bg-white border-b border-slate-200 shrink-0 shadow-sm z-10">
+                    {['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'].map(d => (
+                      <div key={d} className="py-3 text-center font-bold text-slate-600 text-sm border-r border-slate-100 last:border-0">{d}</div>
+                    ))}
                   </div>
                   
-                  <div className="p-6 flex-1 overflow-y-auto space-y-6">
-                    {/* Header Sidebar: Nền tảng & Giờ */}
-                    <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-md font-bold text-2xl" style={{ backgroundColor: PLATFORM_COLORS[selectedCalTask.platform]?.bg || '#94a3b8' }}>
-                        {selectedCalTask.platform.charAt(0)}
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">{selectedCalTask.platform}</p>
-                        <p className="text-2xl font-black text-slate-800">{selectedCalTask.time || 'Chưa hẹn giờ'}</p>
-                      </div>
+                  <div className="flex-1 overflow-y-auto bg-slate-100 p-px">
+                    <div className={cn("grid grid-cols-7 gap-px bg-slate-200", smCalViewMode === 'week' ? "h-full grid-rows-1" : "h-full auto-rows-fr")}>
+                      {calendarDays.map(day => {
+                        const dateStr = format(day, 'yyyy-MM-dd');
+                        const isCurrentMonth = smCalViewMode === 'week' ? true : isSameMonth(day, selectedMonth ? parseISO(`${selectedMonth}-01`) : new Date());
+                        const isToday = isSameDay(day, new Date());
+                        
+                        const daySchedules: any[] = [];
+                        smTasks.forEach(task => {
+                          const { smData } = getSMData(task);
+                          if (!smData) return;
+                          smData.schedules.forEach((schedule: any) => {
+                            if (schedule.date === dateStr) {
+                              daySchedules.push({ task, platform: schedule.platform, time: schedule.time });
+                            }
+                          });
+                        });
+                        
+                        daySchedules.sort((a, b) => a.time.localeCompare(b.time));
+
+                        return (
+                          <div key={dateStr} className={cn("bg-white p-2 flex flex-col gap-1.5 transition-colors hover:bg-blue-50/30", !isCurrentMonth && "bg-slate-50 opacity-60", smCalViewMode === 'week' ? "min-h-[400px]" : "min-h-[140px]")}>
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-[10px] font-semibold text-slate-400">{format(day, 'dd/MM')}</span>
+                              <span className={cn("text-sm font-bold w-7 h-7 flex items-center justify-center rounded-full", isToday ? "bg-blue-600 text-white shadow-md" : "text-slate-600")}>
+                                {format(day, 'd')}
+                              </span>
+                            </div>
+                            
+                            <div className="flex-1 flex flex-col gap-1.5 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-slate-200">
+                              {daySchedules.map((sc, i) => {
+                                const pColor = PLATFORM_COLORS[sc.platform] || { bg: '#94a3b8', light: '#f1f5f9' };
+                                const isSelected = selectedCalTask?.task.id === sc.task.id && selectedCalTask?.platform === sc.platform;
+                                
+                                return (
+                                  <div 
+                                    key={i} 
+                                    onClick={() => setSelectedCalTask(sc)}
+                                    onDoubleClick={() => setActionTask(sc.task)}
+                                    className={cn(
+                                      "p-1.5 rounded-lg text-white cursor-pointer transition-all flex flex-col gap-0.5 shadow-sm hover:-translate-y-px", 
+                                      isSelected ? "ring-2 ring-offset-2 ring-blue-500 scale-[1.02]" : "hover:shadow-md"
+                                    )} 
+                                    style={{ backgroundColor: pColor.bg }}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] font-bold">{sc.time || '--:--'}</span>
+                                      <span className="text-[9px] font-bold uppercase tracking-wider opacity-90">{sc.platform}</span>
+                                    </div>
+                                    <span className="truncate w-full text-xs font-semibold">{sc.task.project}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-
-                    {/* Tên dự án */}
-                    <div>
-                      <label className="text-xs font-bold text-slate-400 uppercase">Tên Dự Án</label>
-                      <p className="text-lg font-bold text-blue-900 mt-1 leading-snug">{selectedCalTask.task.project}</p>
-                    </div>
-
-                    {/* Tiến độ & Định dạng */}
-                    <div className="flex gap-2">
-                      <span className={cn("px-3 py-1.5 rounded-lg text-xs font-bold border", getStatusColor(selectedCalTask.task.status || 'NEW'))}>
-                        {selectedCalTask.task.status === 'COMPLETED' ? 'Hoàn thành' : selectedCalTask.task.status === 'REVIEW' ? 'Chờ duyệt' : selectedCalTask.task.status === 'IN_PROGRESS' ? 'Đang làm' : selectedCalTask.task.status === 'INFO' ? 'Tìm thông tin' : 'Dự án mới'}
-                      </span>
-                      <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                        {getSMData(selectedCalTask.task).smData?.format || 'Hình ảnh'}
-                      </span>
-                    </div>
-
-                    <div className="w-full h-px bg-slate-100 my-4"></div>
-
-                    {/* Nội dung chi tiết */}
-                    <div>
-                      <label className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1.5 mb-2"><MessageSquare size={14}/> Nội dung bài viết</label>
-                      <div className="bg-slate-50 p-4 rounded-xl text-sm text-slate-700 whitespace-pre-wrap min-h-[100px]">
-                        {selectedCalTask.task.description || <span className="italic text-slate-400">Không có nội dung mô tả.</span>}
-                      </div>
-                    </div>
-
-                    {/* Danh sách File */}
-                    <div>
-                      <label className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1.5 mb-2"><Paperclip size={14}/> File / Hình ảnh</label>
-                      {selectedCalTask.task.files?.length > 0 ? (
-                         <div className="flex flex-col gap-2">
-                           {selectedCalTask.task.files.map((fileData: string, fi: number) => {
-                             const url = fileData.includes('|||') ? fileData.split('|||')[0] : fileData;
-                             const name = fileData.includes('|||') ? fileData.split('|||')[1] : `File đính kèm ${fi + 1}`;
-                             return (
-                               <a key={fi} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-3 bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition-colors text-sm font-medium border border-blue-100 shadow-sm">
-                                 <Paperclip size={16} className="shrink-0" /> <span className="truncate">{name}</span>
-                               </a>
-                             );
-                           })}
-                         </div>
-                      ) : <p className="text-sm text-slate-400 italic">Không có file đính kèm</p>}
-                    </div>
-
-                    {/* Ghi chú */}
-                    {getSMData(selectedCalTask.task).note && (
-                      <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Ghi chú nền tảng</label>
-                        <p className="text-sm text-slate-600 italic bg-yellow-50 p-3 rounded-lg border border-yellow-100">{getSMData(selectedCalTask.task).note}</p>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Nút gọi Modal Chỉnh sửa toàn hệ thống */}
-                  <div className="p-5 bg-slate-50 border-t border-slate-100 mt-auto shrink-0">
-                    <button 
-                      onClick={() => { window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: selectedCalTask.task })); }}
-                      className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-md shadow-blue-200 flex items-center justify-center gap-2 active:scale-[0.98]"
-                    >
-                      <Edit size={18} /> Chỉnh sửa Toàn bộ Dự án
-                    </button>
                   </div>
                 </div>
-              )}
+
+                {/* KHUNG PHẢI: SIDEBAR CHI TIẾT */}
+                {selectedCalTask && (
+                  <div className="w-1/3 bg-white flex flex-col shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)] z-10 animate-in slide-in-from-right-8 duration-300">
+                    <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                      <h3 className="font-bold text-blue-900 flex items-center gap-2">
+                        <FileText size={18}/> Chi tiết lịch đăng
+                      </h3>
+                      <button onClick={() => setSelectedCalTask(null)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                        <X size={20} />
+                      </button>
+                    </div>
+                    
+                    <div className="p-6 flex-1 overflow-y-auto space-y-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-md font-bold text-2xl" style={{ backgroundColor: PLATFORM_COLORS[selectedCalTask.platform]?.bg || '#94a3b8' }}>
+                          {selectedCalTask.platform.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">{selectedCalTask.platform}</p>
+                          <p className="text-2xl font-black text-slate-800">{selectedCalTask.time || 'Chưa hẹn giờ'}</p>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-bold text-slate-400 uppercase">Tên Dự Án</label>
+                        <p className="text-lg font-bold text-blue-900 mt-1 leading-snug">{selectedCalTask.task.project}</p>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <span className={cn("px-3 py-1.5 rounded-lg text-xs font-bold border", getStatusColor(selectedCalTask.task.status || 'NEW'))}>
+                          {selectedCalTask.task.status === 'COMPLETED' ? 'Hoàn thành' : selectedCalTask.task.status === 'REVIEW' ? 'Chờ duyệt' : selectedCalTask.task.status === 'IN_PROGRESS' ? 'Đang làm' : selectedCalTask.task.status === 'INFO' ? 'Tìm thông tin' : 'Dự án mới'}
+                        </span>
+                        <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                          {getSMData(selectedCalTask.task).smData?.format || 'Hình ảnh'}
+                        </span>
+                      </div>
+
+                      <div className="w-full h-px bg-slate-100 my-4"></div>
+
+                      <div>
+                        <label className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1.5 mb-2"><MessageSquare size={14}/> Nội dung bài viết</label>
+                        <div className="bg-slate-50 p-4 rounded-xl text-sm text-slate-700 whitespace-pre-wrap min-h-[100px]">
+                          {selectedCalTask.task.description || <span className="italic text-slate-400">Không có nội dung mô tả.</span>}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1.5 mb-2"><Paperclip size={14}/> File / Hình ảnh</label>
+                        {selectedCalTask.task.files?.length > 0 ? (
+                           <div className="flex flex-col gap-2">
+                             {selectedCalTask.task.files.map((fileData: string, fi: number) => {
+                               const url = fileData.includes('|||') ? fileData.split('|||')[0] : fileData;
+                               const name = fileData.includes('|||') ? fileData.split('|||')[1] : `File đính kèm ${fi + 1}`;
+                               return (
+                                 <a key={fi} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-3 bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition-colors text-sm font-medium border border-blue-100 shadow-sm">
+                                   <Paperclip size={16} className="shrink-0" /> <span className="truncate">{name}</span>
+                                 </a>
+                               );
+                             })}
+                           </div>
+                        ) : <p className="text-sm text-slate-400 italic">Không có file đính kèm</p>}
+                      </div>
+
+                      {getSMData(selectedCalTask.task).note && (
+                        <div>
+                          <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Ghi chú nền tảng</label>
+                          <p className="text-sm text-slate-600 italic bg-yellow-50 p-3 rounded-lg border border-yellow-100">{getSMData(selectedCalTask.task).note}</p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="p-5 bg-slate-50 border-t border-slate-100 mt-auto shrink-0">
+                      <button 
+                        onClick={() => { window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: selectedCalTask.task })); }}
+                        className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-md shadow-blue-200 flex items-center justify-center gap-2 active:scale-[0.98]"
+                      >
+                        <Edit size={18} /> Chỉnh sửa Toàn bộ Dự án
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           );
         })()}
