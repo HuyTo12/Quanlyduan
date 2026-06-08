@@ -692,7 +692,7 @@ function ExpandableCell({ text, isTitle = false }: { text: string, isTitle?: boo
   return (
     <div
       className="group cursor-pointer w-full"
-      style={{ width: '100%' }} // Đã gỡ bỏ giới hạn PX cứng để chữ tự động giãn ra theo % của bảng
+      style={{ maxWidth: isTitle ? '230px' : '260px' }}
       onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
     >
       <div className={cn(
@@ -1027,8 +1027,8 @@ const smTasks = useMemo(() => {
                  {/* KHU VỰC TRÁI (THÔNG TIN) */}
                  {visibleCols['Tiến độ'] && <th className="p-3 font-bold text-slate-600 text-sm whitespace-nowrap w-32">Tiến độ</th>}
                  <th className="p-3 font-bold text-slate-600 text-sm w-10 text-center">STT</th>
-                 <th className="p-3 font-bold text-slate-600 text-sm min-w-[210px] w-[25%]">Dự án</th>
-                 {visibleCols['Nội dung'] && <th className="p-3 font-bold text-slate-600 text-sm min-w-[210px] w-[30%]">Nội dung</th>}
+                 <th className="p-3 font-bold text-slate-600 text-sm min-w-[220px]">Dự án</th>
+              {visibleCols['Nội dung'] && <th className="p-3 font-bold text-slate-600 text-sm min-w-[280px]">Nội dung</th>}
                  <th className="p-3 font-bold text-slate-600 text-sm w-14 text-center">Link</th>
                  {visibleCols['Ghi chú'] && <th className="p-3 font-bold text-slate-600 text-sm min-w-[100px] w-[100px]">Ghi chú</th>}
                  <th className="p-3 font-bold text-slate-600 text-sm whitespace-nowrap w-24">Định dạng</th>
