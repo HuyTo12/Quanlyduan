@@ -18,7 +18,9 @@ import {
   Edit,
   CheckCircle2,
   Clock,
-  AlertCircle
+  AlertCircle,
+  X,
+  Share2, Settings, Facebook, MessageCircle, MessageSquare, Music, ShoppingBag, GripVertical, Image as ImageIcon, Video
 } from 'lucide-react';
 import { 
   format, 
@@ -41,7 +43,9 @@ import {
   startOfDay,
   isBefore,
   getDay,
-  endOfDay
+  endOfDay,
+  isSameMonth,
+  subMonths
 } from 'date-fns';
 import { 
   BarChart, 
@@ -130,7 +134,22 @@ function ExpandableFiles({ files }: { files: string[] }) {
   );
 }
 
-type Section = 'giao-viec' | 'cong-viec-hang-ngay' | 'timeline' | 'danh-gia' | 'search';
+type Section = 'giao-viec' | 'cong-viec-hang-ngay' | 'timeline' | 'danh-gia' | 'search' | 'social-media';
+
+// --- BỘ CÔNG CỤ XỬ LÝ DỮ LIỆU SOCIAL MEDIA ---
+export type SMPlatform = 'Facebook' | 'Zalo' | 'OA Zalo' | 'Tiktok' | 'Shopee';
+export type SMSchedule = { platform: SMPlatform; date: string; time: string; };
+export type SMData = { format: 'Hình ảnh' | 'Video'; schedules: SMSchedule[]; };
+export const getSMData = (task: any): { note: string, smData: SMData | null } => {
+  if (task.note && task.note.includes('SM_DATA:::')) {
+    try {
+      const [note, smString] = task.note.split('SM_DATA:::');
+      return { note, smData: JSON.parse(smString) };
+    } catch { return { note: task.note || '', smData: null }; }
+  }
+  return { note: task.note || '', smData: null };
+};
+export const encodeSMData = (note: string, smData: SMData): string => `${note || ''}SM_DATA:::${JSON.stringify(smData)}`;
 
 type Toast = {
   id: number;
@@ -528,6 +547,7 @@ export default function App() {
           <SidebarItem icon={<CalendarDays size={20} />} label="Công việc hằng ngày" active={activeSection === 'cong-viec-hang-ngay'} onClick={() => setActiveSection('cong-viec-hang-ngay')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<CalendarRange size={20} />} label="Timeline công việc" active={activeSection === 'timeline'} onClick={() => setActiveSection('timeline')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<Plus size={20} />} label="Giao việc" active={activeSection === 'giao-viec'} onClick={() => setActiveSection('giao-viec')} collapsed={!isSidebarOpen} />
+          <SidebarItem icon={<Share2 size={20} />} label="Social Media" active={activeSection === 'social-media'} onClick={() => setActiveSection('social-media')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<BarChart3 size={20} />} label="Đánh giá công việc" active={activeSection === 'danh-gia'} onClick={() => setActiveSection('danh-gia')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<Search size={20} />} label="Tìm kiếm" active={activeSection === 'search'} onClick={() => setActiveSection('search')} collapsed={!isSidebarOpen} />
         </nav>
@@ -597,6 +617,7 @@ export default function App() {
         </div>
 
         <div className="max-w-[1440px] mx-auto">
+          {activeSection === 'social-media' && <SocialMedia tasks={tasks} onAdd={addTask} onUpdate={updateTask} onDelete={deleteTask} showToast={showToast} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'giao-viec' && <GiaoViec tasks={tasks} onAdd={addTask} onDelete={deleteTask} onUpdate={updateTask} showToast={showToast} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'cong-viec-hang-ngay' && <CongViecHangNgay tasks={tasks} onUpdate={updateTask} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'timeline' && <TimelineCongViec tasks={tasks} onSelectTask={(id) => {
@@ -652,7 +673,795 @@ function SidebarItem({ icon, label, active, onClick, collapsed }: {
     </button>
   );
 }
+// --- COMPONENT RÚT GỌN CHỮ (TIÊU ĐỀ / NỘI DUNG / GHI CHÚ) ---
+// Ép text vào 2 dòng, không kéo giãn cột ngang, mở rộng chỉ xuống dưới
+function ExpandableCell({ text, isTitle = false }: { text: string, isTitle?: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!text) return <span className="text-slate-400 italic text-sm">Trống</span>;
+  return (
+    <div
+      className="group cursor-pointer w-full"
+      style={{ maxWidth: isTitle ? '160px' : '180px' }}
+      onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+    >
+      <div className={cn(
+        "text-sm break-words transition-all duration-200",
+        !expanded ? "line-clamp-2 overflow-hidden" : "whitespace-pre-wrap",
+        isTitle ? "font-bold text-blue-900" : "text-slate-700"
+      )}>
+        {text}
+      </div>
+      {text.length > 40 && (
+        <div className={cn(
+          "flex justify-center mt-0.5 transition-opacity text-blue-400",
+          expanded ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+        )}>
+          {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+        </div>
+      )}
+    </div>
+  );
+}
 
+// ==========================================
+// HÀM MÀU SẮC TRẠNG THÁI - ĐỒNG BỘ VỚI CÔNG VIỆC HẰNG NGÀY
+// ==========================================
+function getStatusColor(status: string): string {
+  switch (status) {
+    case 'IN_PROGRESS': return 'bg-orange-100 text-orange-800 border-orange-200';
+    case 'REVIEW':      return 'bg-purple-100 text-purple-800 border-purple-200';
+    case 'INFO':        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    case 'COMPLETED':   return 'bg-green-100 text-green-800 border-green-200';
+    default:            return 'bg-slate-100 text-slate-600 border-slate-200'; // 'NEW'
+  }
+}
+
+// ==========================================
+// MÀU SẮC THƯƠNG HIỆU CÁC NỀN TẢNG
+// ==========================================
+const PLATFORM_COLORS: Record<string, { bg: string; light: string }> = {
+  'Facebook': { bg: '#1877F2', light: '#E7F0FD' },
+  'Zalo':     { bg: '#0068FF', light: '#E0EEFF' },
+  'OA Zalo':  { bg: '#006AF5', light: '#E0EDFF' },
+  'Tiktok':   { bg: '#010101', light: '#E8E8E8' },
+  'Shopee':   { bg: '#EE4D2D', light: '#FDECE8' },
+};
+
+// ==========================================
+// MODAL CHỌN NGÀY GIỜ ĐĂNG (SOCIAL MEDIA)
+// ==========================================
+function SchedulePickerModal({
+  platform, initialDate, initialTime, pColor,
+  onSave, onClear, onCancel
+}: {
+  platform: string; initialDate: string; initialTime: string;
+  pColor: { bg: string; light: string };
+  onSave: (date: string, time: string) => void;
+  onClear: () => void;
+  onCancel: () => void;
+}) {
+  const today = new Date();
+  const [viewMonth, setViewMonth] = useState(() => initialDate ? parseISO(initialDate) : today);
+  const [selDate, setSelDate] = useState(initialDate);
+  const [selTime, setSelTime] = useState(initialTime);
+
+  const timeSlots = useMemo(() => Array.from({ length: 48 }, (_, i) => {
+    const h = Math.floor(i / 2).toString().padStart(2, '0');
+    const m = i % 2 === 0 ? '00' : '30';
+    return `${h}:${m}`;
+  }), []);
+
+  const calDays = useMemo(() => {
+    const start = startOfWeek(startOfMonth(viewMonth), { weekStartsOn: 1 });
+    const end   = endOfWeek(endOfMonth(viewMonth),     { weekStartsOn: 1 });
+    return eachDayOfInterval({ start, end });
+  }, [viewMonth]);
+
+  const DAY_LABELS = ['T2','T3','T4','T5','T6','T7','CN'];
+
+  return (
+    <div className="fixed inset-0 z-[160] flex items-center justify-center p-4" onClick={onCancel}>
+      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-200"
+           onClick={e => e.stopPropagation()}>
+
+        {/* Header nền màu thương hiệu */}
+        <div className="px-6 py-4 flex items-center justify-between"
+             style={{ backgroundColor: pColor.bg }}>
+          <span className="text-white font-bold text-lg">{platform}</span>
+          <span className="text-white/80 text-sm">
+            {selDate ? format(parseISO(selDate), 'dd/MM/yyyy') : 'Chưa chọn ngày'}
+            {selTime ? `  •  ${selTime}` : ''}
+          </span>
+        </div>
+
+        <div className="p-5 flex gap-5">
+          {/* LỊCH THÁNG */}
+          <div className="flex-1">
+            {/* Điều hướng tháng */}
+            <div className="flex items-center justify-between mb-3">
+              <button onClick={() => setViewMonth(subMonths(viewMonth, 1))}
+                      className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors">
+                <ChevronLeft size={18} />
+              </button>
+              <span className="font-bold text-slate-700 text-sm">
+                {format(viewMonth, 'MM/yyyy')}
+              </span>
+              <button onClick={() => setViewMonth(addMonths(viewMonth, 1))}
+                      className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors">
+                <ChevronRight size={18} />
+              </button>
+            </div>
+
+            {/* Tên ngày trong tuần */}
+            <div className="grid grid-cols-7 mb-1">
+              {DAY_LABELS.map(d => (
+                <div key={d} className="text-center text-[10px] font-bold text-slate-400 py-1">{d}</div>
+              ))}
+            </div>
+
+            {/* Các ô ngày */}
+            <div className="grid grid-cols-7 gap-0.5">
+              {calDays.map(day => {
+                const iso = format(day, 'yyyy-MM-dd');
+                const isThisMonth = isSameMonth(day, viewMonth);
+                const isSelected  = selDate === iso;
+                const isToday     = isSameDay(day, today);
+                return (
+                  <button
+                    key={iso}
+                    onClick={() => setSelDate(isSelected ? '' : iso)}
+                    className={cn(
+                      "w-full aspect-square rounded-lg text-xs font-bold transition-all",
+                      !isThisMonth && "opacity-30",
+                      isSelected  && "text-white shadow-md",
+                      !isSelected && isToday && "ring-2 text-slate-700 bg-slate-50",
+                      !isSelected && !isToday && "hover:bg-slate-100 text-slate-700"
+                    )}
+                    style={isSelected ? { backgroundColor: pColor.bg } : {}}
+                  >
+                    {format(day, 'd')}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* DANH SÁCH GIỜ */}
+          <div className="w-28 flex flex-col">
+            <p className="text-xs font-bold text-slate-500 mb-2 text-center">Chọn giờ</p>
+            <div className="flex-1 overflow-y-auto max-h-64 space-y-1 pr-1
+                            scrollbar-thin scrollbar-thumb-slate-200">
+              {timeSlots.map(t => (
+                <button
+                  key={t}
+                  onClick={() => setSelTime(t === selTime ? '' : t)}
+                  className={cn(
+                    "w-full py-1.5 rounded-lg text-xs font-bold transition-all",
+                    selTime === t ? "text-white shadow-sm" : "hover:bg-slate-100 text-slate-600"
+                  )}
+                  style={selTime === t ? { backgroundColor: pColor.bg } : {}}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Các nút hành động */}
+        <div className="px-5 pb-5 flex gap-2">
+          <button onClick={onCancel}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-colors text-sm">
+            Hủy
+          </button>
+          <button onClick={onClear}
+                  className="flex-1 py-2.5 rounded-xl bg-red-50 text-red-500 font-bold hover:bg-red-100 transition-colors text-sm">
+            Xóa ngày
+          </button>
+          <button
+            onClick={() => { if (selDate) onSave(selDate, selTime); }}
+            disabled={!selDate}
+            className="flex-1 py-2.5 rounded-xl text-white font-bold transition-all text-sm disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+            style={{ backgroundColor: pColor.bg }}
+          >
+            Lưu
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// MỤC SOCIAL MEDIA (PHẦN 1: KHUNG & CÀI ĐẶT)
+// ==========================================
+function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast, onDoubleClickTask }: any) {
+  const [activeTab, setActiveTab] = useState<'list' | 'calendar'>('list');
+  const [actionTask, setActionTask] = useState<any>(null);
+  const [viewTask, setViewTask] = useState<any>(null);
+  const [schedulePicker, setSchedulePicker] = useState<{
+    task: any; platform: string; date: string; time: string;
+  } | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  
+ // Trạng thái Cài đặt Cột (Đã thêm Nội dung & Ghi chú)
+const [visibleCols, setVisibleCols] = useState({
+  'Tiến độ': true, 'Nội dung': true, 'Ghi chú': true, 'Facebook': true, 'Zalo': true, 'OA Zalo': true, 'Tiktok': true, 'Shopee': true
+});
+
+// Trạng thái Quy tắc xếp lịch chéo
+const [autoSchedule, setAutoSchedule] = useState({
+  enabled: false,
+  mainPlatform: 'Facebook',
+  subPlatforms: [] as { platform: string, offsetDays: number }[]
+});
+
+const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
+
+// Lọc dữ liệu (Đã loại bỏ phân trang, hiển thị toàn bộ dự án)
+const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== null), [tasks]);
+  // --- LOGIC PHẦN 3: XỬ LÝ FORM & LỊCH ---
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [formData, setFormData] = useState({ project: '', description: '', format: 'Hình ảnh', note: '', deadline: '', files: [] as string[] });
+
+  // Tạo mảng 48 khung giờ (mỗi 30 phút)
+  const timeOptions = useMemo(() => Array.from({ length: 48 }, (_, i) => {
+    const h = Math.floor(i / 2).toString().padStart(2, '0');
+    const m = i % 2 === 0 ? '00' : '30';
+    return `${h}:${m}`;
+  }), []);
+
+  // Hàm cập nhật Ngày/Giờ & Tự động tính KPI
+  const updateSMTaskSchedule = (task: any, platform: string, field: 'date' | 'time', value: string) => {
+    const { note, smData } = getSMData(task);
+    const currentData = smData || { format: 'Hình ảnh', schedules: [] };
+    
+    let scheduleIndex = currentData.schedules.findIndex((s: any) => s.platform === platform);
+    if (scheduleIndex === -1) {
+       currentData.schedules.push({ platform: platform as any, date: '', time: '12:00' });
+       scheduleIndex = currentData.schedules.length - 1;
+    }
+    
+    currentData.schedules[scheduleIndex][field] = value;
+    
+    // Auto-schedule: Xếp lịch tự động đăng chéo
+    if (field === 'date' && autoSchedule.enabled && platform === autoSchedule.mainPlatform && value) {
+       autoSchedule.subPlatforms.forEach(sub => {
+          let subIdx = currentData.schedules.findIndex((s: any) => s.platform === sub.platform);
+          if (subIdx === -1) {
+             currentData.schedules.push({ platform: sub.platform as any, date: '', time: '12:00' });
+             subIdx = currentData.schedules.length - 1;
+          }
+          try {
+             currentData.schedules[subIdx].date = format(addDays(parseISO(value), sub.offsetDays), 'yyyy-MM-dd');
+          } catch (e) {}
+       });
+    }
+
+    // Auto-KPI: Hình(Mức 2) / Video(Mức 3). Có Zalo -> + 1 Mức
+    const hasZalo = currentData.schedules.some((s: any) => s.platform === 'Zalo' || s.platform === 'OA Zalo');
+    const baseLevel = currentData.format === 'Video' ? 3 : 2;
+    const kpiLevel = Math.min(5, baseLevel + (hasZalo ? 1 : 0));
+
+    onUpdate({ ...task, note: encodeSMData(note, currentData), kpiLevel });
+  };
+
+  const handleAddSMSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.project) return;
+    const smData: SMData = { format: formData.format as any, schedules: [] };
+    onAdd({
+      project: formData.project, description: formData.description, note: encodeSMData(formData.note, smData),
+      files: formData.files, kpiLevel: formData.format === 'Video' ? 3 : 2, deadline: format(new Date(), 'yyyy-MM-dd')
+    });
+    setFormData({ project: '', description: '', format: 'Hình ảnh', note: '', files: [] });
+    setShowAddModal(false);
+    showToast('Đã tạo dự án Social Media', 'success');
+  };
+
+  // Hàm xử lý file đính kèm cho Social Media
+  const processSMFiles = (files: FileList) => {
+    if (!files) return;
+    Array.from(files).forEach((file: File) => {
+      const reader = new FileReader();
+      reader.onloadend = () => setFormData(prev => ({ ...prev, files: [...prev.files, (reader.result as string) + "|||" + file.name] }));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Nhận file kéo thả toàn màn hình (giống GiaoViec)
+  useEffect(() => {
+    const handleGlobalDrop = (e: any) => {
+      if (!document.getElementById('global-edit-form')) processSMFiles(e.detail);
+    };
+    window.addEventListener('GLOBAL_FILE_DROP', handleGlobalDrop);
+    return () => window.removeEventListener('GLOBAL_FILE_DROP', handleGlobalDrop);
+  }, []);
+
+  return (
+    <div className="space-y-6 h-full flex flex-col relative animate-in fade-in duration-500">
+      
+      {/* 1. THANH HEADER (TAB & NÚT BÁNH RĂNG) */}
+      <div className="flex items-center justify-between shrink-0 bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
+        <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
+          <button onClick={() => setActiveTab('list')} className={cn("px-6 py-2.5 rounded-lg font-bold transition-all", activeTab === 'list' ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:bg-slate-200")}>Danh sách Dự án</button>
+          <button onClick={() => setActiveTab('calendar')} className={cn("px-6 py-2.5 rounded-lg font-bold transition-all", activeTab === 'calendar' ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:bg-slate-200")}>Kế Hoạch Dự Án</button>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <button onClick={() => setShowSettings(true)} className="p-3 bg-slate-50 text-slate-600 rounded-xl border border-slate-200 hover:bg-slate-100 hover:text-blue-600 transition-colors shadow-sm active:scale-95" title="Cài đặt hiển thị & Tự động">
+            <Settings size={20} />
+          </button>
+        </div>
+      </div>
+
+      {/* 2. KHU VỰC HIỂN THỊ CHÍNH */}
+      <div className="flex-1 bg-white rounded-3xl shadow-xl border border-blue-100 overflow-hidden flex flex-col">
+        
+        {/* TAB 1: DANH SÁCH DỰ ÁN */}
+        {activeTab === 'list' && (
+          <div className="flex-1 flex flex-col h-full">
+            <div className="flex-1 overflow-auto">
+             <table className="w-full text-left border-collapse">
+             <thead className="bg-slate-50 sticky top-0 z-10 border-b border-slate-200 shadow-sm">
+               <tr>
+                 {/* KHU VỰC TRÁI (THÔNG TIN) */}
+                 {visibleCols['Tiến độ'] && <th className="p-3 font-bold text-slate-600 text-sm whitespace-nowrap w-32">Tiến độ</th>}
+                 <th className="p-3 font-bold text-slate-600 text-sm w-10 text-center">STT</th>
+                 <th className="p-3 font-bold text-slate-600 text-sm min-w-[150px]">Dự án</th>
+                 {visibleCols['Nội dung'] && <th className="p-3 font-bold text-slate-600 text-sm min-w-[150px]">Nội dung</th>}
+                 <th className="p-3 font-bold text-slate-600 text-sm w-14 text-center">Link</th>
+                 {visibleCols['Ghi chú'] && <th className="p-3 font-bold text-slate-600 text-sm min-w-[100px] w-[100px]">Ghi chú</th>}
+                 <th className="p-3 font-bold text-slate-600 text-sm whitespace-nowrap w-24">Định dạng</th>
+
+                 {/* KHU VỰC PHẢI (NỀN TẢNG - Đã thu nhỏ 40%) */}
+                 {platforms.map(p => visibleCols[p as keyof typeof visibleCols] && (
+                   <th key={p} className="p-2 font-bold text-slate-600 text-[11px] text-center border-l border-slate-200 min-w-[55px] w-[55px]">{p}</th>
+                 ))}
+
+                 {/* THANH KÉO THẢ */}
+                 <th className="p-3 font-bold text-slate-600 text-sm w-10 text-center">≡</th>
+               </tr>
+             </thead>
+             <tbody>
+               {smTasks.map((task: any, idx: number) => {
+                 const { note, smData } = getSMData(task);
+                 const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-blue-50/40';
+                 return (
+                   <tr key={task.id} onDoubleClick={() => setActionTask(task)} className={cn("border-b border-slate-100 hover:brightness-[0.97] transition-colors cursor-pointer group", rowBg)}>
+
+                     {/* TIẾN ĐỘ - ĐỒNG BỘ VỚI CÔNG VIỆC HẰNG NGÀY */}
+                     {visibleCols['Tiến độ'] && (
+                       <td className="p-2 align-top" onDoubleClick={(e) => e.stopPropagation()}>
+                         <select 
+                           value={task.status || 'NEW'} 
+                           onChange={(e) => onUpdate({ ...task, status: e.target.value, note: task.note })}
+                           className={cn("w-full p-1.5 text-xs font-bold rounded-md border focus:ring-2 outline-none cursor-pointer shadow-sm transition-colors", getStatusColor(task.status || 'NEW'))}
+                         >
+                           <option value="NEW" className="bg-white text-slate-800">Dự án mới</option>
+                           <option value="INFO" className="bg-white text-slate-800">Tìm thông tin</option>
+                           <option value="IN_PROGRESS" className="bg-white text-slate-800">Đang thực hiện</option>
+                           <option value="REVIEW" className="bg-white text-slate-800">Chờ xác nhận</option>
+                           <option value="COMPLETED" className="bg-white text-slate-800">Hoàn thành</option>
+                         </select>
+                       </td>
+                     )}
+                     <td className="p-2 text-center font-bold text-slate-400 align-top">{idx + 1}</td>
+
+                     <td className="p-2 align-top"><ExpandableCell text={task.project} isTitle={true} /></td>
+                     {visibleCols['Nội dung'] && <td className="p-2 align-top"><ExpandableCell text={task.description} /></td>}
+
+                     {/* CỘT LINK ĐÍNH KÈM - nhấn để mở từng file */}
+                     <td className="p-2 align-top text-center" onDoubleClick={(e) => e.stopPropagation()}>
+                       {task.files?.length > 0 ? (
+                         <div className="flex flex-wrap gap-1 justify-center">
+                           {task.files.map((fileData: string, fi: number) => {
+                             const url = fileData.includes('|||') ? fileData.split('|||')[0] : fileData;
+                             const name = fileData.includes('|||') ? fileData.split('|||')[1] : `File ${fi + 1}`;
+                             return (
+                               <a key={fi} href={url} target="_blank" rel="noopener noreferrer"
+                                  title={name}
+                                  className="inline-flex items-center justify-center p-1.5 bg-blue-100 text-blue-700 rounded-lg shadow-sm hover:bg-blue-200 transition-colors">
+                                 <Paperclip size={13} />
+                               </a>
+                             );
+                           })}
+                         </div>
+                       ) : <span className="text-slate-300">-</span>}
+                     </td>
+
+                     {visibleCols['Ghi chú'] && <td className="p-2 align-top"><ExpandableCell text={note} /></td>}
+
+                     {/* ĐỊNH DẠNG - Hình ảnh: xanh lá, Video: cam */}
+                     <td className="p-2 align-top" onDoubleClick={(e) => e.stopPropagation()}>
+                        <select 
+                           value={smData?.format || 'Hình ảnh'} 
+                           onChange={(e) => {
+                             const newFormat = e.target.value;
+                             const currentData = smData || { format: 'Hình ảnh', schedules: [] };
+                             currentData.format = newFormat as any;
+                             const hasZalo = currentData.schedules.some((s: any) => s.platform === 'Zalo' || s.platform === 'OA Zalo');
+                             const kpiLevel = Math.min(5, (newFormat === 'Video' ? 3 : 2) + (hasZalo ? 1 : 0));
+                             onUpdate({ ...task, note: encodeSMData(note, currentData), kpiLevel });
+                           }}
+                           className={cn(
+                             "w-full p-1.5 text-xs font-bold rounded-md border focus:ring-2 outline-none cursor-pointer shadow-sm transition-colors",
+                             (smData?.format || 'Hình ảnh') === 'Video'
+                               ? "bg-orange-50 text-orange-700 border-orange-200 focus:ring-orange-400"
+                               : "bg-emerald-50 text-emerald-700 border-emerald-200 focus:ring-emerald-400"
+                           )}
+                        >
+                           <option value="Hình ảnh">Hình ảnh</option>
+                           <option value="Video">Video</option>
+                        </select>
+                     </td>
+
+                     {/* CÁC Ô NGÀY GIỜ - NHẤN ĐỂ MỞ MODAL CHỌN */}
+                     {platforms.map(p => {
+                       if (!visibleCols[p as keyof typeof visibleCols]) return null;
+                       const schedule = smData?.schedules.find((s: any) => s.platform === p);
+                       const hasDate = !!(schedule?.date);
+                       const pColor = PLATFORM_COLORS[p];
+                       return (
+                         <td
+                           key={p}
+                           className="p-1 border-l border-slate-100 text-center align-top transition-colors"
+                           style={hasDate ? { backgroundColor: pColor?.light } : {}}
+                           onDoubleClick={(e) => e.stopPropagation()}
+                         >
+                           <button
+                             className="w-full flex flex-col items-center gap-0.5 rounded-lg py-1 px-0.5 transition-all hover:opacity-80 active:scale-95"
+                             style={hasDate
+                               ? { backgroundColor: pColor?.bg }
+                               : { backgroundColor: '#f1f5f9' }}
+                             onClick={() => setSchedulePicker({
+                               task, platform: p,
+                               date: schedule?.date || '',
+                               time: schedule?.time || ''
+                             })}
+                           >
+                             <span className={cn("text-[10px] font-bold", hasDate ? "text-white" : "text-slate-500")}>
+                               {hasDate ? format(parseISO(schedule!.date), 'dd/MM') : 'Ngày'}
+                             </span>
+                             {hasDate && (
+                               <span className="text-[9px] font-semibold text-white/80">
+                                 {schedule?.time || '- - : - -'}
+                               </span>
+                             )}
+                           </button>
+                         </td>
+                       );
+                     })}
+
+                     {/* KÉO THẢ */}
+                     <td className="p-2 text-center text-slate-300 group-hover:text-slate-500 cursor-grab active:cursor-grabbing align-middle" onDoubleClick={(e) => e.stopPropagation()}>
+                       <GripVertical size={16} className="mx-auto" />
+                     </td>
+                   </tr>
+                 );
+               })}
+
+               {/* NÚT THÊM (+) LUÔN NẰM Ở ĐÁY BẢNG */}
+               <tr>
+                 <td colSpan={16} className="p-2">
+                   <div onClick={() => setShowAddModal(true)} className="w-full py-3 bg-slate-50/50 border-2 border-dashed border-slate-200 rounded-xl flex items-center justify-center hover:bg-blue-50 hover:border-blue-300 transition-colors cursor-pointer group shadow-sm">
+                     <Plus size={20} className="text-slate-400 group-hover:text-blue-600 group-hover:scale-110 transition-transform" />
+                   </div>
+                 </td>
+               </tr>
+             </tbody>
+           </table>
+         </div>
+            </div>
+          )}
+
+          {/* TAB 2: KẾ HOẠCH DỰ ÁN */}
+        {activeTab === 'calendar' && (
+          <div className="flex-1 flex flex-col p-10 items-center justify-center bg-slate-50/50">
+            <CalendarDays size={64} className="text-slate-300 mb-4 animate-bounce" />
+            <h3 className="text-xl font-bold text-slate-500">Giao diện Lịch đang được xây dựng (Giai đoạn 3)...</h3>
+          </div>
+        )}
+      </div>
+
+      {/* MODAL GIAO DỰ ÁN SOCIAL MEDIA MỚI */}
+   {showAddModal && (
+     <div className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in p-4">
+       <div className="bg-white w-full max-w-[1280px] min-h-[65vh] rounded-3xl shadow-2xl relative flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+
+         {/* Header - giống edit form */}
+         <div className="px-8 py-5 border-b border-slate-100 bg-slate-50 rounded-t-3xl flex items-center justify-between">
+           <h3 className="text-2xl font-bold text-blue-900 flex items-center gap-3">
+             <Plus size={28} className="text-blue-500"/> Giao Dự Án Social Media
+           </h3>
+          
+         </div>
+
+         <form onSubmit={(e) => {
+           e.preventDefault();
+           if (!formData.project) return;
+           const deadlineDate = parseISO(formData.deadline);
+           if (isWeekend(deadlineDate)) {
+             showToast('Không thể giao Deadline vào ngày nghỉ (Thứ 7, Chủ nhật)', 'error');
+             return;
+           }
+           const smData: SMData = { format: formData.format as any, schedules: [] };
+           onAdd({
+             project: formData.project, description: formData.description,
+             note: encodeSMData(formData.note, smData),
+             files: formData.files,
+             kpiLevel: formData.format === 'Video' ? 3 : 2,
+             deadline: formData.deadline || format(new Date(), 'yyyy-MM-dd')
+           });
+           setFormData({ project: '', description: '', format: 'Hình ảnh', note: '', deadline: '', files: [] });
+           setShowAddModal(false);
+           showToast('Đã tạo dự án Social Media', 'success');
+         }} className="p-8 overflow-y-auto flex-1 space-y-7" id="sm-add-form">
+
+           {/* HÀNG 1: Dự án (2/3) + Deadline (1/3) */}
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+             <div className="md:col-span-2 space-y-2">
+               <label className="text-base font-semibold text-slate-600">Dự án</label>
+               <input
+                 required value={formData.project}
+                 onChange={e => setFormData(prev => ({...prev, project: e.target.value}))}
+                 placeholder="Tên dự án Social Media..."
+                 className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-blue-900 transition-all"
+               />
+             </div>
+             <div className="md:col-span-1 space-y-2">
+               <label className="text-base font-semibold text-slate-600">Deadline</label>
+               <input
+                 type="date" required
+                 value={formData.deadline}
+                 onChange={e => {
+                   const v = e.target.value;
+                   if (v && isWeekend(parseISO(v))) {
+                     showToast('Không thể giao Deadline vào ngày nghỉ (Thứ 7, Chủ nhật)', 'error');
+                     return;
+                   }
+                   setFormData(prev => ({...prev, deadline: v}));
+                 }}
+                 className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-700 transition-all"
+               />
+             </div>
+           </div>
+
+           {/* HÀNG 2: Mô tả (full width) */}
+           <div className="space-y-2">
+             <label className="text-base font-semibold text-slate-600">Mô tả và thông tin</label>
+             <textarea
+               value={formData.description}
+               onChange={e => setFormData(prev => ({...prev, description: e.target.value}))}
+               placeholder="Chi tiết nội dung dự án..."
+               rows={5}
+               className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 transition-all"
+             />
+           </div>
+
+           {/* HÀNG 3: Định dạng + Ghi chú (mỗi cái 1/3 + 2/3) */}
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+             <div className="md:col-span-1 space-y-2">
+               <label className="text-base font-semibold text-slate-600">Định dạng</label>
+               <select
+                 value={formData.format}
+                 onChange={e => setFormData(prev => ({...prev, format: e.target.value}))}
+                 className={cn(
+                   "w-full p-4 text-base rounded-xl border focus:ring-2 outline-none font-bold transition-all",
+                   formData.format === 'Video'
+                     ? "border-orange-200 bg-orange-50 text-orange-700 focus:ring-orange-400"
+                     : "border-emerald-200 bg-emerald-50 text-emerald-700 focus:ring-emerald-400"
+                 )}
+               >
+                 <option value="Hình ảnh">🖼 Hình ảnh</option>
+                 <option value="Video">🎬 Video</option>
+               </select>
+             </div>
+             <div className="md:col-span-2 space-y-2">
+               <label className="text-base font-semibold text-slate-600">Ghi chú</label>
+               <input
+                 type="text" value={formData.note}
+                 onChange={e => setFormData(prev => ({...prev, note: e.target.value}))}
+                 placeholder="Ghi chú thêm..."
+                 className="w-full p-4 text-base rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 transition-all"
+               />
+             </div>
+           </div>
+
+           {/* HÀNG 4: File đính kèm (full width) */}
+           <div className="space-y-2">
+             <label className="text-base font-semibold text-slate-600">Hình ảnh và file đính kèm</label>
+             <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors cursor-pointer relative">
+               <input
+                 type="file" multiple
+                 onChange={e => e.target.files && processSMFiles(e.target.files)}
+                 className="absolute inset-0 opacity-0 cursor-pointer"
+               />
+               <FileUp className="mx-auto text-slate-400 mb-2" size={32} />
+               <p className="text-slate-500 text-sm">Kéo thả file vào bất cứ đâu trên màn hình hoặc click vào đây</p>
+
+               {formData.files.length > 0 && (
+                 <div className="mt-4 flex flex-wrap gap-2 justify-center">
+                   {formData.files.map((fileData, i) => {
+                     let displayName = "File đính kèm";
+                     if (fileData.includes("|||")) displayName = fileData.split("|||")[1];
+                     else if (fileData.includes("drive.google.com")) displayName = "Thư mục Drive đã lưu";
+                     return (
+                       <div key={i} className="group relative px-3 py-1.5 bg-blue-100 rounded-lg flex items-center text-blue-600 text-sm font-medium gap-2 shadow-sm hover:pr-8 transition-all">
+                         <Paperclip size={14} className="shrink-0" />
+                         <span className="truncate max-w-[250px]">{displayName}</span>
+                         <button
+                           type="button"
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             setFormData(prev => ({ ...prev, files: prev.files.filter((_, idx) => idx !== i) }));
+                           }}
+                           className="absolute right-2 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity"
+                         >
+                           <Trash2 size={16} />
+                         </button>
+                       </div>
+                     );
+                   })}
+                 </div>
+               )}
+             </div>
+           </div>
+         </form>
+
+         {/* Footer - giống edit form */}
+         <div className="px-8 py-5 border-t border-slate-100 bg-slate-50 rounded-b-3xl flex gap-4 mt-auto">
+           <button
+             type="button"
+             onClick={() => { setFormData({ project: '', description: '', format: 'Hình ảnh', note: '', deadline: '', files: [] }); setShowAddModal(false); }}
+             className="flex-1 bg-white border border-slate-300 text-slate-700 p-4 text-base rounded-xl font-bold hover:bg-slate-100 active:scale-95 transition-all"
+           >
+             Hủy
+           </button>
+           <button
+             type="submit"
+             form="sm-add-form"
+             onClick={() => {
+               // trigger submit via hidden form id workaround
+               const form = document.querySelector('#sm-add-form') as HTMLFormElement;
+               form?.requestSubmit();
+             }}
+             className="flex-[2] bg-blue-600 text-white p-4 text-base rounded-xl font-bold shadow-lg hover:bg-blue-700 active:scale-95 transition-all"
+           >
+             Lưu Dự Án
+           </button>
+         </div>
+       </div>
+     </div>
+   )}
+      {/* MODAL HÀNH ĐỘNG (KHI NHÁY ĐÚP CHUỘT) */}
+   {actionTask && (
+     <div className="fixed inset-0 z-[130] bg-black/40 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
+       <div className="bg-white p-8 rounded-3xl max-w-sm w-full text-center space-y-4 shadow-2xl relative">
+         <h3 className="text-xl font-bold text-slate-800">Tùy chọn Dự án</h3>
+         <div className="flex flex-col gap-3">
+           <button onClick={() => { setViewTask(actionTask); setActionTask(null); }}
+                   className="w-full bg-emerald-500 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-emerald-600 transition-colors shadow-md shadow-emerald-200">
+             <FileText size={18}/> Xem dự án
+           </button>
+           <button onClick={() => { window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: actionTask })); setActionTask(null); }}
+                   className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-blue-700 transition-colors shadow-md shadow-blue-200">
+             <Edit size={18}/> Chỉnh sửa
+           </button>
+           <button onClick={() => { onDelete(actionTask.id); setActionTask(null); showToast('Đã xóa dự án', 'delete'); }}
+                   className="w-full bg-red-500 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-red-600 transition-colors shadow-md shadow-red-200">
+             <Trash2 size={18}/> Xóa dự án
+           </button>
+           <button onClick={() => setActionTask(null)}
+                   className="w-full bg-white border border-slate-200 text-slate-500 py-3 rounded-xl font-bold hover:bg-slate-50 mt-2 transition-colors">
+             Hủy
+           </button>
+         </div>
+       </div>
+     </div>
+   )}
+
+      {/* MODAL CHỌN NGÀY GIỜ */}
+   {schedulePicker && (
+     <SchedulePickerModal
+       platform={schedulePicker.platform}
+       initialDate={schedulePicker.date}
+       initialTime={schedulePicker.time}
+       pColor={PLATFORM_COLORS[schedulePicker.platform] || { bg: '#64748b', light: '#f1f5f9' }}
+       onSave={(date, time) => {
+         // Cập nhật cả ngày và giờ trong một lần để tránh race condition
+         const { note, smData } = getSMData(schedulePicker.task);
+         const currentData = smData || { format: 'Hình ảnh', schedules: [] };
+         let idx = currentData.schedules.findIndex((s: any) => s.platform === schedulePicker.platform);
+         if (idx === -1) {
+           currentData.schedules.push({ platform: schedulePicker.platform, date: '', time: '' });
+           idx = currentData.schedules.length - 1;
+         }
+         currentData.schedules[idx].date = date;
+         currentData.schedules[idx].time = time;
+         onUpdate({ ...schedulePicker.task, note: encodeSMData(note, currentData) });
+         setSchedulePicker(null);
+       }}
+       onClear={() => {
+         const { note, smData } = getSMData(schedulePicker.task);
+         const currentData = smData || { format: 'Hình ảnh', schedules: [] };
+         const idx = currentData.schedules.findIndex((s: any) => s.platform === schedulePicker.platform);
+         if (idx !== -1) {
+           currentData.schedules[idx].date = '';
+           currentData.schedules[idx].time = '';
+         }
+         onUpdate({ ...schedulePicker.task, note: encodeSMData(note, currentData) });
+         setSchedulePicker(null);
+       }}
+       onCancel={() => setSchedulePicker(null)}
+     />
+   )}
+
+      {/* BẢNG XEM CHI TIẾT DỰ ÁN SOCIAL MEDIA */}
+   {viewTask && (
+     <GlobalViewModal
+       task={{ ...viewTask, note: getSMData(viewTask).note }}
+       onClose={() => setViewTask(null)}
+       onDelete={(id) => { onDelete(id); setViewTask(null); }}
+     />
+   )}
+      {/* 3. MODAL CÀI ĐẶT (BÁNH RĂNG) */}
+      {showSettings && (
+        <div className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
+          <div className="bg-white p-8 rounded-3xl w-full max-w-xl shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <h3 className="text-2xl font-bold text-blue-900 mb-6 flex items-center gap-2 border-b border-slate-100 pb-4"><Settings size={24}/> Cài Đặt Social Media</h3>
+            
+            <div className="space-y-8">
+              {/* Chức năng 1: Ẩn hiện cột */}
+              <div className="space-y-4">
+                <h4 className="font-bold text-slate-800 text-lg bg-slate-50 p-3 rounded-lg border border-slate-100">1. Tùy chỉnh Hiển thị Cột</h4>
+                <div className="grid grid-cols-2 gap-3 px-2">
+                  {Object.keys(visibleCols).map(col => (
+                    <label key={col} className="flex items-center gap-3 cursor-pointer group">
+                      <input type="checkbox" checked={(visibleCols as any)[col]} onChange={() => setVisibleCols(prev => ({...prev, [col]: !prev[col as keyof typeof prev]}))} className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                      <span className="font-bold text-slate-600 group-hover:text-blue-600 transition-colors">{col}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Chức năng 2: Xếp lịch tự động */}
+              <div className="space-y-4">
+                 <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                    <h4 className="font-bold text-slate-800 text-lg">2. Tự động xếp ngày (Cross-posting)</h4>
+                    <label className="relative inline-flex items-center cursor-pointer ml-auto">
+                      <input type="checkbox" checked={autoSchedule.enabled} onChange={() => setAutoSchedule(prev => ({...prev, enabled: !prev.enabled}))} className="sr-only peer" />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                 </div>
+                 
+                 {autoSchedule.enabled ? (
+                    <div className="p-4 border border-blue-100 rounded-xl bg-blue-50/30 space-y-4">
+                      <div>
+                        <label className="text-sm font-bold text-slate-600 block mb-2">Nền tảng CHÍNH (Gốc - 0 ngày)</label>
+                        <select value={autoSchedule.mainPlatform} onChange={e => setAutoSchedule(prev => ({...prev, mainPlatform: e.target.value, subPlatforms: []}))} className="w-full p-3 rounded-xl border border-slate-200 font-bold text-blue-800">
+                          {platforms.map(p => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                      </div>
+                      <p className="text-xs text-slate-500 italic">Tính năng chọn Nền tảng PHỤ sẽ được kích hoạt ở Giai đoạn 2.</p>
+                    </div>
+                 ) : (
+                    <p className="text-sm text-slate-400 italic px-2">Bật công tắc để kích hoạt tính năng tự động cộng ngày.</p>
+                 )}
+              </div>
+            </div>
+
+            <div className="flex gap-4 pt-6 mt-8 border-t border-slate-100">
+              <button onClick={() => setShowSettings(false)} className="px-6 py-3 rounded-xl bg-slate-100 font-bold text-slate-600 hover:bg-slate-200 transition-colors">Hủy</button>
+              <button onClick={() => { setShowSettings(false); showToast('Đã lưu cài đặt Social Media', 'success'); }} className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all">Lưu thay đổi</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 // --- Section: Giao Việc ---
 function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTask }: { 
   tasks: Task[], 
