@@ -1283,14 +1283,142 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
             </div>
           )}
 
-          {/* TAB 2: KẾ HOẠCH DỰ ÁN */}
-        {activeTab === 'calendar' && (
-          <div className="flex-1 flex flex-col p-10 items-center justify-center bg-slate-50/50">
-            <CalendarDays size={64} className="text-slate-300 mb-4 animate-bounce" />
-            <h3 className="text-xl font-bold text-slate-500">Giao diện Lịch đang được xây dựng (Giai đoạn 3)...</h3>
-          </div>
-        )}
-      </div>
+          {/* TAB 2: KẾ HOẠCH DỰ ÁN (ĐÃ HOÀN THIỆN) */}
+        {activeTab === 'calendar' && (() => {
+          // 1. Khởi tạo dữ liệu thời gian cho Lưới Lịch
+          const calMonthDate = selectedMonth ? new Date(`${selectedMonth}-01T00:00:00`) : new Date();
+          const calStart = startOfWeek(startOfMonth(calMonthDate), { weekStartsOn: 1 });
+          const calEnd = endOfWeek(endOfMonth(calMonthDate), { weekStartsOn: 1 });
+          const calDays = eachDayOfInterval({ start: calStart, end: calEnd });
+          const DAY_LABELS = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ Nhật'];
+
+          return (
+            <div className="flex-1 flex overflow-hidden bg-slate-50">
+              
+              {/* KHU VỰC TRÁI (2/3): LƯỚI LỊCH */}
+              <div className="flex-[3] flex flex-col p-4 overflow-y-auto border-r border-slate-200">
+                {/* Header Ngày trong tuần */}
+                <div className="grid grid-cols-7 mb-2 gap-2 shrink-0">
+                  {DAY_LABELS.map(d => (
+                    <div key={d} className="text-center font-bold text-slate-500 text-sm py-2.5 bg-white rounded-xl shadow-sm border border-slate-100">{d}</div>
+                  ))}
+                </div>
+                
+                {/* Lưới Ngày 35/42 ô */}
+                <div className="grid grid-cols-7 gap-2 flex-1 auto-rows-[minmax(120px,1fr)]">
+                  {calDays.map(day => {
+                    const iso = format(day, 'yyyy-MM-dd');
+                    const isThisMonth = isSameMonth(day, calMonthDate);
+                    const isToday = isSameDay(day, new Date());
+                    
+                    // Lọc các task CÓ LỊCH ĐĂNG rơi vào ngày này
+                    const dayTasks = smTasks.filter((t: any) => {
+                      const { smData } = getSMData(t);
+                      return smData?.schedules.some((s: any) => s.date === iso);
+                    });
+
+                    return (
+                      <div key={iso} className={cn(
+                        "bg-white rounded-xl border p-2 flex flex-col gap-1.5 overflow-y-auto transition-colors shadow-sm relative group scrollbar-hide",
+                        !isThisMonth ? "bg-slate-50/60 border-slate-100 opacity-60" : "border-slate-200",
+                        isToday && "border-blue-400 ring-2 ring-blue-100 bg-blue-50/40"
+                      )}>
+                        {/* Số ngày */}
+                        <div className="flex justify-between items-start mb-1 sticky top-0 bg-inherit z-10">
+                          <span className={cn("text-sm font-bold w-7 h-7 flex items-center justify-center rounded-full shadow-sm", isToday ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600")}>
+                            {format(day, 'd')}
+                          </span>
+                          {dayTasks.length > 0 && <span className="text-[10px] font-bold text-slate-400 bg-white px-1.5 py-0.5 rounded-md border border-slate-100">{dayTasks.length} bài</span>}
+                        </div>
+                        
+                        {/* Render Thẻ Dự án trên Lịch */}
+                        <div className="flex flex-col gap-1.5 pb-1">
+                          {dayTasks.map((t: any) => {
+                            const { smData } = getSMData(t);
+                            // Lấy chính xác các lịch đăng của dự án này TRONG NGÀY ĐANG VẼ
+                            const schedulesToday = smData?.schedules.filter((s: any) => s.date === iso) || [];
+                            
+                            return schedulesToday.map((sch: any, idx: number) => {
+                              const pColor = PLATFORM_COLORS[sch.platform] || { bg: '#64748b', light: '#f1f5f9' };
+                              return (
+                                <div 
+                                  key={`${t.id}-${sch.platform}-${idx}`}
+                                  onClick={() => setViewTask(t)} // Click để mở bảng xem chi tiết
+                                  className="px-2.5 py-2 rounded-lg text-xs cursor-pointer hover:-translate-y-0.5 transition-all shadow-sm border border-black/5 flex flex-col gap-1"
+                                  style={{ backgroundColor: pColor.light, color: pColor.bg }}
+                                  title={`Bấm để xem chi tiết: ${t.project}`}
+                                >
+                                  <div className="font-bold leading-tight line-clamp-2">
+                                    {t.project}
+                                  </div>
+                                  <div className="flex items-center justify-between text-[10px] font-bold opacity-80 pt-1 border-t border-black/5 mt-auto">
+                                    <span className="flex items-center gap-1">{sch.platform}</span>
+                                    <span className="bg-white/50 px-1.5 py-0.5 rounded">{sch.time}</span>
+                                  </div>
+                                </div>
+                              );
+                            });
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* KHU VỰC PHẢI (1/3): THỐNG KÊ TỔNG QUAN */}
+              <div className="w-80 lg:w-96 bg-white flex flex-col p-6 shadow-[-10px_0_20px_-5px_rgba(0,0,0,0.05)] z-10 shrink-0">
+                <h3 className="font-bold text-xl text-blue-900 mb-6 flex items-center gap-2 pb-4 border-b border-slate-100">
+                  <BarChart3 className="text-blue-500" /> Tổng quan Tháng {selectedMonth ? format(parseISO(`${selectedMonth}-01`), 'MM/yyyy') : ''}
+                </h3>
+                
+                <div className="space-y-4 flex-1 overflow-y-auto pr-2 scrollbar-hide">
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-2xl p-5 border border-blue-100 shadow-sm">
+                    <p className="text-sm text-blue-600 font-bold mb-1 uppercase tracking-wider">Tổng khối lượng</p>
+                    <div className="flex items-end gap-2">
+                      <p className="text-4xl font-extrabold text-blue-900">{smTasks.length}</p>
+                      <p className="text-sm font-semibold text-blue-700 mb-1">dự án</p>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 shadow-sm">
+                    <p className="text-sm text-slate-500 font-bold mb-4 uppercase tracking-wider">Mật độ nền tảng</p>
+                    <div className="space-y-3">
+                      {['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'].map(p => {
+                        // Đếm số lượng bài đăng của từng nền tảng trong tháng
+                        const count = smTasks.filter((t:any) => {
+                          const { smData } = getSMData(t);
+                          return smData?.schedules.some((s:any) => s.platform === p && s.date);
+                        }).length;
+                        
+                        if (count === 0) return null;
+                        const pColor = PLATFORM_COLORS[p];
+                        
+                        return (
+                          <div key={p} className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-slate-100 shadow-sm transition-all hover:scale-[1.02]">
+                            <span className="text-xs font-bold px-3 py-1.5 rounded-lg" style={{ backgroundColor: pColor.light, color: pColor.bg }}>{p}</span>
+                            <span className="text-sm font-bold text-slate-700 bg-slate-50 px-2 py-1 rounded-md">{count} bài</span>
+                          </div>
+                        );
+                      })}
+                      {smTasks.length === 0 && (
+                        <p className="text-xs text-slate-400 italic text-center py-4">Chưa có dữ liệu bài đăng</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mt-6 pt-4 border-t border-slate-100 bg-blue-50 p-4 rounded-xl flex gap-3 items-start">
+                  <AlertCircle size={18} className="text-blue-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-800 font-medium leading-relaxed">
+                    <span className="font-bold">Mẹo:</span> Nhấn trực tiếp vào thẻ dự án màu sắc trên lịch để mở bảng xem nhanh nội dung và hình ảnh đính kèm.
+                  </p>
+                </div>
+              </div>
+
+            </div>
+          );
+        })()}
 
       {/* MODAL GIAO DỰ ÁN SOCIAL MEDIA MỚI */}
    {showAddModal && (
