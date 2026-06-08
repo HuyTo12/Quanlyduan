@@ -989,12 +989,22 @@ useEffect(() => {
   localStorage.setItem('smVisibleCols', JSON.stringify(visibleCols));
 }, [visibleCols]);
 
-// Trạng thái Quy tắc xếp lịch chéo
-const [autoSchedule, setAutoSchedule] = useState({
-  enabled: false,
-  mainPlatform: 'Facebook',
-  subPlatforms: [] as { platform: string, offsetDays: number }[]
+// Trạng thái Quy tắc xếp lịch chéo - ĐÃ NÂNG CẤP LƯU BỘ NHỚ
+const [autoSchedule, setAutoSchedule] = useState(() => {
+  const savedAuto = localStorage.getItem('smAutoSchedule');
+  if (savedAuto) {
+    try { return JSON.parse(savedAuto); } catch (e) {}
+  }
+  return {
+    enabled: false,
+    mainPlatform: 'Facebook',
+    subPlatforms: [] as { platform: string, offsetDays: number }[]
+  };
 });
+
+useEffect(() => {
+  localStorage.setItem('smAutoSchedule', JSON.stringify(autoSchedule));
+}, [autoSchedule]);
 
 const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
 
@@ -1785,16 +1795,76 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                  
                  {autoSchedule.enabled ? (
                     <div className="p-4 border border-blue-100 rounded-xl bg-blue-50/30 space-y-4">
+                      {/* Chọn nền tảng CHÍNH */}
                       <div>
                         <label className="text-sm font-bold text-slate-600 block mb-2">Nền tảng CHÍNH (Gốc - 0 ngày)</label>
-                        <select value={autoSchedule.mainPlatform} onChange={e => setAutoSchedule(prev => ({...prev, mainPlatform: e.target.value, subPlatforms: []}))} className="w-full p-3 rounded-xl border border-slate-200 font-bold text-blue-800">
+                        <select 
+                          value={autoSchedule.mainPlatform} 
+                          onChange={e => setAutoSchedule(prev => ({
+                            ...prev, 
+                            mainPlatform: e.target.value,
+                            // Xóa nền tảng chính khỏi danh sách phụ nếu nó vô tình nằm trong đó
+                            subPlatforms: prev.subPlatforms.filter(sub => sub.platform !== e.target.value)
+                          }))} 
+                          className="w-full p-3 rounded-xl border border-slate-200 font-bold text-blue-800 outline-none focus:ring-2 focus:ring-blue-500"
+                        >
                           {platforms.map(p => <option key={p} value={p}>{p}</option>)}
                         </select>
                       </div>
-                      <p className="text-xs text-slate-500 italic">Tính năng chọn Nền tảng PHỤ sẽ được kích hoạt ở Giai đoạn 2.</p>
+
+                      {/* Danh sách nền tảng PHỤ */}
+                      <div className="space-y-3 pt-3 border-t border-blue-200/50">
+                        <label className="text-sm font-bold text-slate-600 block">Các nền tảng tự động cộng ngày:</label>
+                        
+                        {platforms.filter(p => p !== autoSchedule.mainPlatform).map(p => {
+                          const isChecked = autoSchedule.subPlatforms.some(sub => sub.platform === p);
+                          const subData = autoSchedule.subPlatforms.find(sub => sub.platform === p);
+                          
+                          return (
+                            <div key={p} className="flex items-center gap-4 p-3 bg-white rounded-xl border border-blue-100 shadow-sm transition-all hover:border-blue-300">
+                              <label className="flex items-center gap-3 cursor-pointer flex-1">
+                                <input 
+                                  type="checkbox" 
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setAutoSchedule(prev => ({ ...prev, subPlatforms: [...prev.subPlatforms, { platform: p, offsetDays: 1 }] }));
+                                    } else {
+                                      setAutoSchedule(prev => ({ ...prev, subPlatforms: prev.subPlatforms.filter(sub => sub.platform !== p) }));
+                                    }
+                                  }}
+                                  className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className={cn("font-bold transition-colors", isChecked ? "text-blue-700" : "text-slate-600")}>{p}</span>
+                              </label>
+                              
+                              {isChecked && (
+                                <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4">
+                                  <span className="text-sm text-slate-500">Trễ</span>
+                                  <input 
+                                    type="number" 
+                                    min="0"
+                                    value={subData?.offsetDays || 0}
+                                    onChange={(e) => {
+                                      const days = parseInt(e.target.value) || 0;
+                                      setAutoSchedule(prev => ({
+                                        ...prev,
+                                        subPlatforms: prev.subPlatforms.map(sub => sub.platform === p ? { ...sub, offsetDays: days } : sub)
+                                      }));
+                                    }}
+                                    className="w-16 p-1.5 text-center font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                                  />
+                                  <span className="text-sm text-slate-500">ngày</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                  ) : (
                     <p className="text-sm text-slate-400 italic px-2">Bật công tắc để kích hoạt tính năng tự động cộng ngày.</p>
+                 )}
                  )}
               </div>
             </div>
