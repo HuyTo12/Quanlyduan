@@ -685,14 +685,14 @@ function SidebarItem({ icon, label, active, onClick, collapsed }: {
   );
 }
 // --- COMPONENT RÚT GỌN CHỮ (TIÊU ĐỀ / NỘI DUNG / GHI CHÚ) ---
-// Ép text vào 2 dòng, không kéo giãn cột ngang, mở rộng chỉ xuống dưới
+// Đã mở khóa maxWidth để khối chữ tự kéo giãn 100% theo độ rộng của cột
 function ExpandableCell({ text, isTitle = false }: { text: string, isTitle?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   if (!text) return <span className="text-slate-400 italic text-sm">Trống</span>;
   return (
     <div
       className="group cursor-pointer w-full"
-      style={{ maxWidth: isTitle ? '230px' : '260px' }}
+      style={{ maxWidth: '100%' }}
       onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
     >
       <div className={cn(
@@ -1027,8 +1027,9 @@ const smTasks = useMemo(() => {
                  {/* KHU VỰC TRÁI (THÔNG TIN) */}
                  {visibleCols['Tiến độ'] && <th className="p-3 font-bold text-slate-600 text-sm whitespace-nowrap w-32">Tiến độ</th>}
                  <th className="p-3 font-bold text-slate-600 text-sm w-10 text-center">STT</th>
-                 <th className="p-3 font-bold text-slate-600 text-sm min-w-[220px]">Dự án</th>
-              {visibleCols['Nội dung'] && <th className="p-3 font-bold text-slate-600 text-sm min-w-[280px]">Nội dung</th>}
+                 {/* Đã chia % để 2 cột chiếm tổng 55% không gian */}
+                 <th className="p-3 font-bold text-slate-600 text-sm min-w-[210px] w-[25%]">Dự án</th>
+                 {visibleCols['Nội dung'] && <th className="p-3 font-bold text-slate-600 text-sm min-w-[210px] w-[30%]">Nội dung</th>}
                  <th className="p-3 font-bold text-slate-600 text-sm w-14 text-center">Link</th>
                  {visibleCols['Ghi chú'] && <th className="p-3 font-bold text-slate-600 text-sm min-w-[100px] w-[100px]">Ghi chú</th>}
                  <th className="p-3 font-bold text-slate-600 text-sm whitespace-nowrap w-24">Định dạng</th>
