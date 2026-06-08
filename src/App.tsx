@@ -896,6 +896,9 @@ function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast, onDoubleClic
   } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   
+  // Bộ nhớ lưu tháng đang chọn (mặc định là tháng hiện tại)
+  const [selectedMonth, setSelectedMonth] = useState(() => format(new Date(), 'yyyy-MM'));
+  
  // Trạng thái Cài đặt Cột (Đã thêm Nội dung & Ghi chú)
 const [visibleCols, setVisibleCols] = useState({
   'Tiến độ': true, 'Nội dung': true, 'Ghi chú': true, 'Facebook': true, 'Zalo': true, 'OA Zalo': true, 'Tiktok': true, 'Shopee': true
@@ -910,15 +913,30 @@ const [autoSchedule, setAutoSchedule] = useState({
 
 const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
 
-// Lọc dữ liệu và sắp xếp theo lượt tạo từ cũ nhất đến mới nhất (trên xuống dưới)
-const smTasks = useMemo(() => {
-  const filtered = tasks.filter((t: any) => getSMData(t).smData !== null);
-  return filtered.sort((a: any, b: any) => {
-    const dateA = new Date(a.createdAt || a.startDate).getTime();
-    const dateB = new Date(b.createdAt || b.startDate).getTime();
-    return dateA - dateB; // Sắp xếp tăng dần: Cũ nhất ở trên, mới nhất ở dưới
-  });
-}, [tasks]);
+// Lọc dữ liệu theo THÁNG và sắp xếp từ cũ nhất đến mới nhất
+  const smTasks = useMemo(() => {
+    let filtered = tasks.filter((t: any) => getSMData(t).smData !== null);
+    
+    // LỌC THEO THÁNG ĐANG CHỌN (áp dụng chung cho cả Tab Danh Sách và Tab Kế Hoạch)
+    if (selectedMonth) {
+      filtered = filtered.filter((t: any) => {
+        const { smData } = getSMData(t);
+        // 1. Kiểm tra xem có lịch đăng nào rơi vào tháng này không
+        const hasScheduleInMonth = smData?.schedules?.some((s: any) => s.date && s.date.startsWith(selectedMonth));
+        // 2. Nếu chưa có lịch đăng, kiểm tra xem dự án được tạo hoặc có deadline trong tháng này không
+        const baseDate = t.createdAt || t.startDate || t.deadline || '';
+        const isCreatedInMonth = baseDate.startsWith(selectedMonth);
+        
+        return hasScheduleInMonth || isCreatedInMonth;
+      });
+    }
+
+    return filtered.sort((a: any, b: any) => {
+      const dateA = new Date(a.createdAt || a.startDate).getTime();
+      const dateB = new Date(b.createdAt || b.startDate).getTime();
+      return dateA - dateB; 
+    });
+  }, [tasks, selectedMonth]);
   // --- LOGIC PHẦN 3: XỬ LÝ FORM & LỊCH ---
   const [showAddModal, setShowAddModal] = useState(false);
   const [formData, setFormData] = useState({ project: '', description: '', format: 'Hình ảnh', note: '', deadline: '', files: [] as string[] });
@@ -1005,6 +1023,18 @@ const smTasks = useMemo(() => {
         <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
           <button onClick={() => setActiveTab('list')} className={cn("px-6 py-2.5 rounded-lg font-bold transition-all", activeTab === 'list' ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:bg-slate-200")}>Danh sách Dự án</button>
           <button onClick={() => setActiveTab('calendar')} className={cn("px-6 py-2.5 rounded-lg font-bold transition-all", activeTab === 'calendar' ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:bg-slate-200")}>Kế Hoạch Dự Án</button>
+        </div>
+
+        {/* BỘ LỌC THÁNG */}
+        <div className="flex items-center gap-3 bg-blue-50 px-4 py-2 rounded-xl border border-blue-100 shadow-inner">
+          <CalendarDays size={18} className="text-blue-600" />
+          <span className="text-sm font-bold text-blue-800">Tháng làm việc:</span>
+          <input 
+            type="month" 
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="bg-white border border-blue-200 text-blue-900 text-sm font-bold rounded-lg px-3 py-1 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm hover:border-blue-300 transition-colors"
+          />
         </div>
         
         <div className="flex items-center gap-4">
