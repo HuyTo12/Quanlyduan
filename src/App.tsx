@@ -899,22 +899,61 @@ function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast, onDoubleClic
   // Bộ nhớ lưu tháng đang chọn (mặc định là tháng hiện tại)
   const [selectedMonth, setSelectedMonth] = useState(() => format(new Date(), 'yyyy-MM'));
   
- // --- BƯỚC 1: STATE VÀ HÀM XỬ LÝ KÉO THẢ (DRAG & DROP) ---
-  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+ // --- BƯỚC 1.5: THUẬT TOÁN KÉO THẢ ĐỘC LẬP 2 KHU VỰC ---
+  const dragTypeRef = useRef<'AREA1' | 'AREA2' | 'BOTH'>('BOTH');
+  const [draggedItem, setDraggedItem] = useState<{idx: number, type: string} | null>(null);
 
   const handleDragStart = (e: any, index: number) => {
-    setDraggedIdx(index);
+    setDraggedItem({ idx: index, type: dragTypeRef.current });
     e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleDragOver = (e: any) => {
-    e.preventDefault(); // Phải có dòng này trình duyệt mới cho phép thả
+    e.preventDefault(); 
     e.dataTransfer.dropEffect = 'move';
   };
 
   const handleDrop = (e: any, dropIndex: number) => {
     e.preventDefault();
-    if (draggedIdx === null || draggedIdx === dropIndex) return;
+    if (!draggedItem || draggedItem.idx === dropIndex) {
+      setDraggedItem(null);
+      return;
+    }
+
+    const draggedTask = smTasks[draggedItem.idx];
+    const targetTask = smTasks[dropIndex];
+    const dragType = draggedItem.type;
+
+    let newDraggedTask = { ...draggedTask };
+    let newTargetTask = { ...targetTask };
+
+    // Tách phần ghi chú (chữ) và phần Lịch (smData) ra
+    const { note: dNote, smData: dSmData } = getSMData(draggedTask);
+    const { note: tNote, smData: tSmData } = getSMData(targetTask);
+
+    if (dragType === 'AREA2') {
+      // 1. KÉO KHU VỰC 2 (Phải): Chỉ hoán đổi dữ liệu Lịch đăng
+      newDraggedTask.note = encodeSMData(dNote, tSmData || { format: 'Hình ảnh', schedules: [] });
+      newTargetTask.note = encodeSMData(tNote, dSmData || { format: 'Hình ảnh', schedules: [] });
+    } 
+    else if (dragType === 'AREA1') {
+      // 2. KÉO KHU VỰC 1 (Trái): Đổi vị trí hiển thị (createdAt) VÀ Đổi Lịch để Lịch đứng yên
+      newDraggedTask.createdAt = targetTask.createdAt || targetTask.startDate;
+      newTargetTask.createdAt = draggedTask.createdAt || draggedTask.startDate;
+      
+      newDraggedTask.note = encodeSMData(dNote, tSmData || { format: 'Hình ảnh', schedules: [] });
+      newTargetTask.note = encodeSMData(tNote, dSmData || { format: 'Hình ảnh', schedules: [] });
+    }
+    else {
+      // 3. KÉO CẢ HÀNG (Dấu vuông cuối hàng): Chỉ đổi vị trí hiển thị
+      newDraggedTask.createdAt = targetTask.createdAt || targetTask.startDate;
+      newTargetTask.createdAt = draggedTask.createdAt || draggedTask.startDate;
+    }
+
+    onUpdate(newDraggedTask);
+    onUpdate(newTargetTask);
+    setDraggedItem(null);
+  };
 
     // Lấy 2 dự án: Cái đang cầm trên tay (dragged) và Cái bị thả đè lên (target)
     const draggedTask = smTasks[draggedIdx];
@@ -1108,24 +1147,30 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                {smTasks.map((task: any, idx: number) => {
                  const { note, smData } = getSMData(task);
                  const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-blue-50/40';
+                 
+                 // Tạo hiệu ứng màu sắc nhận diện khu vực đang kéo
+                 const isDraggingThisRow = draggedItem?.idx === idx;
+                 const dragClass = isDraggingThisRow 
+                   ? (draggedItem.type === 'AREA1' ? "opacity-40 bg-blue-200" 
+                     : draggedItem.type === 'AREA2' ? "opacity-40 bg-orange-200" 
+                     : "opacity-40 bg-purple-200")
+                   : "";
+
                  return (
-                     <tr 
-                       key={task.id} 
-                       draggable 
-                       onDragStart={(e) => handleDragStart(e, idx)}
-                       onDragOver={handleDragOver}
-                       onDrop={(e) => handleDrop(e, idx)}
-                       onDragEnd={() => setDraggedIdx(null)}
-                       onDoubleClick={() => setActionTask(task)} 
-                       className={cn(
-                         "border-b border-slate-100 hover:brightness-[0.97] transition-all cursor-pointer group relative", 
-                         rowBg,
-                         draggedIdx === idx ? "opacity-50 scale-[0.99] border-2 border-dashed border-blue-500 bg-blue-100 shadow-inner z-10" : ""
-                       )}
-                     >
-                     {/* TIẾN ĐỘ - ĐỒNG BỘ VỚI CÔNG VIỆC HẰNG NGÀY */}
+                   <tr 
+                     key={task.id} 
+                     draggable 
+                     onDragStart={(e) => handleDragStart(e, idx)}
+                     onDragOver={handleDragOver}
+                     onDrop={(e) => handleDrop(e, idx)}
+                     onDragEnd={() => setDraggedItem(null)}
+                     onDoubleClick={() => setActionTask(task)} 
+                     className={cn("border-b border-slate-100 transition-all cursor-pointer group relative", rowBg)}
+                   >
+
+                     {/* ======= KHU VỰC 1: THÔNG TIN DỰ ÁN ======= */}
                      {visibleCols['Tiến độ'] && (
-                       <td className="p-2 align-top" onDoubleClick={(e) => e.stopPropagation()}>
+                       <td className={cn("p-2 align-top", dragClass)} onMouseEnter={() => dragTypeRef.current = 'AREA1'} onDoubleClick={(e) => e.stopPropagation()}>
                          <select 
                            value={task.status || 'NEW'} 
                            onChange={(e) => onUpdate({ ...task, status: e.target.value, note: task.note })}
@@ -1139,13 +1184,12 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                          </select>
                        </td>
                      )}
-                     <td className="p-2 text-center font-bold text-slate-400 align-top">{idx + 1}</td>
+                     <td className={cn("p-2 text-center font-bold text-slate-400 align-top", dragClass)} onMouseEnter={() => dragTypeRef.current = 'AREA1'}>{idx + 1}</td>
 
-                     <td className="p-2 align-top"><ExpandableCell text={task.project} isTitle={true} /></td>
-                     {visibleCols['Nội dung'] && <td className="p-2 align-top"><ExpandableCell text={task.description} /></td>}
+                     <td className={cn("p-2 align-top", dragClass)} onMouseEnter={() => dragTypeRef.current = 'AREA1'}><ExpandableCell text={task.project} isTitle={true} /></td>
+                     {visibleCols['Nội dung'] && <td className={cn("p-2 align-top", dragClass)} onMouseEnter={() => dragTypeRef.current = 'AREA1'}><ExpandableCell text={task.description} /></td>}
 
-                     {/* CỘT LINK ĐÍNH KÈM - nhấn để mở từng file */}
-                     <td className="p-2 align-top text-center" onDoubleClick={(e) => e.stopPropagation()}>
+                     <td className={cn("p-2 align-top text-center", dragClass)} onMouseEnter={() => dragTypeRef.current = 'AREA1'} onDoubleClick={(e) => e.stopPropagation()}>
                        {task.files?.length > 0 ? (
                          <div className="flex flex-wrap gap-1 justify-center">
                            {task.files.map((fileData: string, fi: number) => {
@@ -1163,10 +1207,9 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                        ) : <span className="text-slate-300">-</span>}
                      </td>
 
-                     {visibleCols['Ghi chú'] && <td className="p-2 align-top"><ExpandableCell text={note} /></td>}
+                     {visibleCols['Ghi chú'] && <td className={cn("p-2 align-top", dragClass)} onMouseEnter={() => dragTypeRef.current = 'AREA1'}><ExpandableCell text={note} /></td>}
 
-                     {/* ĐỊNH DẠNG - Hình ảnh: xanh lá, Video: cam */}
-                     <td className="p-2 align-top" onDoubleClick={(e) => e.stopPropagation()}>
+                     <td className={cn("p-2 align-top", dragClass)} onMouseEnter={() => dragTypeRef.current = 'AREA1'} onDoubleClick={(e) => e.stopPropagation()}>
                         <select 
                            value={smData?.format || 'Hình ảnh'} 
                            onChange={(e) => {
@@ -1189,7 +1232,7 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                         </select>
                      </td>
 
-                     {/* CÁC Ô NGÀY GIỜ - NHẤN ĐỂ MỞ MODAL CHỌN */}
+                     {/* ======= KHU VỰC 2: CÁC NỀN TẢNG ======= */}
                      {platforms.map(p => {
                        if (!visibleCols[p as keyof typeof visibleCols]) return null;
                        const schedule = smData?.schedules.find((s: any) => s.platform === p);
@@ -1198,8 +1241,9 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                        return (
                          <td
                            key={p}
-                           className="p-1 border-l border-slate-100 text-center align-top transition-colors"
-                           style={hasDate ? { backgroundColor: pColor?.light } : {}}
+                           className={cn("p-1 border-l border-slate-100 text-center align-top transition-colors", dragClass)}
+                           style={hasDate && !isDraggingThisRow ? { backgroundColor: pColor?.light } : {}}
+                           onMouseEnter={() => dragTypeRef.current = 'AREA2'}
                            onDoubleClick={(e) => e.stopPropagation()}
                          >
                            <button
@@ -1226,9 +1270,15 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                        );
                      })}
 
-                     {/* KÉO THẢ */}
-                     <td className="p-2 text-center text-slate-300 group-hover:text-slate-500 cursor-grab active:cursor-grabbing align-middle" onDoubleClick={(e) => e.stopPropagation()}>
-                       <GripVertical size={16} className="mx-auto" />
+                     {/* ======= NÚT VUÔNG: KÉO CẢ HÀNG (BOTH) ======= */}
+                     <td 
+                       className={cn("p-2 text-center text-slate-300 hover:text-blue-600 hover:bg-blue-50 cursor-grab active:cursor-grabbing align-middle transition-colors", dragClass)}
+                       onMouseEnter={() => dragTypeRef.current = 'BOTH'}
+                       onDoubleClick={(e) => e.stopPropagation()}
+                     >
+                       <div className="w-8 h-8 rounded-lg border-2 border-slate-200 flex items-center justify-center mx-auto hover:border-blue-400 bg-white shadow-sm transition-all">
+                         <GripVertical size={16} />
+                       </div>
                      </td>
                    </tr>
                  );
