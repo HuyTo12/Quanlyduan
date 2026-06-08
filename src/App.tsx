@@ -899,11 +899,11 @@ const [autoSchedule, setAutoSchedule] = useState({
 
 const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
 
-// Lọc dữ liệu (Đã loại bỏ phân trang, hiển thị toàn bộ dự án)
+// Lọc và sắp xếp: cũ nhất ở trên, mới nhất ở dưới
 const smTasks = useMemo(() =>
   tasks
     .filter((t: any) => getSMData(t).smData !== null)
-    .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()),
+    .sort((a: any, b: any) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()),
 [tasks]);
   // --- LOGIC PHẦN 3: XỬ LÝ FORM & LỊCH ---
   const [showAddModal, setShowAddModal] = useState(false);
