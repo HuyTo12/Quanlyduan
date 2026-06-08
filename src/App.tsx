@@ -85,10 +85,21 @@ function ExpandableText({ text, isProject = false }: { text: string, isProject?:
   
   if (isProject) {
     return (
-      <div className="min-w-[150px]">
-        <div className="text-base font-bold text-blue-900 break-words whitespace-pre-wrap leading-tight">
+      <div className="max-w-[200px] min-w-[150px]">
+        <div className={cn(
+          "text-sm font-bold text-blue-900 break-words leading-snug transition-all duration-200",
+          !expanded && "line-clamp-2"
+        )}>
           {text}
         </div>
+        {text.length > 30 && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+            className="text-blue-400 hover:text-blue-600 mt-0.5 flex items-center transition-colors"
+          >
+            {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+          </button>
+        )}
       </div>
     );
   }
@@ -899,12 +910,8 @@ const [autoSchedule, setAutoSchedule] = useState({
 
 const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
 
-// Lọc và sắp xếp: cũ nhất ở trên, mới nhất ở dưới
-const smTasks = useMemo(() =>
-  tasks
-    .filter((t: any) => getSMData(t).smData !== null)
-    .sort((a: any, b: any) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()),
-[tasks]);
+// Lọc dữ liệu (Đã loại bỏ phân trang, hiển thị toàn bộ dự án)
+const smTasks = useMemo(() => tasks.filter((t: any) => getSMData(t).smData !== null), [tasks]);
   // --- LOGIC PHẦN 3: XỬ LÝ FORM & LỊCH ---
   const [showAddModal, setShowAddModal] = useState(false);
   const [formData, setFormData] = useState({ project: '', description: '', format: 'Hình ảnh', note: '', deadline: '', files: [] as string[] });
@@ -2426,8 +2433,10 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                     <td className="p-4 text-sm font-medium sticky left-0 bg-inherit z-10 border-r border-slate-100 pointer-events-none">
                       {index + 1}
                     </td>
-                    <td className="p-4 text-sm font-bold text-blue-900 sticky left-16 bg-inherit z-10 border-r border-slate-100 min-w-[200px] break-words whitespace-pre-wrap pointer-events-none">
-                      {task.project}
+                    <td className="p-4 sticky left-16 bg-inherit z-10 border-r border-slate-100 min-w-[200px] align-top pointer-events-none">
+                      <div className="pointer-events-auto">
+                        <ExpandableText text={task.project} isProject />
+                      </div>
                     </td>
                     {(() => {
                       const cells = [];
