@@ -991,15 +991,11 @@ useEffect(() => {
 
 // Trạng thái Quy tắc xếp lịch chéo - ĐÃ LƯU BỘ NHỚ
 const [autoSchedule, setAutoSchedule] = useState(() => {
-  const saved = localStorage.getItem('smAutoSchedule');
-  if (saved) {
-    try { return JSON.parse(saved); } catch (e) {}
+  const savedAuto = localStorage.getItem('smAutoSchedule');
+  if (savedAuto) {
+    try { return JSON.parse(savedAuto); } catch (e) {}
   }
-  return {
-    enabled: false,
-    mainPlatform: 'Facebook',
-    subPlatforms: [] as { platform: string, offsetDays: number }[]
-  };
+  return { enabled: false, mainPlatform: 'Facebook', subPlatforms: [] as { platform: string, offsetDays: number }[] };
 });
 
 useEffect(() => {
@@ -1727,9 +1723,10 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
        initialTime={schedulePicker.time}
        pColor={PLATFORM_COLORS[schedulePicker.platform] || { bg: '#64748b', light: '#f1f5f9' }}
        onSave={(date, time) => {
-         // Cập nhật cả ngày và giờ trong một lần để tránh race condition
          const { note, smData } = getSMData(schedulePicker.task);
          const currentData = smData || { format: 'Hình ảnh', schedules: [] };
+         
+         // 1. Cập nhật nền tảng người dùng vừa bấm chọn
          let idx = currentData.schedules.findIndex((s: any) => s.platform === schedulePicker.platform);
          if (idx === -1) {
            currentData.schedules.push({ platform: schedulePicker.platform as SMPlatform, date: '', time: '' });
@@ -1737,20 +1734,24 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
          }
          currentData.schedules[idx].date = date;
          currentData.schedules[idx].time = time;
-         
-         // LOGIC TỰ ĐỘNG XẾP LỊCH (CROSS-POSTING) TỚI CÁC NỀN TẢNG PHỤ
-         if (autoSchedule.enabled && schedulePicker.platform === autoSchedule.mainPlatform && date) {
+
+         // 2. THUẬT TOÁN AUTO-SCHEDULE (Cộng trừ ngày các nền tảng phụ)
+         if (autoSchedule.enabled && schedulePicker.platform === autoSchedule.mainPlatform) {
            autoSchedule.subPlatforms.forEach(sub => {
-              let subIdx = currentData.schedules.findIndex((s: any) => s.platform === sub.platform);
-              if (subIdx === -1) {
-                 // Nếu chưa có, tự tạo lịch với giờ mặc định là 12:00
-                 currentData.schedules.push({ platform: sub.platform as SMPlatform, date: '', time: '12:00' });
-                 subIdx = currentData.schedules.length - 1;
-              }
-              try {
-                 // Tính toán cộng/trừ ngày tự động
-                 currentData.schedules[subIdx].date = format(addDays(parseISO(date), sub.offsetDays), 'yyyy-MM-dd');
-              } catch (e) {}
+             let subIdx = currentData.schedules.findIndex((s: any) => s.platform === sub.platform);
+             if (subIdx === -1) {
+               currentData.schedules.push({ platform: sub.platform as SMPlatform, date: '', time: time });
+               subIdx = currentData.schedules.length - 1;
+             }
+             try {
+               // Tự động tính toán ngày dựa trên mốc chính
+               const calculatedDate = addDays(parseISO(date), sub.offsetDays);
+               currentData.schedules[subIdx].date = format(calculatedDate, 'yyyy-MM-dd');
+               // Gán luôn giờ của mốc chính cho mốc phụ (nếu mốc phụ chưa có giờ)
+               if (!currentData.schedules[subIdx].time) {
+                 currentData.schedules[subIdx].time = time;
+               }
+             } catch (e) { console.error("Lỗi xếp lịch tự động:", e); }
            });
          }
 
@@ -1813,72 +1814,61 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                  {autoSchedule.enabled ? (
                     <div className="p-4 border border-blue-100 rounded-xl bg-blue-50/30 space-y-4">
                       <div>
-                        <label className="text-sm font-bold text-slate-600 block mb-2">Nền tảng CHÍNH (Mốc - 0 ngày)</label>
-                        <select 
-                          value={autoSchedule.mainPlatform} 
-                          onChange={e => setAutoSchedule(prev => ({
-                            ...prev, 
-                            mainPlatform: e.target.value, 
-                            subPlatforms: prev.subPlatforms.filter(sp => sp.platform !== e.target.value)
-                          }))} 
-                          className="w-full p-3 rounded-xl border border-slate-200 font-bold text-blue-800 outline-none focus:ring-2 focus:ring-blue-500"
-                        >
+                        <label className="text-sm font-bold text-slate-600 block mb-2">Nền tảng CHÍNH (Gốc - 0 ngày)</label>
+                        <select value={autoSchedule.mainPlatform} onChange={e => setAutoSchedule(prev => ({...prev, mainPlatform: e.target.value, subPlatforms: []}))} className="w-full p-3 rounded-xl border border-slate-200 font-bold text-blue-800">
                           {platforms.map(p => <option key={p} value={p}>{p}</option>)}
                         </select>
                       </div>
-                      
-                      <div className="pt-3 border-t border-blue-200">
-                        <label className="text-sm font-bold text-slate-600 block mb-3">Chọn Nền tảng ĐĂNG THEO & Số ngày cách biệt</label>
-                        <div className="space-y-2.5">
-                          {platforms.filter(p => p !== autoSchedule.mainPlatform).map(p => {
-                            const subIndex = autoSchedule.subPlatforms.findIndex(sp => sp.platform === p);
-                            const isChecked = subIndex !== -1;
-                            const offset = isChecked ? autoSchedule.subPlatforms[subIndex].offsetDays : 0;
-                            
-                            return (
-                              <div key={p} className="flex items-center gap-3 bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm transition-all hover:border-blue-300">
-                                <input 
-                                  type="checkbox" 
+                      {/* KHUNG CÀI ĐẶT NỀN TẢNG PHỤ (VÔ HẠN NGÀY) */}
+                      <div className="mt-4 space-y-3">
+                        <label className="text-sm font-bold text-slate-600 block border-b border-blue-100 pb-2">Nền tảng Tự động Ăn theo (Chọn ngày hiển thị sau)</label>
+                        {platforms.filter(p => p !== autoSchedule.mainPlatform).map(p => {
+                          const subConfig = autoSchedule.subPlatforms.find(sub => sub.platform === p);
+                          const isChecked = !!subConfig;
+                          return (
+                            <div key={p} className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200 shadow-sm transition-all hover:border-blue-300">
+                              <label className="flex items-center gap-3 cursor-pointer">
+                                <input
+                                  type="checkbox"
                                   checked={isChecked}
                                   onChange={(e) => {
                                     if (e.target.checked) {
-                                      setAutoSchedule(prev => ({...prev, subPlatforms: [...prev.subPlatforms, { platform: p, offsetDays: 0 }]}));
+                                      setAutoSchedule(prev => ({ ...prev, subPlatforms: [...prev.subPlatforms, { platform: p, offsetDays: 1 }] }));
                                     } else {
-                                      setAutoSchedule(prev => ({...prev, subPlatforms: prev.subPlatforms.filter(sp => sp.platform !== p)}));
+                                      setAutoSchedule(prev => ({ ...prev, subPlatforms: prev.subPlatforms.filter(sub => sub.platform !== p) }));
                                     }
                                   }}
-                                  className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" 
+                                  className="w-5 h-5 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
                                 />
-                                <span className={cn("font-bold w-24", isChecked ? "text-blue-700" : "text-slate-500")}>{p}</span>
-                                
-                                {isChecked && (
-                                  <div className="flex items-center gap-2 ml-auto animate-in fade-in slide-in-from-right-4">
-                                    <span className="text-xs text-slate-500 font-medium">Cách:</span>
-                                    <input 
-                                      type="number" 
-                                      value={offset}
-                                      onChange={e => {
-                                        const val = parseInt(e.target.value) || 0;
-                                        setAutoSchedule(prev => {
-                                          const newSubs = [...prev.subPlatforms];
-                                          const idx = newSubs.findIndex(sp => sp.platform === p);
-                                          if (idx !== -1) newSubs[idx].offsetDays = val;
-                                          return { ...prev, subPlatforms: newSubs };
-                                        });
-                                      }}
-                                      className="w-16 p-1.5 text-center rounded-lg border border-slate-300 font-bold text-blue-700 focus:ring-2 focus:ring-blue-500 outline-none"
-                                    />
-                                    <span className="text-xs text-slate-500 font-medium">ngày</span>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                        <p className="text-[11px] text-slate-500 italic mt-3 text-center">* Mẹo: Nhập số âm (VD: -1) để đăng sớm hơn nền tảng chính.</p>
+                                <span className="font-bold text-slate-700">{p}</span>
+                              </label>
+                              
+                              {isChecked && (
+                                <div className="flex items-center gap-2 animate-in fade-in zoom-in-95">
+                                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Cách mốc chính:</span>
+                                  <input
+                                    type="number"
+                                    value={subConfig.offsetDays}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value) || 0;
+                                      setAutoSchedule(prev => ({
+                                        ...prev,
+                                        subPlatforms: prev.subPlatforms.map(sub => sub.platform === p ? { ...sub, offsetDays: val } : sub)
+                                      }));
+                                    }}
+                                    className="w-16 p-1.5 text-center border-2 border-blue-100 rounded-lg text-sm font-black text-blue-700 focus:border-blue-500 focus:ring-0 outline-none transition-colors"
+                                  />
+                                  <span className="text-xs font-semibold text-slate-500">ngày</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                  ) : (
+                    <p className="text-sm text-slate-400 italic px-2">Bật công tắc để kích hoạt tính năng tự động cộng ngày.</p>
+                 )}
               </div>
             </div>
 
