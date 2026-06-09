@@ -1797,7 +1797,7 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
       {/* BẢNG XEM CHI TIẾT DỰ ÁN SOCIAL MEDIA */}
    {viewTask && (
      <GlobalViewModal
-       task={{ ...viewTask, note: getSMData(viewTask).note }}
+       task={viewTask}
        onClose={() => setViewTask(null)}
        onDelete={(id) => { onDelete(id); setViewTask(null); }}
      />
@@ -3183,13 +3183,16 @@ function GlobalEditModal({ task, onClose, onUpdate, onDelete, showToast }: {
   onDelete: (id: string) => void, // Đã bổ sung hàm Xóa vào đây
   showToast: any
 }) {
+  // Lọc lấy ghi chú sạch và bảo tồn gói dữ liệu Social Media
+  const { note: cleanNote, smData } = getSMData(task);
+  
   const [editFormData, setEditFormData] = useState({
     project: task.project,
     description: task.description,
     deadline: task.deadline,
     kpiLevel: task.kpiLevel,
-    status: task.status || 'NEW', // Thêm dòng này để nhận diện tiến độ hiện tại
-    note: task.note || '',
+    status: task.status || 'NEW', 
+    note: cleanNote,
     files: task.files || []
   });
 
@@ -3203,9 +3206,12 @@ function GlobalEditModal({ task, onClose, onUpdate, onDelete, showToast }: {
     }
     const { startDate, workingDays } = calculateTaskDates(deadlineDate, editFormData.kpiLevel);
     const kpiPoints = KPI_CONFIG[editFormData.kpiLevel].points;
+    
     const updatedTask: Task = {
       ...task,
       ...editFormData,
+      // Gắn lại gói dữ liệu ẩn vào Ghi chú trước khi lưu
+      note: smData ? encodeSMData(editFormData.note, smData) : editFormData.note,
       startDate: startDate.toISOString(),
       workingDays: workingDays.map((d: any) => d.toISOString()),
       dailyKpiPoints: kpiPoints / workingDays.length,
@@ -3416,7 +3422,7 @@ function GlobalViewModal({ task, onClose, onDelete }: {
                     </div>
                     <div>
                       <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ghi chú</span>
-                      <p className="text-sm text-slate-700 italic">{task.note || 'Không có ghi chú'}</p>
+                      <p className="text-sm text-slate-700 italic">{cleanNote || 'Không có ghi chú'}</p>
                     </div>
                   </div>
                 </div>
