@@ -1137,16 +1137,39 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
           <button onClick={() => { setActiveTab('calendar'); setSmCalViewMode('week'); setSmCalCenterDate(new Date()); }} className={cn("px-6 py-2.5 rounded-lg font-bold transition-all", activeTab === 'calendar' ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:bg-slate-200")}>Kế Hoạch Dự Án</button>
         </div>
 
-        {/* BỘ LỌC THÁNG */}
-        <div className="flex items-center gap-3 bg-blue-50 px-4 py-2 rounded-xl border border-blue-100 shadow-inner">
-          <CalendarDays size={18} className="text-blue-600" />
-          <span className="text-sm font-bold text-blue-800">Tháng làm việc:</span>
+       {/* BỘ LỌC THÁNG (CÓ MŨI TÊN CHUYỂN NHANH) */}
+        <div className="flex items-center gap-2 bg-blue-50 px-3 py-2 rounded-xl border border-blue-100 shadow-inner">
+          <CalendarDays size={18} className="text-blue-600 hidden md:block" />
+          <span className="text-sm font-bold text-blue-800 hidden md:block mr-1">Tháng làm việc:</span>
+          
+          <button 
+            onClick={() => {
+              const current = selectedMonth ? parseISO(`${selectedMonth}-01`) : new Date();
+              setSelectedMonth(format(subMonths(current, 1), 'yyyy-MM'));
+            }}
+            className="p-1.5 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors shadow-sm bg-white border border-blue-100 active:scale-95"
+            title="Tháng trước"
+          >
+            <ChevronLeft size={16} />
+          </button>
+
           <input 
             type="month" 
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value)}
-            className="bg-white border border-blue-200 text-blue-900 text-sm font-bold rounded-lg px-3 py-1 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm hover:border-blue-300 transition-colors"
+            className="bg-white border border-blue-200 text-blue-900 text-sm font-bold rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm hover:border-blue-300 transition-colors"
           />
+
+          <button 
+            onClick={() => {
+              const current = selectedMonth ? parseISO(`${selectedMonth}-01`) : new Date();
+              setSelectedMonth(format(addMonths(current, 1), 'yyyy-MM'));
+            }}
+            className="p-1.5 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors shadow-sm bg-white border border-blue-100 active:scale-95"
+            title="Tháng sau"
+          >
+            <ChevronRight size={16} />
+          </button>
         </div>
         
         <div className="flex items-center gap-4">
