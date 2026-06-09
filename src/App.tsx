@@ -1397,16 +1397,18 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                         
                         daySchedules.sort((a, b) => a.time.localeCompare(b.time));
 
-                        return (
-                          <div key={dateStr} className={cn("bg-white p-2 flex flex-col gap-1.5 transition-colors hover:bg-blue-50/30", !isCurrentMonth && "bg-slate-50 opacity-60", smCalViewMode === 'week' ? "min-h-[400px]" : "min-h-[140px]")}>
-                            <div className="flex justify-between items-center mb-1">
+                       return (
+                          <div key={dateStr} className={cn("bg-white p-2 flex flex-col gap-1 transition-colors hover:bg-blue-50/30 min-h-0", !isCurrentMonth && "bg-slate-50 opacity-60", smCalViewMode === 'week' ? "min-h-[400px]" : "min-h-[100px]")}>
+                            {/* Tiêu đề Ngày tháng (Cố định ở trên) */}
+                            <div className="flex justify-between items-center mb-1 shrink-0 border-b border-slate-50 pb-1">
                               <span className="text-[10px] font-semibold text-slate-400">{format(day, 'dd/MM')}</span>
-                              <span className={cn("text-sm font-bold w-7 h-7 flex items-center justify-center rounded-full", isToday ? "bg-blue-600 text-white shadow-md" : "text-slate-600")}>
+                              <span className={cn("text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full", isToday ? "bg-blue-600 text-white shadow-md" : "text-slate-600")}>
                                 {format(day, 'd')}
                               </span>
                             </div>
                             
-                            <div className="flex-1 flex flex-col gap-1.5 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-slate-200">
+                            {/* Khung chứa các Dự án (Chỉ cuộn nội bộ, KHÔNG làm giãn ô lịch) */}
+                            <div className="flex-1 overflow-y-auto pr-1 space-y-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-slate-200 min-h-0">
                               {daySchedules.map((sc, i) => {
                                 const pColor = PLATFORM_COLORS[sc.platform] || { bg: '#94a3b8', light: '#f1f5f9' };
                                 const isSelected = selectedCalTask?.task.id === sc.task.id && selectedCalTask?.platform === sc.platform;
@@ -1417,16 +1419,28 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                                     onClick={() => setSelectedCalTask(sc)}
                                     onDoubleClick={() => setActionTask(sc.task)}
                                     className={cn(
-                                      "p-1.5 rounded-lg text-white cursor-pointer transition-all flex flex-col gap-0.5 shadow-sm hover:-translate-y-px", 
-                                      isSelected ? "ring-2 ring-offset-2 ring-blue-500 scale-[1.02]" : "hover:shadow-md"
+                                      "px-1.5 py-1.5 rounded-md text-white cursor-pointer transition-all flex items-center gap-1.5 shadow-sm", 
+                                      isSelected ? "ring-2 ring-offset-1 ring-blue-500 scale-[1.02]" : "hover:scale-[1.02] hover:shadow-md"
                                     )} 
                                     style={{ backgroundColor: pColor.bg }}
+                                    title={`${sc.time || '--:--'} - ${sc.task.project} (${sc.platform})`}
                                   >
-                                    <div className="flex items-center justify-between">
-                                      <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] font-bold">{sc.time || '--:--'}</span>
-                                      <span className="text-[9px] font-bold uppercase tracking-wider opacity-90">{sc.platform}</span>
+                                    {/* 1. Giờ (Shrink-0 để luôn giữ nguyên kích thước không bị bóp méo) */}
+                                    <span className="bg-white/20 px-1 py-0.5 rounded text-[10px] font-bold shrink-0 leading-none">
+                                      {sc.time || '--:--'}
+                                    </span>
+                                    
+                                    {/* 2. Tên dự án (Truncate tự động cắt thành "..." nếu tên quá dài) */}
+                                    <span className="flex-1 truncate text-[10px] font-semibold">
+                                      {sc.task.project}
+                                    </span>
+                                    
+                                    {/* 3. Icon Logo nền tảng (Chữ cái đầu bọc trong hình tròn nền trắng) */}
+                                    <div className="w-3.5 h-3.5 bg-white rounded-full flex items-center justify-center shrink-0 shadow-sm" title={sc.platform}>
+                                      <span className="text-[8px] font-black leading-none" style={{ color: pColor.bg }}>
+                                        {sc.platform.charAt(0)}
+                                      </span>
                                     </div>
-                                    <span className="truncate w-full text-xs font-semibold">{sc.task.project}</span>
                                   </div>
                                 );
                               })}
