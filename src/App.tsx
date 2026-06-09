@@ -2616,12 +2616,12 @@ function SearchSection({ tasks, selectedId, onClearSelection, onDelete }: {
             </div>
               
             <div className="grid md:grid-cols-2 gap-8">
-              <div className="space-y-4">
+              <div className="space-y-4 min-w-0">
                 <h4 className="text-base font-bold text-blue-900 flex items-center gap-2">
                   <FileText size={18} className="text-blue-500" />
                   Nội dung chi tiết
                 </h4>
-                <div className="bg-slate-50 p-6 rounded-2xl text-sm text-slate-700 leading-relaxed whitespace-pre-wrap min-h-[150px]">
+                <div className="bg-slate-50 p-6 rounded-2xl text-sm text-slate-700 leading-relaxed whitespace-pre-wrap break-words overflow-hidden min-h-[150px]">
                   {selectedTask.description}
                 </div>
               </div>
@@ -3456,12 +3456,12 @@ function GlobalViewModal({ task, onClose, onDelete }: {
 
             {/* Nội dung */}
             <div className="grid md:grid-cols-2 gap-8">
-              <div className="space-y-4">
+              <div className="space-y-4 min-w-0">
                 <h4 className="text-base font-bold text-blue-900 flex items-center gap-2">
                   <FileText size={18} className="text-blue-500" />
                   Nội dung chi tiết
                 </h4>
-                <div className="bg-slate-50 p-6 rounded-2xl text-sm text-slate-700 leading-relaxed whitespace-pre-wrap min-h-[150px]">
+                <div className="bg-slate-50 p-6 rounded-2xl text-sm text-slate-700 leading-relaxed whitespace-pre-wrap break-words overflow-hidden min-h-[150px]">
                   {task.description}
                 </div>
               </div>
