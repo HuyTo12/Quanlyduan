@@ -152,15 +152,29 @@ export type SMPlatform = 'Facebook' | 'Zalo' | 'OA Zalo' | 'Tiktok' | 'Shopee';
 export type SMSchedule = { platform: SMPlatform; date: string; time: string; };
 export type SMData = { format: 'Hình ảnh' | 'Video'; schedules: SMSchedule[]; };
 export const getSMData = (task: any): { note: string, smData: SMData | null } => {
-  if (task.note && task.note.includes('SM_DATA:::')) {
+  if (!task || !task.note) return { note: '', smData: null };
+  const noteStr = String(task.note);
+  const separator = 'SM_DATA:::';
+  const sepIndex = noteStr.lastIndexOf(separator);
+  
+  if (sepIndex !== -1) {
     try {
-      const [note, smString] = task.note.split('SM_DATA:::');
-      return { note, smData: JSON.parse(smString) };
-    } catch { return { note: task.note || '', smData: null }; }
+      // Cắt chính xác phần Ghi chú ở trước và phần Mã ẩn ở sau
+      const notePart = noteStr.substring(0, sepIndex);
+      const jsonPart = noteStr.substring(sepIndex + separator.length);
+      return { note: notePart, smData: JSON.parse(jsonPart) };
+    } catch (e) {
+      return { note: noteStr, smData: null };
+    }
   }
-  return { note: task.note || '', smData: null };
+  return { note: noteStr, smData: null };
 };
-export const encodeSMData = (note: string, smData: SMData): string => `${note || ''}SM_DATA:::${JSON.stringify(smData)}`;
+
+export const encodeSMData = (note: string, smData: SMData): string => {
+  // Loại bỏ các từ khóa trùng lặp nếu người dùng vô tình nhập vào
+  const cleanNote = note ? String(note).replace(/SM_DATA:::/g, '') : '';
+  return `${cleanNote}SM_DATA:::${JSON.stringify(smData)}`;
+};
 
 type Toast = {
   id: number;
