@@ -919,13 +919,22 @@ function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast, onDoubleClic
   const [smCalViewMode, setSmCalViewMode] = useState<'month' | 'week'>('week');
   const [smCalCenterDate, setSmCalCenterDate] = useState(() => new Date());
 
+  // 1. Khi đổi tuần/tháng trong Lịch -> Cập nhật tháng trên thanh Header để Danh sách khớp theo
   useEffect(() => {
-    if (smCalViewMode === 'week') setSelectedMonth(format(smCalCenterDate, 'yyyy-MM'));
-  }, [smCalCenterDate, smCalViewMode]);
+    const newMonth = format(smCalCenterDate, 'yyyy-MM');
+    if (selectedMonth !== newMonth) {
+      setSelectedMonth(newMonth);
+    }
+  }, [smCalCenterDate]);
 
+  // 2. Khi đổi tháng trên thanh Header -> Đồng bộ Lịch chạy theo tháng đó
   useEffect(() => {
-    if (selectedMonth && smCalViewMode === 'month') setSmCalCenterDate(parseISO(`${selectedMonth}-01`));
-  }, [selectedMonth, smCalViewMode]);
+    if (!selectedMonth) return;
+    const currentCenterMonth = format(smCalCenterDate, 'yyyy-MM');
+    if (currentCenterMonth !== selectedMonth) {
+      setSmCalCenterDate(parseISO(`${selectedMonth}-01`));
+    }
+  }, [selectedMonth]);
   
  // --- BƯỚC 1.5: THUẬT TOÁN KÉO THẢ ĐỘC LẬP 2 KHU VỰC ---
   const dragTypeRef = useRef<'AREA1' | 'AREA2' | 'BOTH'>('BOTH');
@@ -1134,7 +1143,7 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
       <div className="flex items-center justify-between shrink-0 bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
         <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
           <button onClick={() => setActiveTab('list')} className={cn("px-6 py-2.5 rounded-lg font-bold transition-all", activeTab === 'list' ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:bg-slate-200")}>Danh sách Dự án</button>
-          <button onClick={() => { setActiveTab('calendar'); setSmCalViewMode('week'); setSmCalCenterDate(new Date()); }} className={cn("px-6 py-2.5 rounded-lg font-bold transition-all", activeTab === 'calendar' ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:bg-slate-200")}>Kế Hoạch Dự Án</button>
+          <button onClick={() => setActiveTab('calendar')} className={cn("px-6 py-2.5 rounded-lg font-bold transition-all", activeTab === 'calendar' ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:bg-slate-200")}>Kế Hoạch Dự Án</button>
         </div>
 
        {/* BỘ LỌC THÁNG (CÓ MŨI TÊN CHUYỂN NHANH) */}
