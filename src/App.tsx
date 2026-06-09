@@ -1492,12 +1492,47 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                 {/* KHUNG PHẢI: SIDEBAR CHI TIẾT */}
                 {selectedCalTask && (
                   <div className="w-1/3 bg-white flex flex-col shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)] z-10 animate-in slide-in-from-right-8 duration-300">
-                    <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                      <h3 className="font-bold text-blue-900 flex items-center gap-2">
+                    <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2 bg-slate-50">
+                      {/* Tiêu đề */}
+                      <h3 className="font-bold text-blue-900 flex items-center gap-2 mr-auto shrink-0">
                         <FileText size={18}/> Chi tiết lịch đăng
                       </h3>
-                      <button onClick={() => setSelectedCalTask(null)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                        <X size={20} />
+
+                      {/* Nút Chỉnh sửa */}
+                      <button
+                        onClick={() => { window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: selectedCalTask.task })); }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-all shadow-sm shadow-blue-200 active:scale-95 shrink-0"
+                        title="Chỉnh sửa toàn bộ dự án"
+                      >
+                        <Edit size={14} /> Chỉnh sửa
+                      </button>
+
+                      {/* Nút Xóa ngày */}
+                      <button
+                        onClick={() => {
+                          const { note, smData } = getSMData(selectedCalTask.task);
+                          if (!smData) return;
+                          // Xóa đúng lịch của nền tảng đang được chọn
+                          const newSchedules = smData.schedules.filter(
+                            (s: any) => s.platform !== selectedCalTask.platform
+                          );
+                          const updatedTask = {
+                            ...selectedCalTask.task,
+                            note: encodeSMData(note, { ...smData, schedules: newSchedules }),
+                          };
+                          onUpdate(updatedTask);
+                          setSelectedCalTask(null);
+                          showToast(`Đã xóa lịch ${selectedCalTask.platform} khỏi dự án`, 'delete');
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-500 text-xs font-bold rounded-lg hover:bg-red-500 hover:text-white transition-all border border-red-200 active:scale-95 shrink-0"
+                        title={`Xóa lịch đăng ${selectedCalTask.platform}`}
+                      >
+                        <Trash2 size={14} /> Xóa ngày
+                      </button>
+
+                      {/* Nút Đóng */}
+                      <button onClick={() => setSelectedCalTask(null)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg transition-colors shrink-0">
+                        <X size={18} />
                       </button>
                     </div>
                     
@@ -1560,15 +1595,7 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                       )}
                     </div>
                     
-                    <div className="p-5 bg-slate-50 border-t border-slate-100 mt-auto shrink-0">
-                      <button 
-                        onClick={() => { window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: selectedCalTask.task })); }}
-                        className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-md shadow-blue-200 flex items-center justify-center gap-2 active:scale-[0.98]"
-                      >
-                        <Edit size={18} /> Chỉnh sửa Toàn bộ Dự án
-                      </button>
                     </div>
-                  </div>
                 )}
               </div>
             </div>
