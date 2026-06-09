@@ -325,7 +325,7 @@ export default function App() {
   };
 
   // --- HÀM THÊM / SỬA CÓ TÍNH % TẢI FILE ---
-  const addTask = async (newTask: Omit<Task, 'id' | 'startDate' | 'workingDays' | 'dailyKpiPoints' | 'createdAt' | 'status'>) => {
+  const addTask = async (newTask: any) => {
     let driveLinks: string[] = [];
     const filesToUpload = newTask.files?.filter((f: any) => f.startsWith('data:')) || [];
     
@@ -355,8 +355,8 @@ export default function App() {
       startDate: startDate.toISOString(),
       workingDays: workingDays.map((d: any) => d.toISOString()),
       dailyKpiPoints: kpiPoints / workingDays.length,
-      createdAt: new Date().toISOString(),
-      status: 'NEW', // ĐÃ SỬA: Mặc định mọi dự án mới giao đều là "Dự án mới" (NEW)
+      createdAt: newTask.createdAt || new Date().toISOString(), // ĐÃ SỬA: Ưu tiên ngày tùy chỉnh
+      status: 'NEW',
       files: driveLinks
     };
     
@@ -1625,13 +1625,24 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
              return;
            }
            const smData: SMData = { format: formData.format as any, schedules: [] };
+
+           // --- THUẬT TOÁN ĐỒNG BỘ THÁNG DỰ ÁN ---
+           let customCreatedAt = new Date();
+           if (selectedMonth) {
+             const [y, m] = selectedMonth.split('-');
+             customCreatedAt.setDate(1); // Tránh lỗi tràn ngày cuối tháng
+             customCreatedAt.setFullYear(parseInt(y), parseInt(m) - 1);
+           }
+
            onAdd({
              project: formData.project, description: formData.description,
              note: encodeSMData(formData.note, smData),
              files: formData.files,
              kpiLevel: formData.format === 'Video' ? 3 : 2,
-             deadline: formData.deadline || format(new Date(), 'yyyy-MM-dd')
+             deadline: formData.deadline || format(new Date(), 'yyyy-MM-dd'),
+             createdAt: customCreatedAt.toISOString() // Gắn gốc tháng vào dự án
            });
+           
            setFormData({ project: '', description: '', format: 'Hình ảnh', note: '', deadline: '', files: [] });
            setShowAddModal(false);
            showToast('Đã tạo dự án Social Media', 'success');
