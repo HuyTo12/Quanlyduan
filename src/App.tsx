@@ -945,21 +945,28 @@ function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast, onDoubleClic
     const { note: dNote, smData: dSmData } = getSMData(draggedTask);
     const { note: tNote, smData: tSmData } = getSMData(targetTask);
 
+    // TÁCH RIÊNG ĐỊNH DẠNG VÀ LỊCH ĐỂ HOÁN ĐỔI ĐỘC LẬP
+    const dFormat = dSmData?.format || 'Hình ảnh';
+    const tFormat = tSmData?.format || 'Hình ảnh';
+    const dSchedules = dSmData?.schedules || [];
+    const tSchedules = tSmData?.schedules || [];
+
     if (dragType === 'AREA2') {
-      // 1. KÉO KHU VỰC 2 (Phải): Chỉ hoán đổi dữ liệu Lịch đăng
-      newDraggedTask.note = encodeSMData(dNote, tSmData || { format: 'Hình ảnh', schedules: [] });
-      newTargetTask.note = encodeSMData(tNote, dSmData || { format: 'Hình ảnh', schedules: [] });
+      // 1. KÉO KHU VỰC 2 (Phải): Chỉ hoán đổi Lịch đăng (schedules). Định dạng (format) đứng im.
+      newDraggedTask.note = encodeSMData(dNote, { format: dFormat, schedules: tSchedules });
+      newTargetTask.note = encodeSMData(tNote, { format: tFormat, schedules: dSchedules });
     } 
     else if (dragType === 'AREA1') {
-      // 2. KÉO KHU VỰC 1 (Trái): Đổi vị trí hiển thị (createdAt) VÀ Đổi Lịch để Lịch đứng yên
+      // 2. KÉO KHU VỰC 1 (Trái): Đổi vị trí hiển thị (createdAt) để kéo dự án đi.
+      // Giữ Định dạng (format) mang theo dự án, nhưng trả Lịch (schedules) lại để Lịch đứng im.
       newDraggedTask.createdAt = targetTask.createdAt || targetTask.startDate;
       newTargetTask.createdAt = draggedTask.createdAt || draggedTask.startDate;
       
-      newDraggedTask.note = encodeSMData(dNote, tSmData || { format: 'Hình ảnh', schedules: [] });
-      newTargetTask.note = encodeSMData(tNote, dSmData || { format: 'Hình ảnh', schedules: [] });
+      newDraggedTask.note = encodeSMData(dNote, { format: dFormat, schedules: tSchedules });
+      newTargetTask.note = encodeSMData(tNote, { format: tFormat, schedules: dSchedules });
     }
     else {
-      // 3. KÉO CẢ HÀNG (Dấu vuông cuối hàng): Chỉ đổi vị trí hiển thị
+      // 3. KÉO CẢ HÀNG (Dấu vuông cuối hàng): Chỉ đổi vị trí hiển thị, mọi thứ mang theo hết
       newDraggedTask.createdAt = targetTask.createdAt || targetTask.startDate;
       newTargetTask.createdAt = draggedTask.createdAt || draggedTask.startDate;
     }
