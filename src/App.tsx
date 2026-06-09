@@ -1492,52 +1492,15 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                 {/* KHUNG PHẢI: SIDEBAR CHI TIẾT */}
                 {selectedCalTask && (
                   <div className="w-1/3 bg-white flex flex-col shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)] z-10 animate-in slide-in-from-right-8 duration-300">
-                    
-                    {/* HEADER ĐÃ ĐƯỢC CHUYỂN NÚT CHỈNH SỬA LÊN VÀ THÊM NÚT XÓA */}
-                    <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
-                      <h3 className="font-bold text-blue-900 flex items-center gap-2 truncate">
-                        <FileText size={18} className="shrink-0"/> <span className="truncate">Chi tiết lịch đăng</span>
+                    <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                      <h3 className="font-bold text-blue-900 flex items-center gap-2">
+                        <FileText size={18}/> Chi tiết lịch đăng
                       </h3>
-                      
-                      {/* KHU VỰC NÚT THAO TÁC (GÓC PHẢI) */}
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button 
-                          onClick={() => { window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: selectedCalTask.task })); }}
-                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-1.5 px-2.5 font-bold text-sm"
-                          title="Chỉnh sửa toàn bộ dự án"
-                        >
-                          <Edit size={16} /> Sửa
-                        </button>
-                        
-                        <button 
-                          onClick={() => {
-                            const { note, smData } = getSMData(selectedCalTask.task);
-                            if (smData) {
-                              const currentData = { ...smData };
-                              const idx = currentData.schedules.findIndex((s: any) => s.platform === selectedCalTask.platform);
-                              if (idx !== -1) {
-                                currentData.schedules[idx].date = ''; // Xóa ngày
-                                currentData.schedules[idx].time = ''; // Xóa giờ
-                                onUpdate({ ...selectedCalTask.task, note: encodeSMData(note, currentData) });
-                                setSelectedCalTask(null); // Đóng bảng vì lịch này không còn trên lịch nữa
-                              }
-                            }
-                          }}
-                          className="p-1.5 text-red-500 hover:bg-red-100 rounded-lg transition-colors flex items-center gap-1.5 px-2.5 font-bold text-sm"
-                          title="Xóa lịch đăng của riêng nền tảng này"
-                        >
-                          <Trash2 size={16} /> Xóa ngày
-                        </button>
-                        
-                        <div className="w-px h-5 bg-slate-300 mx-1"></div>
-                        
-                        <button onClick={() => setSelectedCalTask(null)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                          <X size={20} />
-                        </button>
-                      </div>
+                      <button onClick={() => setSelectedCalTask(null)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                        <X size={20} />
+                      </button>
                     </div>
                     
-                    {/* NỘI DUNG CHI TIẾT */}
                     <div className="p-6 flex-1 overflow-y-auto space-y-6">
                       <div className="flex items-center gap-4">
                         <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-md font-bold text-2xl" style={{ backgroundColor: PLATFORM_COLORS[selectedCalTask.platform]?.bg || '#94a3b8' }}>
@@ -1596,8 +1559,22 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                         </div>
                       )}
                     </div>
+                    
+                    <div className="p-5 bg-slate-50 border-t border-slate-100 mt-auto shrink-0">
+                      <button 
+                        onClick={() => { window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: selectedCalTask.task })); }}
+                        className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-md shadow-blue-200 flex items-center justify-center gap-2 active:scale-[0.98]"
+                      >
+                        <Edit size={18} /> Chỉnh sửa Toàn bộ Dự án
+                      </button>
+                    </div>
                   </div>
                 )}
+              </div>
+            </div>
+          );
+        })()}
+        </div>
 
       {/* MODAL GIAO DỰ ÁN SOCIAL MEDIA MỚI */}
    {showAddModal && (
@@ -3420,6 +3397,9 @@ function GlobalViewModal({ task, onClose, onDelete }: {
 
   const currentStatus = task.status || 'NEW';
   const statusInfo = STATUS_CONFIG[currentStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG['NEW'];
+
+  // Lọc ghi chú sạch, loại bỏ mã SM_DATA ẩn trước khi hiển thị
+  const { note: cleanNote } = getSMData(task);
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
