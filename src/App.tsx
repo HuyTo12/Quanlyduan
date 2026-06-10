@@ -950,12 +950,12 @@ function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast, onDoubleClic
   const handleDragOver = (e: any, idx: number) => {
     e.preventDefault(); 
     e.dataTransfer.dropEffect = 'move';
-    if (dragOverIdx !== idx) setDragOverIdx(idx);
+    if (dragOverIdx !== idx) setDragOverIdx(idx); // Bắt vị trí đang trỏ vào để vẽ viền đứt
   };
 
   const handleDrop = (e: any, dropIndex: number) => {
     e.preventDefault();
-    setDragOverIdx(null);
+    setDragOverIdx(null); // Tắt viền đứt khi thả
     if (!draggedItem || draggedItem.idx === dropIndex) {
       setDraggedItem(null);
       return;
@@ -1225,43 +1225,54 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                  const { note, smData } = getSMData(task);
                  const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-blue-50/40';
                  
-                 // Thuật toán vẽ viền Đứt/Liền mạch nhận diện khu vực đang kéo thả
+                 // Thuật toán vẽ viền Đứt/Liền mạch thông minh
                  const isDraggingThisRow = draggedItem?.idx === idx;
                  const isDragOverThisRow = dragOverIdx === idx;
                  const dragType = draggedItem?.type;
                  const visiblePlatforms = platforms.filter(p => visibleCols[p as keyof typeof visibleCols]);
                  
                  const getCellBorder = (cellArea: 'AREA1' | 'AREA2' | 'HANDLE', colName: string) => {
-                   if (!dragType || (!isDraggingThisRow && !isDragOverThisRow)) return "";
+                   if (!dragType) return ""; // Không có kéo thả -> Bình thường
 
                    const isBoth = dragType === 'BOTH';
-                   let isActive = false;
+                   let isActiveArea = false;
                    let isFirst = false;
                    let isLast = false;
 
+                   // 1. Xác định ô có thuộc "Khu vực đang được tương tác" không
                    if (isBoth) {
-                     isActive = true;
+                     isActiveArea = true;
                      isFirst = visibleCols['Tiến độ'] ? colName === 'Tiến độ' : colName === 'STT';
                      isLast = colName === 'HANDLE';
                    } else if (dragType === 'AREA1' && cellArea === 'AREA1') {
-                     isActive = true;
+                     isActiveArea = true;
                      isFirst = visibleCols['Tiến độ'] ? colName === 'Tiến độ' : colName === 'STT';
                      isLast = colName === 'Định dạng';
                    } else if (dragType === 'AREA2' && cellArea === 'AREA2') {
-                     isActive = true;
+                     isActiveArea = true;
                      isFirst = colName === visiblePlatforms[0];
                      isLast = colName === visiblePlatforms[visiblePlatforms.length - 1];
                    }
 
-                   if (!isActive) return "";
+                   // 2. Nếu Cột này KHÔNG nằm trong vùng kéo -> Làm mờ đi để nổi bật vùng đang thao tác
+                   if (!isActiveArea) return "opacity-20 grayscale transition-all duration-300";
 
+                   // 3. Nếu cột này đúng, nhưng KHÔNG phải dòng đang cầm / dòng đích -> Sáng bình thường
+                   if (!isDraggingThisRow && !isDragOverThisRow) return "transition-all duration-300";
+
+                   // 4. Đúng DÒNG đang thao tác -> Vẽ viền xanh tổng liền khối
                    const borderType = isDraggingThisRow ? "border-solid border-blue-500" : "border-dashed border-blue-500";
-                   const bgType = isDraggingThisRow ? "bg-blue-50/50 opacity-80" : "bg-blue-50/30";
+                   const bgType = isDraggingThisRow ? "bg-blue-100/80 shadow-[inset_0_0_10px_rgba(59,130,246,0.1)]" : "bg-blue-50/80";
                    
-                   let cls = `relative z-10 border-y-2 ${borderType} ${bgType} `;
+                   let cls = `relative z-20 border-y-2 ${borderType} ${bgType} transition-all duration-200 `;
+                   
+                   // ÉP XÓA VIỀN NỘI BỘ (để liền thành 1 khối hình chữ nhật duy nhất)
                    if (isFirst) cls += `border-l-2 `;
-                   if (isLast) cls += `border-r-2 `;
+                   else cls += `border-l-0 `; 
                    
+                   if (isLast) cls += `border-r-2 `;
+                   else cls += `border-r-0 `; 
+
                    return cls;
                  };
 
@@ -1347,11 +1358,13 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                        const schedule = smData?.schedules.find((s: any) => s.platform === p);
                        const hasDate = !!(schedule?.date);
                        const pColor = PLATFORM_COLORS[p];
+                       const activeBorder = getCellBorder('AREA2', p);
+                       const hasBlueBg = activeBorder.includes('bg-blue');
                        return (
                          <td
                            key={p}
-                           className={cn("p-1 border-l border-slate-100 text-center align-top transition-colors", getCellBorder('AREA2', p))}
-                           style={hasDate && !getCellBorder('AREA2', p) ? { backgroundColor: pColor?.light } : {}}
+                           className={cn("p-1 border-l border-slate-100 text-center align-top transition-colors", activeBorder)}
+                           style={hasDate && !hasBlueBg ? { backgroundColor: pColor?.light } : {}}
                            onMouseEnter={() => dragTypeRef.current = 'AREA2'}
                            onDoubleClick={(e) => e.stopPropagation()}
                          >
