@@ -930,19 +930,22 @@ function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast, onDoubleClic
  // --- BƯỚC 1.5: THUẬT TOÁN KÉO THẢ ĐỘC LẬP 2 KHU VỰC ---
   const dragTypeRef = useRef<'AREA1' | 'AREA2' | 'BOTH'>('BOTH');
   const [draggedItem, setDraggedItem] = useState<{idx: number, type: string} | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   const handleDragStart = (e: any, index: number) => {
     setDraggedItem({ idx: index, type: dragTypeRef.current });
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleDragOver = (e: any) => {
+  const handleDragOver = (e: any, idx: number) => {
     e.preventDefault(); 
     e.dataTransfer.dropEffect = 'move';
+    if (dragOverIdx !== idx) setDragOverIdx(idx);
   };
 
   const handleDrop = (e: any, dropIndex: number) => {
     e.preventDefault();
+    setDragOverIdx(null);
     if (!draggedItem || draggedItem.idx === dropIndex) {
       setDraggedItem(null);
       return;
@@ -1212,29 +1215,61 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                  const { note, smData } = getSMData(task);
                  const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-blue-50/40';
                  
-                 // Tạo hiệu ứng màu sắc nhận diện khu vực đang kéo
+                 // Thuật toán vẽ viền Đứt/Liền mạch nhận diện khu vực đang kéo thả
                  const isDraggingThisRow = draggedItem?.idx === idx;
-                 const dragClass = isDraggingThisRow 
-                   ? (draggedItem.type === 'AREA1' ? "opacity-40 bg-blue-200" 
-                     : draggedItem.type === 'AREA2' ? "opacity-40 bg-orange-200" 
-                     : "opacity-40 bg-purple-200")
-                   : "";
+                 const isDragOverThisRow = dragOverIdx === idx;
+                 const dragType = draggedItem?.type;
+                 const visiblePlatforms = platforms.filter(p => visibleCols[p as keyof typeof visibleCols]);
+                 
+                 const getCellBorder = (cellArea: 'AREA1' | 'AREA2' | 'HANDLE', colName: string) => {
+                   if (!dragType || (!isDraggingThisRow && !isDragOverThisRow)) return "";
+
+                   const isBoth = dragType === 'BOTH';
+                   let isActive = false;
+                   let isFirst = false;
+                   let isLast = false;
+
+                   if (isBoth) {
+                     isActive = true;
+                     isFirst = visibleCols['Tiến độ'] ? colName === 'Tiến độ' : colName === 'STT';
+                     isLast = colName === 'HANDLE';
+                   } else if (dragType === 'AREA1' && cellArea === 'AREA1') {
+                     isActive = true;
+                     isFirst = visibleCols['Tiến độ'] ? colName === 'Tiến độ' : colName === 'STT';
+                     isLast = colName === 'Định dạng';
+                   } else if (dragType === 'AREA2' && cellArea === 'AREA2') {
+                     isActive = true;
+                     isFirst = colName === visiblePlatforms[0];
+                     isLast = colName === visiblePlatforms[visiblePlatforms.length - 1];
+                   }
+
+                   if (!isActive) return "";
+
+                   const borderType = isDraggingThisRow ? "border-solid border-blue-500" : "border-dashed border-blue-500";
+                   const bgType = isDraggingThisRow ? "bg-blue-50/50 opacity-80" : "bg-blue-50/30";
+                   
+                   let cls = `relative z-10 border-y-2 ${borderType} ${bgType} `;
+                   if (isFirst) cls += `border-l-2 `;
+                   if (isLast) cls += `border-r-2 `;
+                   
+                   return cls;
+                 };
 
                  return (
                    <tr 
                      key={task.id} 
                      draggable 
                      onDragStart={(e) => handleDragStart(e, idx)}
-                     onDragOver={handleDragOver}
+                     onDragOver={(e) => handleDragOver(e, idx)}
                      onDrop={(e) => handleDrop(e, idx)}
-                     onDragEnd={() => setDraggedItem(null)}
+                     onDragEnd={() => { setDraggedItem(null); setDragOverIdx(null); }}
                      onDoubleClick={() => setActionTask(task)} 
                      className={cn("border-b border-slate-100 transition-all cursor-pointer group relative", rowBg)}
                    >
 
                      {/* ======= KHU VỰC 1: THÔNG TIN DỰ ÁN ======= */}
                      {visibleCols['Tiến độ'] && (
-                       <td className={cn("p-2 align-top", dragClass)} onMouseEnter={() => dragTypeRef.current = 'AREA1'} onDoubleClick={(e) => e.stopPropagation()}>
+                       <td className={cn("p-2 align-top", getCellBorder('AREA1', 'Tiến độ'))} onMouseEnter={() => dragTypeRef.current = 'AREA1'} onDoubleClick={(e) => e.stopPropagation()}>
                          <select 
                            value={task.status || 'NEW'} 
                            onChange={(e) => onUpdate({ ...task, status: e.target.value, note: task.note })}
@@ -1248,12 +1283,12 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                          </select>
                        </td>
                      )}
-                     <td className={cn("p-2 text-center font-bold text-slate-400 align-top", dragClass)} onMouseEnter={() => dragTypeRef.current = 'AREA1'}>{idx + 1}</td>
+                     <td className={cn("p-2 text-center font-bold text-slate-400 align-top", getCellBorder('AREA1', 'STT'))} onMouseEnter={() => dragTypeRef.current = 'AREA1'}>{idx + 1}</td>
 
-                     <td className={cn("p-2 align-top", dragClass)} onMouseEnter={() => dragTypeRef.current = 'AREA1'}><ExpandableCell text={task.project} isTitle={true} /></td>
-                     {visibleCols['Nội dung'] && <td className={cn("p-2 align-top", dragClass)} onMouseEnter={() => dragTypeRef.current = 'AREA1'}><ExpandableCell text={task.description} /></td>}
+                     <td className={cn("p-2 align-top", getCellBorder('AREA1', 'Dự án'))} onMouseEnter={() => dragTypeRef.current = 'AREA1'}><ExpandableCell text={task.project} isTitle={true} /></td>
+                     {visibleCols['Nội dung'] && <td className={cn("p-2 align-top", getCellBorder('AREA1', 'Nội dung'))} onMouseEnter={() => dragTypeRef.current = 'AREA1'}><ExpandableCell text={task.description} /></td>}
 
-                     <td className={cn("p-2 align-top text-center", dragClass)} onMouseEnter={() => dragTypeRef.current = 'AREA1'} onDoubleClick={(e) => e.stopPropagation()}>
+                     <td className={cn("p-2 align-top text-center", getCellBorder('AREA1', 'Link'))} onMouseEnter={() => dragTypeRef.current = 'AREA1'} onDoubleClick={(e) => e.stopPropagation()}>
                        {task.files?.length > 0 ? (
                          <div className="flex flex-wrap gap-1 justify-center">
                            {task.files.map((fileData: string, fi: number) => {
@@ -1271,9 +1306,9 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                        ) : <span className="text-slate-300">-</span>}
                      </td>
 
-                     {visibleCols['Ghi chú'] && <td className={cn("p-2 align-top", dragClass)} onMouseEnter={() => dragTypeRef.current = 'AREA1'}><ExpandableCell text={note} /></td>}
+                     {visibleCols['Ghi chú'] && <td className={cn("p-2 align-top", getCellBorder('AREA1', 'Ghi chú'))} onMouseEnter={() => dragTypeRef.current = 'AREA1'}><ExpandableCell text={note} /></td>}
 
-                     <td className={cn("p-2 align-top", dragClass)} onMouseEnter={() => dragTypeRef.current = 'AREA1'} onDoubleClick={(e) => e.stopPropagation()}>
+                     <td className={cn("p-2 align-top", getCellBorder('AREA1', 'Định dạng'))} onMouseEnter={() => dragTypeRef.current = 'AREA1'} onDoubleClick={(e) => e.stopPropagation()}>
                         <select 
                            value={smData?.format || 'Hình ảnh'} 
                            onChange={(e) => {
@@ -1305,8 +1340,8 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                        return (
                          <td
                            key={p}
-                           className={cn("p-1 border-l border-slate-100 text-center align-top transition-colors", dragClass)}
-                           style={hasDate && !isDraggingThisRow ? { backgroundColor: pColor?.light } : {}}
+                           className={cn("p-1 border-l border-slate-100 text-center align-top transition-colors", getCellBorder('AREA2', p))}
+                           style={hasDate && !getCellBorder('AREA2', p) ? { backgroundColor: pColor?.light } : {}}
                            onMouseEnter={() => dragTypeRef.current = 'AREA2'}
                            onDoubleClick={(e) => e.stopPropagation()}
                          >
@@ -1336,7 +1371,7 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
 
                      {/* ======= NÚT VUÔNG: KÉO CẢ HÀNG (BOTH) ======= */}
                      <td 
-                       className={cn("p-2 text-center text-slate-300 hover:text-blue-600 hover:bg-blue-50 cursor-grab active:cursor-grabbing align-middle transition-colors", dragClass)}
+                       className={cn("p-2 text-center text-slate-300 hover:text-blue-600 hover:bg-blue-50 cursor-grab active:cursor-grabbing align-middle transition-colors", getCellBorder('HANDLE', 'HANDLE'))}
                        onMouseEnter={() => dragTypeRef.current = 'BOTH'}
                        onDoubleClick={(e) => e.stopPropagation()}
                      >
