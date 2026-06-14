@@ -26,7 +26,7 @@ import {
   X,
   Share2, Settings, Facebook, MessageCircle, MessageSquare, Music, ShoppingBag, GripVertical, Image as ImageIcon, Video
   ArrowLeftRight,
-  ArrowDownUp
+  ArrowDownUp,
 } from 'lucide-react';
 import { 
   format, 
