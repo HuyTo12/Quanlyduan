@@ -748,8 +748,13 @@ export default function App() {
               onChange={e => setPinInput(e.target.value)}
               onKeyDown={async (e) => {
                 if (e.key === 'Enter') {
-                  const { data } = await supabase.from('app_settings').select('value').eq('key', 'admin_pin').single();
-                  if (data && data.value === pinInput) {
+                  // Gọi cơ sở dữ liệu
+                  const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'admin_pin').single();
+                  
+                  // THUẬT TOÁN DỰ PHÒNG THÁNG 6/2026: Ưu tiên data Supabase, nếu đứt mạng/lỗi RLS thì dùng mã cứng 151101
+                  const validPin = (data && data.value) ? data.value : '151101';
+                  
+                  if (pinInput === validPin) {
                     setWorkspace('private'); setPinInput(''); setShowPinModal(false);
                     showToast('Đã mở khóa tài khoản thành công!', 'success');
                   } else {
@@ -764,8 +769,11 @@ export default function App() {
               <button onClick={() => { setShowPinModal(false); setPinInput(''); }} className="flex-1 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl hover:bg-slate-200 transition-colors">Đóng</button>
               <button 
                 onClick={async () => {
-                  const { data } = await supabase.from('app_settings').select('value').eq('key', 'admin_pin').single();
-                  if (data && data.value === pinInput) {
+                  const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'admin_pin').single();
+                  
+                  const validPin = (data && data.value) ? data.value : '151101';
+
+                  if (pinInput === validPin) {
                     setWorkspace('private'); setPinInput(''); setShowPinModal(false);
                     showToast('Đã mở khóa tài khoản thành công!', 'success');
                   } else {
