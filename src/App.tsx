@@ -25,6 +25,8 @@ import {
   AlertCircle,
   X,
   Share2, Settings, Facebook, MessageCircle, MessageSquare, Music, ShoppingBag, GripVertical, Image as ImageIcon, Video
+  ArrowLeftRight,
+  ArrowDownUp
 } from 'lucide-react';
 import { 
   format, 
@@ -1067,6 +1069,14 @@ function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast, onDoubleClic
   // Bộ nhớ lưu tháng đang chọn (mặc định là tháng hiện tại)
   const [selectedMonth, setSelectedMonth] = useState(() => format(new Date(), 'yyyy-MM'));
   
+  // --- THÊM CHẾ ĐỘ KÉO THẢ (SWAP: Hoán đổi | INSERT: Chèn dồn) ---
+  const [dragMode, setDragMode] = useState<'SWAP' | 'INSERT'>(() => {
+    return localStorage.getItem('smDragMode') as 'SWAP' | 'INSERT' || 'SWAP';
+  });
+  useEffect(() => {
+    localStorage.setItem('smDragMode', dragMode);
+  }, [dragMode]);
+  
   // --- BỘ NHỚ VÀ ĐỒNG BỘ CHO CHẾ ĐỘ XEM LỊCH (THÁNG / TUẦN) ---
   const [smCalViewMode, setSmCalViewMode] = useState<'month' | 'week'>('week');
   // Khi F5 sẽ mặc định lấy new Date() -> Trở về tháng/tuần hiện tại
@@ -1107,51 +1117,94 @@ function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast, onDoubleClic
 
   const handleDrop = (e: any, dropIndex: number) => {
     e.preventDefault();
-    setDragOverIdx(null); // Tắt viền đứt khi thả
+    setDragOverIdx(null);
     if (!draggedItem || draggedItem.idx === dropIndex) {
       setDraggedItem(null);
       return;
     }
 
-    const draggedTask = smTasks[draggedItem.idx];
-    const targetTask = smTasks[dropIndex];
+    const dragIdx = draggedItem.idx;
     const dragType = draggedItem.type;
 
-    let newDraggedTask = { ...draggedTask };
-    let newTargetTask = { ...targetTask };
+    if (dragMode === 'SWAP') {
+      // --- CÁCH 1: HOÁN ĐỔI TRỰC TIẾP (SWAP) ---
+      const draggedTask = smTasks[dragIdx];
+      const targetTask = smTasks[dropIndex];
 
-    // Tách phần ghi chú (chữ) và phần Lịch (smData) ra
-    const { note: dNote, smData: dSmData } = getSMData(draggedTask);
-    const { note: tNote, smData: tSmData } = getSMData(targetTask);
+      let newDraggedTask = { ...draggedTask };
+      let newTargetTask = { ...targetTask };
 
-    // TÁCH RIÊNG ĐỊNH DẠNG VÀ LỊCH ĐỂ HOÁN ĐỔI ĐỘC LẬP
-    const dFormat = dSmData?.format || 'Hình ảnh';
-    const tFormat = tSmData?.format || 'Hình ảnh';
-    const dSchedules = dSmData?.schedules || [];
-    const tSchedules = tSmData?.schedules || [];
+      const { note: dNote, smData: dSmData } = getSMData(draggedTask);
+      const { note: tNote, smData: tSmData } = getSMData(targetTask);
 
-    if (dragType === 'AREA2') {
-      // 1. KÉO KHU VỰC 2 (Phải): Chỉ hoán đổi Lịch đăng (schedules). Định dạng (format) đứng im.
-      newDraggedTask.note = encodeSMData(dNote, { format: dFormat, schedules: tSchedules });
-      newTargetTask.note = encodeSMData(tNote, { format: tFormat, schedules: dSchedules });
-    } 
-    else if (dragType === 'AREA1') {
-      // 2. KÉO KHU VỰC 1 (Trái): Đổi vị trí hiển thị (createdAt) để kéo dự án đi.
-      // Giữ Định dạng (format) mang theo dự án, nhưng trả Lịch (schedules) lại để Lịch đứng im.
-      newDraggedTask.createdAt = targetTask.createdAt || targetTask.startDate;
-      newTargetTask.createdAt = draggedTask.createdAt || draggedTask.startDate;
+      const dFormat = dSmData?.format || 'Hình ảnh';
+      const tFormat = tSmData?.format || 'Hình ảnh';
+      const dSchedules = dSmData?.schedules || [];
+      const tSchedules = tSmData?.schedules || [];
+
+      if (dragType === 'AREA2') {
+        newDraggedTask.note = encodeSMData(dNote, { format: dFormat, schedules: tSchedules });
+        newTargetTask.note = encodeSMData(tNote, { format: tFormat, schedules: dSchedules });
+      } 
+      else if (dragType === 'AREA1') {
+        newDraggedTask.createdAt = targetTask.createdAt || targetTask.startDate;
+        newTargetTask.createdAt = draggedTask.createdAt || draggedTask.startDate;
+        newDraggedTask.note = encodeSMData(dNote, { format: dFormat, schedules: tSchedules });
+        newTargetTask.note = encodeSMData(tNote, { format: tFormat, schedules: dSchedules });
+      }
+      else {
+        newDraggedTask.createdAt = targetTask.createdAt || targetTask.startDate;
+        newTargetTask.createdAt = draggedTask.createdAt || draggedTask.startDate;
+      }
+
+      onUpdate(newDraggedTask);
+      onUpdate(newTargetTask);
+
+    } else {
+      // --- CÁCH 2: CHÈN VÀ DỒN XUỐNG (INSERT / PUSH DOWN) ---
+      const minIdx = Math.min(dragIdx, dropIndex);
+      const maxIdx = Math.max(dragIdx, dropIndex);
       
-      newDraggedTask.note = encodeSMData(dNote, { format: dFormat, schedules: tSchedules });
-      newTargetTask.note = encodeSMData(tNote, { format: tFormat, schedules: dSchedules });
-    }
-    else {
-      // 3. KÉO CẢ HÀNG (Dấu vuông cuối hàng): Chỉ đổi vị trí hiển thị, mọi thứ mang theo hết
-      newDraggedTask.createdAt = targetTask.createdAt || targetTask.startDate;
-      newTargetTask.createdAt = draggedTask.createdAt || draggedTask.startDate;
+      // Cắt lấy cụm dự án đang bị tác động đẩy lùi
+      const affectedTasks = smTasks.slice(minIdx, maxIdx + 1);
+      
+      // Lưu lại Cấu trúc Ngày và Lịch theo đúng thứ tự mảng ban đầu
+      const originalProps = affectedTasks.map((t: any) => {
+        const { smData } = getSMData(t);
+        return {
+          createdAt: t.createdAt || t.startDate,
+          schedules: smData?.schedules || []
+        };
+      });
+      
+      // Tính toán mảng mới sau khi cục gạch được rút ra và chèn vào chỗ mới
+      const newOrderedTasks = [...affectedTasks];
+      const movedItem = newOrderedTasks.splice(dragIdx - minIdx, 1)[0];
+      newOrderedTasks.splice(dropIndex - minIdx, 0, movedItem);
+      
+      // Đồng loạt cập nhật lại Dữ liệu đẩy lên Supabase
+      newOrderedTasks.forEach((task: any, index: number) => {
+        const props = originalProps[index];
+        let newTask = { ...task };
+        const { note, smData } = getSMData(task);
+        const format = smData?.format || 'Hình ảnh';
+        
+        if (dragType === 'AREA2') {
+           // Chỉ dồn Lịch đăng (Khu vực 2), Dự án đứng im
+           newTask.note = encodeSMData(note, { format, schedules: props.schedules });
+        } else if (dragType === 'AREA1') {
+           // Dồn Dự án (Khu vực 1), tự động ép Lịch đăng gán theo vị trí mới
+           newTask.createdAt = props.createdAt;
+           newTask.note = encodeSMData(note, { format, schedules: props.schedules });
+        } else {
+           // Kéo cả hàng: dồn vị trí, Lịch riêng của ai người nấy giữ
+           newTask.createdAt = props.createdAt;
+        }
+        
+        onUpdate(newTask);
+      });
     }
 
-    onUpdate(newDraggedTask);
-    onUpdate(newTargetTask);
     setDraggedItem(null);
   };
 
@@ -1338,6 +1391,25 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
         </div>
         
         <div className="flex items-center gap-4">
+          
+          {/* NÚT CÔNG TẮC ĐỔI CHẾ ĐỘ KÉO THẢ */}
+          <button 
+            onClick={() => setDragMode(prev => prev === 'SWAP' ? 'INSERT' : 'SWAP')}
+            className={cn(
+              "px-4 py-2.5 rounded-xl border transition-all shadow-sm font-bold text-sm flex items-center gap-2 active:scale-95",
+              dragMode === 'SWAP' 
+                ? "bg-white text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-blue-600" 
+                : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+            )}
+            title="Nhấn để đổi cách thức xếp lịch"
+          >
+            {dragMode === 'SWAP' ? (
+              <><ArrowLeftRight size={18}/> Đổi vị trí</>
+            ) : (
+              <><ArrowDownUp size={18}/> Chèn dồn xuống</>
+            )}
+          </button>
+
           <button onClick={() => setShowSettings(true)} className="p-3 bg-slate-50 text-slate-600 rounded-xl border border-slate-200 hover:bg-slate-100 hover:text-blue-600 transition-colors shadow-sm active:scale-95" title="Cài đặt hiển thị & Tự động">
             <Settings size={20} />
           </button>
