@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   LayoutDashboard, 
+  Lock, 
+  Unlock, 
+  LogOut, 
+  KeyRound,
   CalendarDays, 
   CalendarRange, 
   BarChart3, 
@@ -206,22 +210,38 @@ export default function App() {
   const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
   const [deleteConfirmTask, setDeleteConfirmTask] = useState<any>(null);
 
-  // Lấy dữ liệu từ Supabase
+  // --- HỆ THỐNG ĐĂNG NHẬP ẨN (WORKSPACE) ---
+  const [workspace, setWorkspace] = useState(() => localStorage.getItem('kpi_workspace') || 'public');
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [showChangePinModal, setShowChangePinModal] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [newPinInput, setNewPinInput] = useState('');
+  const [secretClickCount, setSecretClickCount] = useState(0);
+
+  // Lấy dữ liệu từ Supabase (Đã kẹp thêm bộ lọc Workspace)
   const fetchTasks = async () => {
-    const { data, error } = await supabase.from('projects').select('*').order('createdAt', { ascending: false });
+    const { data, error } = await supabase.from('projects')
+      .select('*')
+      .eq('workspace', workspace) // Bộ lọc phép thuật: Tách biệt hoàn toàn data
+      .order('createdAt', { ascending: false });
     if (!error && data) setTasks(data);
   };
 
-  useEffect(() => { fetchTasks(); }, []);
+  // Mỗi khi đổi tài khoản (workspace thay đổi) -> Load lại data & Nhớ vào trình duyệt
+  useEffect(() => { 
+    localStorage.setItem('kpi_workspace', workspace);
+    fetchTasks(); 
+  }, [workspace]);
 
+  // Bộ nhớ đệm tạm thời (Cũng tách riêng rẽ để không bị đè dữ liệu lên nhau)
   useEffect(() => {
-    const savedTasks = localStorage.getItem('kpi_tasks');
+    const savedTasks = localStorage.getItem(`kpi_tasks_${workspace}`);
     if (savedTasks) setTasks(JSON.parse(savedTasks));
-  }, []);
+  }, [workspace]);
 
   useEffect(() => {
-    localStorage.setItem('kpi_tasks', JSON.stringify(tasks));
-  }, [tasks]);
+    if (tasks.length > 0) localStorage.setItem(`kpi_tasks_${workspace}`, JSON.stringify(tasks));
+  }, [tasks, workspace]);
 
   // Đẩy file lên Google Drive
   const uploadToDrive = async (base64: string, projectName: string, fileName: string, folderId?: string) => {
@@ -355,8 +375,9 @@ export default function App() {
       startDate: startDate.toISOString(),
       workingDays: workingDays.map((d: any) => d.toISOString()),
       dailyKpiPoints: kpiPoints / workingDays.length,
-      createdAt: newTask.createdAt || new Date().toISOString(), // ĐÃ SỬA: Ưu tiên ngày tùy chỉnh
+      createdAt: newTask.createdAt || new Date().toISOString(),
       status: 'NEW',
+      workspace: workspace, // Đã thêm: Đóng dấu tài khoản để không bị nhầm lẫn
       files: driveLinks
     };
     
@@ -561,11 +582,28 @@ export default function App() {
 
       {/* Sidebar */}
       <aside className={cn("bg-white border-r border-slate-200 transition-all duration-300 flex flex-col z-20", isSidebarOpen ? "w-64" : "w-20")}>
-        <div className="p-6 flex items-center gap-3 border-b border-slate-100">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shrink-0">
-            <LayoutDashboard size={20} />
+        
+        {/* NÚT BẤM ẨN DANH: NHÁY CHUỘT 5 LẦN VÀO ĐÂY ĐỂ MỞ BẢNG ĐĂNG NHẬP */}
+        <div 
+          className="p-6 flex items-center gap-3 border-b border-slate-100 cursor-pointer select-none group"
+          onClick={() => {
+            if (workspace === 'private') return; // Đã đăng nhập rồi thì vô hiệu hóa
+            setSecretClickCount(prev => prev + 1);
+            if (secretClickCount >= 4) { // Bấm lần thứ 5
+              setShowPinModal(true);
+              setSecretClickCount(0);
+            }
+            setTimeout(() => setSecretClickCount(0), 2000); // Reset nếu bấm quá chậm
+          }}
+        >
+          <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0 shadow-sm transition-colors", workspace === 'private' ? "bg-emerald-500" : "bg-blue-600")}>
+            {workspace === 'private' ? <Unlock size={18} /> : <LayoutDashboard size={20} />}
           </div>
-          {isSidebarOpen && <h1 className="font-bold text-lg tracking-tight text-blue-900 truncate">KPI Manager</h1>}
+          {isSidebarOpen && (
+            <h1 className={cn("font-bold text-lg tracking-tight truncate transition-colors", workspace === 'private' ? "text-emerald-700" : "text-blue-900")}>
+              {workspace === 'private' ? 'Tài Khoản Riêng' : 'KPI Manager'}
+            </h1>
+          )}
         </div>
 
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
@@ -576,6 +614,31 @@ export default function App() {
           <SidebarItem icon={<BarChart3 size={20} />} label="Đánh giá công việc" active={activeSection === 'danh-gia'} onClick={() => setActiveSection('danh-gia')} collapsed={!isSidebarOpen} />
           <SidebarItem icon={<Search size={20} />} label="Tìm kiếm" active={activeSection === 'search'} onClick={() => setActiveSection('search')} collapsed={!isSidebarOpen} />
         </nav>
+
+        {/* NÚT ĐĂNG XUẤT VÀ ĐỔI PIN (CHỈ HIỆN KHI ĐÃ ĐĂNG NHẬP ẨN) */}
+        {workspace === 'private' && (
+          <div className="p-4 border-t border-slate-100 flex flex-col gap-2">
+            <button 
+              onClick={() => setShowChangePinModal(true)}
+              className={cn("w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 text-emerald-600 hover:bg-emerald-50 font-semibold", !isSidebarOpen && "justify-center")}
+              title="Đổi mã PIN"
+            >
+              <KeyRound size={20} />
+              {isSidebarOpen && <span>Đổi mã PIN</span>}
+            </button>
+            <button 
+              onClick={() => {
+                setWorkspace('public');
+                showToast('Đã đăng xuất, trở về chế độ Khách', 'success');
+              }}
+              className={cn("w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 text-red-500 hover:bg-red-50 font-semibold", !isSidebarOpen && "justify-center")}
+              title="Đăng xuất"
+            >
+              <LogOut size={20} />
+              {isSidebarOpen && <span>Đăng xuất</span>}
+            </button>
+          </div>
+        )}
 
         <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-4 border-t border-slate-100 flex items-center justify-center hover:bg-slate-50 transition-colors">
           {isSidebarOpen ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
@@ -670,6 +733,87 @@ export default function App() {
     onDelete={deleteTask}
   />
 )}
+      {/* MODAL NHẬP MÃ PIN (CÁNH CỬA ẨN) */}
+      {showPinModal && (
+        <div className="fixed inset-0 z-[999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full space-y-6 text-center">
+            <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto"><Lock size={32} /></div>
+            <div>
+              <h3 className="text-2xl font-bold text-slate-800">Chế độ Private</h3>
+              <p className="text-slate-500 text-sm mt-1">Nhập mã PIN để mở khóa</p>
+            </div>
+            <input 
+              type="password" autoFocus
+              value={pinInput}
+              onChange={e => setPinInput(e.target.value)}
+              onKeyDown={async (e) => {
+                if (e.key === 'Enter') {
+                  const { data } = await supabase.from('app_settings').select('value').eq('key', 'admin_pin').single();
+                  if (data && data.value === pinInput) {
+                    setWorkspace('private'); setPinInput(''); setShowPinModal(false);
+                    showToast('Đã mở khóa tài khoản thành công!', 'success');
+                  } else {
+                    showToast('Sai mã PIN!', 'error'); setPinInput('');
+                  }
+                }
+              }}
+              className="w-full text-center text-2xl tracking-[0.5em] font-black p-4 rounded-xl border-2 border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all"
+              placeholder="••••"
+            />
+            <div className="flex gap-3">
+              <button onClick={() => { setShowPinModal(false); setPinInput(''); }} className="flex-1 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl hover:bg-slate-200 transition-colors">Đóng</button>
+              <button 
+                onClick={async () => {
+                  const { data } = await supabase.from('app_settings').select('value').eq('key', 'admin_pin').single();
+                  if (data && data.value === pinInput) {
+                    setWorkspace('private'); setPinInput(''); setShowPinModal(false);
+                    showToast('Đã mở khóa tài khoản thành công!', 'success');
+                  } else {
+                    showToast('Sai mã PIN!', 'error'); setPinInput('');
+                  }
+                }}
+                className="flex-[2] bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 shadow-md transition-all"
+              >
+                Mở khóa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL ĐỔI MÃ PIN */}
+      {showChangePinModal && (
+        <div className="fixed inset-0 z-[999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full space-y-6 text-center">
+            <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto"><KeyRound size={32} /></div>
+            <div>
+              <h3 className="text-2xl font-bold text-slate-800">Đổi mã PIN</h3>
+              <p className="text-slate-500 text-sm mt-1">Nhập mã PIN bí mật mới của bạn</p>
+            </div>
+            <input 
+              type="text" autoFocus
+              value={newPinInput}
+              onChange={e => setNewPinInput(e.target.value)}
+              className="w-full text-center text-2xl tracking-widest font-black p-4 rounded-xl border-2 border-slate-200 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all"
+              placeholder="Nhập PIN mới"
+            />
+            <div className="flex gap-3">
+              <button onClick={() => { setShowChangePinModal(false); setNewPinInput(''); }} className="flex-1 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl hover:bg-slate-200 transition-colors">Hủy</button>
+              <button 
+                onClick={async () => {
+                  if (!newPinInput.trim()) return showToast('Mã PIN không được để trống', 'error');
+                  await supabase.from('app_settings').update({ value: newPinInput }).eq('key', 'admin_pin');
+                  setShowChangePinModal(false); setNewPinInput('');
+                  showToast('Đã lưu mã PIN mới thành công!', 'success');
+                }}
+                className="flex-[2] bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 shadow-md transition-all"
+              >
+                Lưu PIN
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </main>
     </div>
   );
