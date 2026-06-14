@@ -24,7 +24,7 @@ import {
   Clock,
   AlertCircle,
   X,
-  Share2, Settings, Facebook, MessageCircle, MessageSquare, Music, ShoppingBag, GripVertical, Image as ImageIcon, Video
+  Share2, Settings, Facebook, MessageCircle, MessageSquare, Music, ShoppingBag, GripVertical, Image as ImageIcon, Video,
   ArrowLeftRight,
   ArrowDownUp,
 } from 'lucide-react';
