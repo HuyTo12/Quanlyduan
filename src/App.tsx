@@ -707,7 +707,7 @@ export default function App() {
         </div>
 
         <div className="max-w-[1440px] mx-auto">
-          {activeSection === 'social-media' && <SocialMedia tasks={tasks} onAdd={addTask} onUpdate={updateTask} onDelete={deleteTask} showToast={showToast} onDoubleClickTask={setDoubleClickTask} />}
+          {activeSection === 'social-media' && <SocialMedia key={workspace} workspace={workspace} tasks={tasks} onAdd={addTask} onUpdate={updateTask} onDelete={deleteTask} showToast={showToast} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'giao-viec' && <GiaoViec tasks={tasks} onAdd={addTask} onDelete={deleteTask} onUpdate={updateTask} showToast={showToast} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'cong-viec-hang-ngay' && <CongViecHangNgay tasks={tasks} onUpdate={updateTask} onDoubleClickTask={setDoubleClickTask} />}
           {activeSection === 'timeline' && <TimelineCongViec tasks={tasks} onSelectTask={(id) => {
@@ -1055,7 +1055,7 @@ function SchedulePickerModal({
 // ==========================================
 // MỤC SOCIAL MEDIA (PHẦN 1: KHUNG & CÀI ĐẶT)
 // ==========================================
-function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast, onDoubleClickTask }: any) {
+function SocialMedia({ workspace, tasks, onAdd, onUpdate, onDelete, showToast, onDoubleClickTask }: any) {
   const [activeTab, setActiveTab] = useState<'list' | 'calendar'>('list');
   const [actionTask, setActionTask] = useState<any>(null);
   const [viewTask, setViewTask] = useState<any>(null);
@@ -1071,11 +1071,11 @@ function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast, onDoubleClic
   
   // --- THÊM CHẾ ĐỘ KÉO THẢ (SWAP: Hoán đổi | INSERT: Chèn dồn) ---
   const [dragMode, setDragMode] = useState<'SWAP' | 'INSERT'>(() => {
-    return localStorage.getItem('smDragMode') as 'SWAP' | 'INSERT' || 'SWAP';
+    return localStorage.getItem(`smDragMode_${workspace}`) as 'SWAP' | 'INSERT' || 'SWAP';
   });
   useEffect(() => {
-    localStorage.setItem('smDragMode', dragMode);
-  }, [dragMode]);
+    localStorage.setItem(`smDragMode_${workspace}`, dragMode);
+  }, [dragMode, workspace]);
   
   // --- BỘ NHỚ VÀ ĐỒNG BỘ CHO CHẾ ĐỘ XEM LỊCH (THÁNG / TUẦN) ---
   const [smCalViewMode, setSmCalViewMode] = useState<'month' | 'week'>('week');
@@ -1208,29 +1208,22 @@ function SocialMedia({ tasks, onAdd, onUpdate, onDelete, showToast, onDoubleClic
     setDraggedItem(null);
   };
 
-  // Trạng thái Cài đặt Cột (Đã thêm Nội dung & Ghi chú) - ĐÃ CẬP NHẬT LƯU BỘ NHỚ
+  // Trạng thái Cài đặt Cột (CÁCH LY THEO TÀI KHOẢN)
 const [visibleCols, setVisibleCols] = useState(() => {
-  // 1. Kiểm tra xem trước đó người dùng có lưu cài đặt không
-  const savedCols = localStorage.getItem('smVisibleCols');
+  const savedCols = localStorage.getItem(`smVisibleCols_${workspace}`);
   if (savedCols) {
-    try {
-      return JSON.parse(savedCols);
-    } catch (e) {
-      // Bỏ qua lỗi nếu dữ liệu hỏng
-    }
+    try { return JSON.parse(savedCols); } catch (e) {}
   }
-  // 2. Mặc định nếu mới vào lần đầu
   return { 'Tiến độ': true, 'Nội dung': true, 'Ghi chú': true, 'Facebook': true, 'Zalo': true, 'OA Zalo': true, 'Tiktok': true, 'Shopee': true };
 });
 
-// 3. Tự động lưu lại mỗi khi bạn tích/bỏ tích bất kỳ cột nào
 useEffect(() => {
-  localStorage.setItem('smVisibleCols', JSON.stringify(visibleCols));
-}, [visibleCols]);
+  localStorage.setItem(`smVisibleCols_${workspace}`, JSON.stringify(visibleCols));
+}, [visibleCols, workspace]);
 
-// Trạng thái Quy tắc xếp lịch chéo - ĐÃ LƯU BỘ NHỚ
+// Trạng thái Quy tắc xếp lịch chéo (CÁCH LY THEO TÀI KHOẢN)
 const [autoSchedule, setAutoSchedule] = useState(() => {
-  const savedAuto = localStorage.getItem('smAutoSchedule');
+  const savedAuto = localStorage.getItem(`smAutoSchedule_${workspace}`);
   if (savedAuto) {
     try { return JSON.parse(savedAuto); } catch (e) {}
   }
@@ -1238,8 +1231,8 @@ const [autoSchedule, setAutoSchedule] = useState(() => {
 });
 
 useEffect(() => {
-  localStorage.setItem('smAutoSchedule', JSON.stringify(autoSchedule));
-}, [autoSchedule]);
+  localStorage.setItem(`smAutoSchedule_${workspace}`, JSON.stringify(autoSchedule));
+}, [autoSchedule, workspace]);
 
 const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
 
