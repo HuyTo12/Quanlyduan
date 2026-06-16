@@ -1396,7 +1396,13 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
           <button 
             onClick={() => setDragMode(prev => prev === 'SWAP' ? 'INSERT' : 'SWAP')}
             className={cn(
-              "px-4 py-2.5 rounded-xl border transition-all shadow-sm font-bold text-sm flex items-center gap-2 active:scale-95",
+              "py-2.5 rounded-xl border transition-all shadow-sm font-bold text-sm flex items-center justify-center gap-2 active:scale-95 w-[180px] shrink-0",
+              dragMode === 'SWAP' 
+                ? "bg-white text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-blue-600" 
+                : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+            )}
+            title="Nhấn để đổi cách thức xếp lịch"
+          >
               dragMode === 'SWAP' 
                 ? "bg-white text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-blue-600" 
                 : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
@@ -1449,21 +1455,50 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                  const { note, smData } = getSMData(task);
                  const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-blue-50/40';
                  
-                 // Thuật toán vẽ viền Đứt/Liền mạch thông minh
+                 // Thuật toán Vẽ viền thông minh & Hiệu ứng Xem trước (Live Preview)
                  const isDraggingThisRow = draggedItem?.idx === idx;
                  const isDragOverThisRow = dragOverIdx === idx;
                  const dragType = draggedItem?.type;
                  const visiblePlatforms = platforms.filter(p => visibleCols[p as keyof typeof visibleCols]);
                  
+                 // --- TOÁN TỬ HIỆU ỨNG XEM TRƯỚC (PREVIEW LOGIC) ---
+                 let isAffected = false; // Nhận diện các dòng bị dồn xuống
+                 let insertLineClass = ""; // Đường nét đứt chỉ thị vị trí chèn
+                 
+                 if (draggedItem && dragOverIdx !== null && dragType) {
+                   if (dragMode === 'SWAP') {
+                     // Chế độ SWAP: Chỉ dòng mục tiêu bị ảnh hưởng
+                     if (isDragOverThisRow) isAffected = true;
+                   } else {
+                     // Chế độ INSERT: Các dòng nằm giữa điểm Kéo và điểm Thả sẽ bị dồn
+                     const minIdx = Math.min(draggedItem.idx, dragOverIdx);
+                     const maxIdx = Math.max(draggedItem.idx, dragOverIdx);
+                     if (idx >= minIdx && idx <= maxIdx && !isDraggingThisRow) {
+                       isAffected = true;
+                     }
+                     
+                     // Tạo đường cắt ngang đứt nét tại vị trí chèn
+                     if (isDragOverThisRow) {
+                       if (draggedItem.idx > dragOverIdx) {
+                         // Kéo từ dưới lên -> Chèn TRÊN dòng hiện tại
+                         insertLineClass = "border-t-2 border-dashed border-blue-600 shadow-[inset_0_4px_4px_-4px_rgba(37,99,235,0.5)]";
+                       } else {
+                         // Kéo từ trên xuống -> Chèn DƯỚI dòng hiện tại
+                         insertLineClass = "border-b-2 border-dashed border-blue-600 shadow-[inset_0_-4px_4px_-4px_rgba(37,99,235,0.5)]";
+                       }
+                     }
+                   }
+                 }
+
                  const getCellBorder = (cellArea: 'AREA1' | 'AREA2' | 'HANDLE', colName: string) => {
-                   if (!dragType) return ""; // Không có kéo thả -> Bình thường
+                   if (!dragType) return ""; 
 
                    const isBoth = dragType === 'BOTH';
                    let isActiveArea = false;
                    let isFirst = false;
                    let isLast = false;
 
-                   // 1. Xác định ô có thuộc "Khu vực đang được tương tác" không
+                   // 1. Xác định Vùng đang được tương tác (Khu 1, Khu 2 hay Cả hai)
                    if (isBoth) {
                      isActiveArea = true;
                      isFirst = visibleCols['Tiến độ'] ? colName === 'Tiến độ' : colName === 'STT';
@@ -1478,24 +1513,37 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                      isLast = colName === visiblePlatforms[visiblePlatforms.length - 1];
                    }
 
-                   // 2. Nếu Cột này KHÔNG nằm trong vùng kéo -> Làm mờ đi để nổi bật vùng đang thao tác
-                   if (!isActiveArea) return "opacity-20 grayscale transition-all duration-300";
+                   // 2. Làm mờ toàn bộ các Vùng KHÔNG ĐƯỢC TƯƠNG TÁC
+                   if (!isActiveArea) return "opacity-30 grayscale transition-all duration-300";
 
-                   // 3. Nếu cột này đúng, nhưng KHÔNG phải dòng đang cầm / dòng đích -> Sáng bình thường
-                   if (!isDraggingThisRow && !isDragOverThisRow) return "transition-all duration-300";
+                   // 3. Xây dựng Hiệu ứng cho Vùng ĐANG ĐƯỢC TƯƠNG TÁC
+                   let cls = "transition-all duration-300 relative z-10 ";
+                   
+                   if (isDraggingThisRow) {
+                      // Cục đang được cầm: Nổi bóp bóng, viền xanh liền mạch, phóng to nhẹ
+                      cls += "border-y-2 border-solid border-blue-500 bg-blue-100/90 shadow-xl scale-[1.01] z-30 ";
+                   } else if (isDragOverThisRow) {
+                      // Cục đang bị trỏ chuột vào (Điểm rơi đích)
+                      if (dragMode === 'SWAP') {
+                        // SWAP: Đổi màu cam đứt nét, báo hiệu "Sẽ bị hoán đổi"
+                        cls += "border-y-2 border-dashed border-orange-500 bg-orange-50/80 z-20 ";
+                      } else {
+                        // INSERT: Nền xanh nhạt, hiện đường nét đứt chỉ thị điểm chèn
+                        cls += `bg-blue-50/60 ${insertLineClass} z-20 `;
+                      }
+                   } else if (isAffected && dragMode === 'INSERT') {
+                      // Các cục bị đẩy dồn: Thu nhỏ nhẹ, đổi màu xám báo hiệu "Đang nhường chỗ"
+                      cls += "bg-slate-50/80 scale-[0.98] opacity-70 z-0 ";
+                   }
 
-                   // 4. Đúng DÒNG đang thao tác -> Vẽ viền xanh tổng liền khối
-                   const borderType = isDraggingThisRow ? "border-solid border-blue-500" : "border-dashed border-blue-500";
-                   const bgType = isDraggingThisRow ? "bg-blue-100/80 shadow-[inset_0_0_10px_rgba(59,130,246,0.1)]" : "bg-blue-50/80";
-                   
-                   let cls = `relative z-20 border-y-2 ${borderType} ${bgType} transition-all duration-200 `;
-                   
-                   // ÉP XÓA VIỀN NỘI BỘ (để liền thành 1 khối hình chữ nhật duy nhất)
-                   if (isFirst) cls += `border-l-2 `;
-                   else cls += `border-l-0 `; 
-                   
-                   if (isLast) cls += `border-r-2 `;
-                   else cls += `border-r-0 `; 
+                   // 4. Ép xóa các vách ngăn nội bộ để tạo thành Khối liền mạch
+                   if (isDraggingThisRow || (isDragOverThisRow && dragMode === 'SWAP')) {
+                     if (isFirst) cls += "border-l-2 "; else cls += "border-l-0 ";
+                     if (isLast) cls += "border-r-2 "; else cls += "border-r-0 ";
+                   } else if (isDragOverThisRow && dragMode === 'INSERT') {
+                     if (isFirst) cls += "border-l-2 border-l-blue-500 "; else cls += "border-l-0 ";
+                     if (isLast) cls += "border-r-2 border-r-blue-500 "; else cls += "border-r-0 ";
+                   }
 
                    return cls;
                  };
