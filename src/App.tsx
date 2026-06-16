@@ -1403,11 +1403,6 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
             )}
             title="Nhấn để đổi cách thức xếp lịch"
           >
-              dragMode === 'SWAP' 
-                ? "bg-white text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-blue-600" 
-                : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
-            )}
-            title="Nhấn để đổi cách thức xếp lịch"
             {dragMode === 'SWAP' ? (
               <><ArrowLeftRight size={18}/> Đổi vị trí</>
             ) : (
