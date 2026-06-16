@@ -2984,7 +2984,7 @@ function SearchSection({ tasks, selectedId, onClearSelection, onDelete }: {
                     </div>
                     <div>
                       <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ghi chú</span>
-                      <p className="text-sm text-slate-700 italic">{selectedTask.note || 'Không có ghi chú'}</p>
+                      <p className="text-sm text-slate-700 italic">{getSMData(selectedTask).note || 'Không có ghi chú'}</p>
                     </div>
                   </div>
                 </div>
@@ -3824,7 +3824,7 @@ function GlobalViewModal({ task, onClose, onDelete }: {
                     </div>
                     <div>
                       <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ghi chú</span>
-                      <p className="text-sm text-slate-700 italic">{cleanNote || 'Không có ghi chú'}</p>
+                      <p className="text-sm text-slate-700 italic">{getSMData(selectedTask).note || 'Không có ghi chú'}</p>
                     </div>
                   </div>
                 </div>
