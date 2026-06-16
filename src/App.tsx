@@ -2567,7 +2567,7 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
                         {KPI_CONFIG[task.kpiLevel].label}
                       </span>
                     </td>
-                    <td className="p-4 text-sm align-top max-w-[200px]"><ExpandableText text={task.note || ''} /></td>
+                    <td className="p-4 text-sm align-top max-w-[200px]"><ExpandableText text={getSMData(task).note || ''} /></td>
                     <td className="p-4 text-sm align-top">
                       <button onClick={() => onDelete(task.id)} className="text-red-400 hover:text-red-600 transition-colors">
                         <Trash2 size={18} />
@@ -2827,7 +2827,7 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
                       </span>
                     </td>
                     <td className="p-4 text-sm align-top max-w-[200px]">
-                      <ExpandableText text={task.note || ''} />
+                      <ExpandableText text={getSMData(task).note || ''} />
                     </td>
                   </tr>
                 );
