@@ -1944,7 +1944,8 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
            e.preventDefault();
            if (!formData.project) return;
            const deadlineDate = parseISO(formData.deadline);
-           if (isWeekend(deadlineDate)) {
+           const currentWorkspace = localStorage.getItem('kpi_workspace') || 'public';
+           if (currentWorkspace !== 'private' && isWeekend(deadlineDate)) {
              showToast('Không thể giao Deadline vào ngày nghỉ (Thứ 7, Chủ nhật)', 'error');
              return;
            }
@@ -1990,7 +1991,8 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                  value={formData.deadline}
                  onChange={e => {
                    const v = e.target.value;
-                   if (v && isWeekend(parseISO(v))) {
+                   const currentWorkspace = localStorage.getItem('kpi_workspace') || 'public';
+                   if (v && currentWorkspace !== 'private' && isWeekend(parseISO(v))) {
                      showToast('Không thể giao Deadline vào ngày nghỉ (Thứ 7, Chủ nhật)', 'error');
                      return;
                    }
@@ -2326,9 +2328,10 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
     e.preventDefault();
     if (!formData.project) return;
     
-    // Kiểm tra chặn giao việc ngày nghỉ (Thứ 7, Chủ Nhật)
+    // Kiểm tra chặn giao việc ngày nghỉ (Thứ 7, Chủ Nhật) (Bỏ qua nếu là tài khoản Private)
     const deadlineDate = parseISO(formData.deadline);
-    if (isWeekend(deadlineDate)) {
+    const currentWorkspace = localStorage.getItem('kpi_workspace') || 'public';
+    if (currentWorkspace !== 'private' && isWeekend(deadlineDate)) {
       showToast('Không thể giao Deadline vào ngày nghỉ (Thứ 7, Chủ nhật)', 'error');
       return;
     }
@@ -3601,7 +3604,8 @@ function GlobalEditModal({ task, onClose, onUpdate, onDelete, showToast }: {
     e.preventDefault();
     if (!editFormData.project) return;
     const deadlineDate = parseISO(editFormData.deadline);
-    if (isWeekend(deadlineDate)) {
+    const currentWorkspace = localStorage.getItem('kpi_workspace') || 'public';
+    if (currentWorkspace !== 'private' && isWeekend(deadlineDate)) {
       showToast('Không thể giao Deadline vào ngày nghỉ (Thứ 7, Chủ nhật)', 'error');
       return;
     }
