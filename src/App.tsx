@@ -2375,11 +2375,11 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
     if (scrollContainerRef.current) scrollContainerRef.current.scrollBy({ left: 200, behavior: 'smooth' });
   };
 
-  // 1. Nhóm và đếm dự án theo tháng (Sắp xếp từ Cũ nhất đến Mới nhất -> Trái sang Phải)
+  // 1. Nhóm và đếm dự án theo tháng (Dựa trên THÁNG DEADLINE)
   const monthGroups = useMemo(() => {
     const groups: { [key: string]: number } = {};
     tasks.forEach(task => {
-      const date = parseISO(task.createdAt || task.startDate);
+      const date = parseISO(task.deadline);
       const monthKey = format(date, 'MM/yyyy');
       groups[monthKey] = (groups[monthKey] || 0) + 1;
     });
@@ -2391,22 +2391,22 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
     });
   }, [tasks]);
 
-  // 2. Lọc và sắp xếp dữ liệu
+  // 2. Lọc và sắp xếp dữ liệu (Khóa chặt theo Deadline)
   const processedTasks = useMemo(() => {
     let filtered = [...tasks];
     
     if (selectedMonth) {
-      // NẾU CHỌN THÁNG: Chỉ lấy dự án tháng đó, sắp xếp Deadline từ trên xuống
+      // NẾU CHỌN THÁNG: Lấy dự án có DEADLINE trong tháng đó
       filtered = filtered.filter(task => {
-        const date = parseISO(task.createdAt || task.startDate);
+        const date = parseISO(task.deadline);
         return format(date, 'MM/yyyy') === selectedMonth;
       });
       filtered.sort((a, b) => startOfDay(parseISO(a.deadline)).getTime() - startOfDay(parseISO(b.deadline)).getTime());
     } else {
-      // MẶC ĐỊNH (Tất cả): Sắp xếp theo Thời gian giao dự án mới nhất lên đầu (từ trên xuống)
+      // MẶC ĐỊNH (Tất cả): Sắp xếp theo Deadline mới nhất lên đầu
       filtered.sort((a, b) => {
-         const dateA = new Date(a.createdAt || 0).getTime();
-         const dateB = new Date(b.createdAt || 0).getTime();
+         const dateA = new Date(a.deadline || 0).getTime();
+         const dateB = new Date(b.deadline || 0).getTime();
          return dateB - dateA;
       });
     }
@@ -3424,23 +3424,25 @@ function DanhGiaCongViec({ tasks }: { tasks: Task[] }) {
     const end = endOfMonth(selectedMonth);
     const days = eachDayOfInterval({ start, end });
     
+    // BỘ LỌC CỐT LÕI: Chỉ lấy các dự án được giao Deadline đúng vào tháng đang xem
+    const tasksInMonth = tasks.filter(task => {
+      const deadline = parseISO(task.deadline);
+      return deadline >= start && deadline <= end;
+    });
+    
     const data: any[] = [];
     
     days.forEach(day => {
       if (isWeekend(day)) {
-        if (day.getDay() === 6) { // Saturday
-          // Add gap
-          data.push({
-            day: `gap-${format(day, 'dd')}`,
-            kpi: null,
-            isGap: true
-          });
+        if (day.getDay() === 6) { // Thứ 7
+          data.push({ day: `gap-${format(day, 'dd')}`, kpi: null, isGap: true });
         }
-        return; // Skip weekends
+        return; 
       }
 
       let totalKpi = 0;
-      tasks.forEach(task => {
+      // CHỈ cộng điểm KPI từ các dự án của tháng này (Dự án tháng cũ trễ hạn sẽ bị bỏ qua)
+      tasksInMonth.forEach(task => {
         if (task.workingDays.some((d: any) => isSameDay(parseISO(d), day))) {
           totalKpi += task.dailyKpiPoints;
         }
