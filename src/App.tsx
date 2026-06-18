@@ -91,7 +91,7 @@ function ExpandableText({ text, isProject = false }: { text: string, isProject?:
   
   if (isProject) {
     return (
-      <div className="max-w-[200px] min-w-[150px]">
+      <div className="max-w-[260px] min-w-[150px]"> {/* Đã mở rộng 30% */}
         <div className={cn(
           "text-sm font-bold text-blue-900 break-words leading-snug transition-all duration-200",
           !expanded && "line-clamp-2"
@@ -111,7 +111,7 @@ function ExpandableText({ text, isProject = false }: { text: string, isProject?:
   }
 
   return (
-    <div className="relative max-w-[300px]">
+    <div className="relative max-w-[400px]"> {/* Đã mở rộng Nội dung thêm 30% */}
       <div className={cn(
         "text-sm transition-all duration-200 break-words whitespace-pre-wrap text-slate-600", 
         !expanded && "line-clamp-2"
@@ -853,15 +853,22 @@ function SidebarItem({ icon, label, active, onClick, collapsed }: {
   );
 }
 // --- COMPONENT RÚT GỌN CHỮ (TIÊU ĐỀ / NỘI DUNG / GHI CHÚ) ---
-// Ép text vào 2 dòng, không kéo giãn cột ngang, mở rộng chỉ xuống dưới
+// Ép text vào 2 dòng, mở rộng chiều ngang thêm 30% và Khóa kéo thả khi đang mở
 function ExpandableCell({ text, isTitle = false }: { text: string, isTitle?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   if (!text) return <span className="text-slate-400 italic text-sm">Trống</span>;
   return (
     <div
       className="group cursor-pointer w-full"
-      style={{ maxWidth: isTitle ? '230px' : '260px' }}
+      style={{ maxWidth: isTitle ? '300px' : '340px' }} // Đã mở rộng 30%
       onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+      draggable={expanded} // Kích hoạt bắt sự kiện kéo khi đang mở rộng
+      onDragStart={(e) => {
+        if (expanded) {
+          e.preventDefault(); // Ngăn trình duyệt kéo chữ đi
+          e.stopPropagation(); // Khóa không cho sự kiện truyền ra ngoài làm di chuyển dòng
+        }
+      }}
     >
       <div className={cn(
         "text-sm break-words transition-all duration-200",
@@ -1423,7 +1430,7 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                  {visibleCols['Tiến độ'] && <th className="p-3 font-bold text-slate-600 text-sm whitespace-nowrap w-32">Tiến độ</th>}
                  <th className="p-3 font-bold text-slate-600 text-sm w-10 text-center">STT</th>
                  <th className="p-3 font-bold text-slate-600 text-sm min-w-[220px]">Dự án</th>
-              {visibleCols['Nội dung'] && <th className="p-3 font-bold text-slate-600 text-sm min-w-[280px]">Nội dung</th>}
+              {visibleCols['Nội dung'] && <th className="p-3 font-bold text-slate-600 text-sm min-w-[360px]">Nội dung</th>}
                  <th className="p-3 font-bold text-slate-600 text-sm w-14 text-center">Link</th>
                  {visibleCols['Ghi chú'] && <th className="p-3 font-bold text-slate-600 text-sm min-w-[100px] w-[100px]">Ghi chú</th>}
                  <th className="p-3 font-bold text-slate-600 text-sm whitespace-nowrap w-24">Định dạng</th>
@@ -2519,7 +2526,7 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
                 <th className="p-4 font-semibold text-base w-16">Sửa</th>
                 <th className="p-4 font-semibold text-base w-16">STT</th>
                 <th className="p-4 font-semibold text-base min-w-[150px]">Dự án</th>
-                <th className="p-4 font-semibold text-base max-w-[300px]">Mô tả</th>
+                <th className="p-4 font-semibold text-base max-w-[400px]">Mô tả</th>
                 <th className="p-4 font-semibold text-base w-24">File</th>
                 <th className="p-4 font-semibold text-base w-32 whitespace-nowrap">Deadline</th>
                 <th className="p-4 font-semibold text-base w-24 whitespace-nowrap">KPI</th>
@@ -2754,7 +2761,7 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
                 <th className="p-4 font-semibold text-base w-44">Tiến độ</th>
                 <th className="p-4 font-semibold text-base w-16">STT</th>
                 <th className="p-4 font-semibold text-base min-w-[150px]">Dự án</th>
-                <th className="p-4 font-semibold text-base max-w-[300px]">Mô tả</th>
+                <th className="p-4 font-semibold text-base max-w-[400px]">Mô tả</th>
                 <th className="p-4 font-semibold text-base w-24">File</th>
                 <th className="p-4 font-semibold text-base w-32 whitespace-nowrap">Deadline</th>
                 <th className="p-4 font-semibold text-base w-24 whitespace-nowrap">KPI</th>
