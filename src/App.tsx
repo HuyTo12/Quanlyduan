@@ -2902,7 +2902,7 @@ function SearchSection({ tasks, selectedId, onClearSelection, onDelete }: {
               >
                 <span className="font-bold text-blue-900">{task.project}</span>
                 <span className="text-sm text-slate-400 font-medium">
-                  {format(parseISO(task.deadline), 'dd/MM/yyyy')}
+                  {task.deadline ? format(parseISO(task.deadline), 'dd/MM/yyyy') : 'Chưa cập nhật'}
                 </span>
               </button>
             ))}
@@ -2918,7 +2918,7 @@ function SearchSection({ tasks, selectedId, onClearSelection, onDelete }: {
                 <h3 className="text-2xl font-bold text-blue-900 mb-2">{selectedTask.project}</h3>
                 <p className="text-sm text-slate-500 flex items-center gap-2">
                   <Clock size={16} />
-                  Deadline: {format(parseISO(selectedTask.deadline), 'dd/MM/yyyy')}
+                  Deadline: {selectedTask.deadline ? format(parseISO(selectedTask.deadline), 'dd/MM/yyyy') : 'Chưa cập nhật'}
                 </p>
               </div>
               
@@ -2939,9 +2939,9 @@ function SearchSection({ tasks, selectedId, onClearSelection, onDelete }: {
                 
                 <span 
                   className="px-4 py-2 rounded-full text-white text-sm font-bold shadow-sm"
-                  style={{ backgroundColor: KPI_CONFIG[selectedTask.kpiLevel].color }}
+                  style={{ backgroundColor: KPI_CONFIG[selectedTask.kpiLevel]?.color || '#94a3b8' }}
                 >
-                  {KPI_CONFIG[selectedTask.kpiLevel].label}
+                  {KPI_CONFIG[selectedTask.kpiLevel]?.label || 'Không có KPI'}
                 </span>
               </div>
             </div>
@@ -2974,9 +2974,9 @@ function SearchSection({ tasks, selectedId, onClearSelection, onDelete }: {
                     Ghi chú & KPI
                   </h4>
                   <div className="bg-slate-50 p-6 rounded-2xl space-y-4">
-                    <div>
+                   <div>
                       <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">KPI Points</span>
-                      <p className="text-lg font-bold text-blue-900">{KPI_CONFIG[selectedTask.kpiLevel].points} điểm</p>
+                      <p className="text-lg font-bold text-blue-900">{KPI_CONFIG[selectedTask.kpiLevel]?.points || 0} điểm</p>
                     </div>
                     <div>
                       <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ghi chú</span>
@@ -3774,16 +3774,16 @@ function GlobalViewModal({ task, onClose, onDelete }: {
                 <h3 className="text-2xl font-bold text-blue-900 mb-2">{task.project}</h3>
                 <p className="text-sm text-slate-500 flex items-center gap-2">
                   <Clock size={16} />
-                  Deadline: {format(parseISO(task.deadline), 'dd/MM/yyyy')}
+                  Deadline: {task.deadline ? format(parseISO(task.deadline), 'dd/MM/yyyy') : 'Chưa cập nhật'}
                 </p>
               </div>
-              {/* Đã sửa lỗi trùng thuộc tính className gây sập giao diện */}
+              
               <div className="flex gap-2">
                 <span className={cn("px-4 py-2 rounded-full text-slate-800 text-sm font-bold shadow-sm border border-slate-200", statusInfo.gradient)}>
                   {statusInfo.label}
                 </span>
-                <span className="px-4 py-2 rounded-full text-white text-sm font-bold shadow-sm" style={{ backgroundColor: KPI_CONFIG[task.kpiLevel].color }}>
-                  {KPI_CONFIG[task.kpiLevel].label}
+                <span className="px-4 py-2 rounded-full text-white text-sm font-bold shadow-sm" style={{ backgroundColor: KPI_CONFIG[task.kpiLevel]?.color || '#94a3b8' }}>
+                  {KPI_CONFIG[task.kpiLevel]?.label || 'Không có KPI'}
                 </span>
               </div>
             </div>
@@ -3819,7 +3819,7 @@ function GlobalViewModal({ task, onClose, onDelete }: {
                   <div className="bg-slate-50 p-6 rounded-2xl space-y-4">
                     <div>
                       <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">KPI Points</span>
-                      <p className="text-lg font-bold text-blue-900">{KPI_CONFIG[task.kpiLevel].points} điểm</p>
+                      <p className="text-lg font-bold text-blue-900">{KPI_CONFIG[selectedTask.kpiLevel]?.points || 0} điểm</p>
                     </div>
                     <div>
                       <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ghi chú</span>
