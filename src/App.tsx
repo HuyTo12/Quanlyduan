@@ -2910,114 +2910,117 @@ function SearchSection({ tasks, selectedId, onClearSelection, onDelete }: {
         )}
       </div>
 
-      {selectedTask && (
-        <div className="bg-white rounded-3xl shadow-xl border border-blue-100 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-500">
-          <div className="p-8 space-y-8">
-            <div className="flex justify-between items-start border-b border-blue-50 pb-6">
-              <div>
-                <h3 className="text-2xl font-bold text-blue-900 mb-2">{selectedTask.project}</h3>
-                <p className="text-sm text-slate-500 flex items-center gap-2">
-                  <Clock size={16} />
-                  Deadline: {selectedTask.deadline ? format(parseISO(selectedTask.deadline), 'dd/MM/yyyy') : 'Chưa cập nhật'}
-                </p>
-              </div>
-              
-              {/* Bổ sung hiển thị Tiến độ song song với nhãn KPI */}
-              <div className="flex gap-2">
-                <span className={cn(
-                  "px-4 py-2 rounded-full text-slate-800 text-sm font-bold shadow-sm border border-slate-200",
-                  selectedTask.status === 'INFO' ? 'bg-gradient-to-t from-yellow-100 to-white' :
-                  selectedTask.status === 'IN_PROGRESS' ? 'bg-gradient-to-t from-orange-100 to-white' :
-                  selectedTask.status === 'REVIEW' ? 'bg-gradient-to-t from-purple-100 to-white' :
-                  selectedTask.status === 'COMPLETED' ? 'bg-gradient-to-t from-green-100 to-white opacity-70' : 'bg-white'
-                )}>
-                  {selectedTask.status === 'INFO' ? 'Tìm thông tin' :
-                   selectedTask.status === 'IN_PROGRESS' ? 'Đang thực hiện' :
-                   selectedTask.status === 'REVIEW' ? 'Chờ xác nhận' :
-                   selectedTask.status === 'COMPLETED' ? 'Hoàn thành' : 'Dự án mới'}
-                </span>
+      {selectedTask && (() => {
+        // BỘ LỌC CHỐNG TRẮNG MÀN HÌNH (Dành riêng cho SearchSection)
+        const kpiConfig = selectedTask.kpiLevel && KPI_CONFIG[selectedTask.kpiLevel] 
+          ? KPI_CONFIG[selectedTask.kpiLevel] 
+          : { label: 'Chưa có KPI', points: 0, color: '#94a3b8' };
+          
+        return (
+          <div className="bg-white rounded-3xl shadow-xl border border-blue-100 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className="p-8 space-y-8">
+              <div className="flex justify-between items-start border-b border-blue-50 pb-6">
+                <div>
+                  <h3 className="text-2xl font-bold text-blue-900 mb-2">{selectedTask.project}</h3>
+                  <p className="text-sm text-slate-500 flex items-center gap-2">
+                    <Clock size={16} />
+                    Deadline: {selectedTask.deadline ? format(parseISO(selectedTask.deadline), 'dd/MM/yyyy') : 'Chưa cập nhật'}
+                  </p>
+                </div>
                 
-                <span 
-                  className="px-4 py-2 rounded-full text-white text-sm font-bold shadow-sm"
-                  style={{ backgroundColor: KPI_CONFIG[selectedTask.kpiLevel]?.color || '#94a3b8' }}
+                <div className="flex gap-2">
+                  <span className={cn(
+                    "px-4 py-2 rounded-full text-slate-800 text-sm font-bold shadow-sm border border-slate-200",
+                    selectedTask.status === 'INFO' ? 'bg-gradient-to-t from-yellow-100 to-white' :
+                    selectedTask.status === 'IN_PROGRESS' ? 'bg-gradient-to-t from-orange-100 to-white' :
+                    selectedTask.status === 'REVIEW' ? 'bg-gradient-to-t from-purple-100 to-white' :
+                    selectedTask.status === 'COMPLETED' ? 'bg-gradient-to-t from-green-100 to-white opacity-70' : 'bg-white'
+                  )}>
+                    {selectedTask.status === 'INFO' ? 'Tìm thông tin' :
+                     selectedTask.status === 'IN_PROGRESS' ? 'Đang thực hiện' :
+                     selectedTask.status === 'REVIEW' ? 'Chờ xác nhận' :
+                     selectedTask.status === 'COMPLETED' ? 'Hoàn thành' : 'Dự án mới'}
+                  </span>
+                  
+                  <span 
+                    className="px-4 py-2 rounded-full text-white text-sm font-bold shadow-sm"
+                    style={{ backgroundColor: kpiConfig.color }}
+                  >
+                    {kpiConfig.label}
+                  </span>
+                </div>
+              </div>
+                
+              <div className="grid md:grid-cols-2 gap-8">
+                <div className="space-y-4 min-w-0">
+                  <h4 className="text-base font-bold text-blue-900 flex items-center gap-2">
+                    <FileText size={18} className="text-blue-500" />
+                    Nội dung chi tiết
+                  </h4>
+                  <div className="bg-slate-50 p-6 rounded-2xl text-sm text-slate-700 leading-relaxed whitespace-pre-wrap break-words overflow-hidden min-h-[150px]">
+                    {selectedTask.description || <span className="italic text-slate-400">Không có mô tả</span>}
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="space-y-4">
+                    <h4 className="text-base font-bold text-blue-900 flex items-center gap-2">
+                      <Paperclip size={18} className="text-blue-500" />
+                      File đính kèm
+                    </h4>
+                    <div className="bg-slate-50 p-6 rounded-2xl min-h-[80px]">
+                      <ExpandableFiles files={selectedTask.files || []} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h4 className="text-base font-bold text-blue-900 flex items-center gap-2">
+                      <AlertCircle size={18} className="text-blue-500" />
+                      Ghi chú & KPI
+                    </h4>
+                    <div className="bg-slate-50 p-6 rounded-2xl space-y-4">
+                      <div>
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">KPI Points</span>
+                        <p className="text-lg font-bold text-blue-900">{kpiConfig.points} điểm</p>
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ghi chú</span>
+                        <p className="text-sm text-slate-700 italic">{getSMData(selectedTask).note || 'Không có ghi chú'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-6 border-t border-blue-50 flex justify-end mt-4 gap-4">
+                <button 
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: selectedTask }));
+                  }}
+                  className="bg-blue-100 text-blue-700 px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-200 transition-colors shadow-sm active:scale-95"
+                  title="Chỉnh sửa dự án này"
                 >
-                  {KPI_CONFIG[selectedTask.kpiLevel]?.label || 'Không có KPI'}
-                </span>
+                  <Edit size={18} /> Chỉnh sửa
+                </button>
+                
+                <button 
+                  onClick={() => {
+                    onDelete(selectedTask.id);
+                    setSelectedTask(null);
+                  }}
+                  className="bg-red-500 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-red-600 transition-colors shadow-lg shadow-red-200 active:scale-95"
+                  title="Xóa dự án này"
+                >
+                  <Trash2 size={18} /> Xóa
+                </button>
               </div>
             </div>
-              
-            <div className="grid md:grid-cols-2 gap-8">
-              <div className="space-y-4 min-w-0">
-                <h4 className="text-base font-bold text-blue-900 flex items-center gap-2">
-                  <FileText size={18} className="text-blue-500" />
-                  Nội dung chi tiết
-                </h4>
-                <div className="bg-slate-50 p-6 rounded-2xl text-sm text-slate-700 leading-relaxed whitespace-pre-wrap break-words overflow-hidden min-h-[150px]">
-                  {selectedTask.description}
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                <div className="space-y-4">
-                  <h4 className="text-base font-bold text-blue-900 flex items-center gap-2">
-                    <Paperclip size={18} className="text-blue-500" />
-                    File đính kèm
-                  </h4>
-                  <div className="bg-slate-50 p-6 rounded-2xl min-h-[80px]">
-                    <ExpandableFiles files={selectedTask.files} />
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <h4 className="text-base font-bold text-blue-900 flex items-center gap-2">
-                    <AlertCircle size={18} className="text-blue-500" />
-                    Ghi chú & KPI
-                  </h4>
-                  <div className="bg-slate-50 p-6 rounded-2xl space-y-4">
-                   <div>
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">KPI Points</span>
-                      <p className="text-lg font-bold text-blue-900">{KPI_CONFIG[selectedTask.kpiLevel]?.points || 0} điểm</p>
-                    </div>
-                    <div>
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ghi chú</span>
-                      <p className="text-sm text-slate-700 italic">{getSMData(selectedTask).note || 'Không có ghi chú'}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Nút Chỉnh Sửa và Nút Xóa (Đã sửa lỗi biến 'selectedTask' và thiết kế lại) */}
-            <div className="pt-6 border-t border-blue-50 flex justify-end mt-4 gap-4">
-              <button 
-                onClick={() => {
-                  window.dispatchEvent(new CustomEvent('TRIGGER_EDIT', { detail: selectedTask }));
-                }}
-                className="bg-blue-100 text-blue-700 px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-200 transition-colors shadow-sm active:scale-95"
-                title="Chỉnh sửa dự án này"
-              >
-                <Edit size={18} /> Chỉnh sửa
-              </button>
-              
-              <button 
-                onClick={() => {
-                  onDelete(selectedTask.id);
-                  setSelectedTask(null); // Đóng bảng sau khi xóa
-                }}
-                className="bg-red-500 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-red-600 transition-colors shadow-lg shadow-red-200 active:scale-95"
-                title="Xóa dự án này"
-              >
-                <Trash2 size={18} /> Xóa
-              </button>
-            </div>
-
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
-
 // --- Section: Timeline Công Việc ---
 function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: Task[], onSelectTask: (id: string) => void, onDoubleClickTask?: (task: Task) => void }) {
   const [centerDate, setCenterDate] = useState(new Date());
@@ -3756,11 +3759,16 @@ function GlobalViewModal({ task, onClose, onDelete }: {
     'COMPLETED': { label: 'Hoàn thành', gradient: 'bg-gradient-to-t from-green-100 to-white opacity-70' }
   };
 
-  const currentStatus = task.status || 'NEW';
+  const currentStatus = task?.status || 'NEW';
   const statusInfo = STATUS_CONFIG[currentStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG['NEW'];
 
   // Lọc ghi chú sạch, loại bỏ mã SM_DATA ẩn trước khi hiển thị
   const { note: cleanNote } = getSMData(task);
+  
+  // BỘ LỌC AN TOÀN CHỐNG TRẮNG MÀN HÌNH (Xử lý các dự án cũ bị mất dữ liệu KPI)
+  const kpiConfig = task?.kpiLevel && KPI_CONFIG[task.kpiLevel] 
+    ? KPI_CONFIG[task.kpiLevel] 
+    : { label: 'Chưa có KPI', points: 0, color: '#94a3b8' };
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
@@ -3771,19 +3779,18 @@ function GlobalViewModal({ task, onClose, onDelete }: {
            {/* Header */}
            <div className="flex justify-between items-start border-b border-blue-50 pb-6 mb-8">
               <div>
-                <h3 className="text-2xl font-bold text-blue-900 mb-2">{task.project}</h3>
+                <h3 className="text-2xl font-bold text-blue-900 mb-2">{task?.project || 'Dự án không tên'}</h3>
                 <p className="text-sm text-slate-500 flex items-center gap-2">
                   <Clock size={16} />
-                  Deadline: {task.deadline ? format(parseISO(task.deadline), 'dd/MM/yyyy') : 'Chưa cập nhật'}
+                  Deadline: {task?.deadline ? format(parseISO(task.deadline), 'dd/MM/yyyy') : 'Chưa cập nhật'}
                 </p>
               </div>
-              
               <div className="flex gap-2">
                 <span className={cn("px-4 py-2 rounded-full text-slate-800 text-sm font-bold shadow-sm border border-slate-200", statusInfo.gradient)}>
                   {statusInfo.label}
                 </span>
-                <span className="px-4 py-2 rounded-full text-white text-sm font-bold shadow-sm" style={{ backgroundColor: KPI_CONFIG[task.kpiLevel]?.color || '#94a3b8' }}>
-                  {KPI_CONFIG[task.kpiLevel]?.label || 'Không có KPI'}
+                <span className="px-4 py-2 rounded-full text-white text-sm font-bold shadow-sm" style={{ backgroundColor: kpiConfig.color }}>
+                  {kpiConfig.label}
                 </span>
               </div>
             </div>
@@ -3796,7 +3803,7 @@ function GlobalViewModal({ task, onClose, onDelete }: {
                   Nội dung chi tiết
                 </h4>
                 <div className="bg-slate-50 p-6 rounded-2xl text-sm text-slate-700 leading-relaxed whitespace-pre-wrap break-words overflow-hidden min-h-[150px]">
-                  {task.description}
+                  {task?.description || <span className="italic text-slate-400">Không có nội dung mô tả.</span>}
                 </div>
               </div>
 
@@ -3807,7 +3814,7 @@ function GlobalViewModal({ task, onClose, onDelete }: {
                     File đính kèm
                   </h4>
                   <div className="bg-slate-50 p-6 rounded-2xl min-h-[80px]">
-                    <ExpandableFiles files={task.files} />
+                    <ExpandableFiles files={task?.files || []} />
                   </div>
                 </div>
 
@@ -3819,11 +3826,11 @@ function GlobalViewModal({ task, onClose, onDelete }: {
                   <div className="bg-slate-50 p-6 rounded-2xl space-y-4">
                     <div>
                       <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">KPI Points</span>
-                      <p className="text-lg font-bold text-blue-900">{KPI_CONFIG[selectedTask.kpiLevel]?.points || 0} điểm</p>
+                      <p className="text-lg font-bold text-blue-900">{kpiConfig.points} điểm</p>
                     </div>
                     <div>
                       <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ghi chú</span>
-                      <p className="text-sm text-slate-700 italic">{getSMData(selectedTask).note || 'Không có ghi chú'}</p>
+                      <p className="text-sm text-slate-700 italic">{cleanNote || 'Không có ghi chú'}</p>
                     </div>
                   </div>
                 </div>
