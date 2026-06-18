@@ -1086,6 +1086,88 @@ function SocialMedia({ workspace, tasks, onAdd, onUpdate, onDelete, showToast, o
     task: any; platform: string; date: string; time: string;
   } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportCols, setExportCols] = useState(() => ({ ...visibleCols }));
+
+  // Khi bấm xuất Excel, tự động đồng bộ đánh dấu sẵn các cột đang hiển thị
+  useEffect(() => {
+    if (showExportModal) {
+      setExportCols({ ...visibleCols });
+    }
+  }, [showExportModal, visibleCols]);
+
+  // THUẬT TOÁN XUẤT EXCEL GIỮ NGUYÊN MÀU SẮC & ĐỊNH DẠNG
+  const handleExportExcel = () => {
+    // 1. Tạo cấu trúc file Excel dựa trên nền tảng HTML (Hỗ trợ màu sắc CSS)
+    let html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"></head><body>';
+    html += `<h2 style="text-align: center; color: #1e3a8a; font-family: Arial, sans-serif; text-transform: uppercase;">BÁO CÁO DỰ ÁN SOCIAL MEDIA ${selectedMonth ? '- THÁNG ' + selectedMonth : ''}</h2>`;
+    html += '<table border="1" style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;">';
+
+    // 2. Tạo Dòng Tiêu đề (Header)
+    html += '<thead><tr style="background-color: #2563eb; color: white;">';
+    if (exportCols['Tiến độ']) html += '<th style="padding: 10px;">Tiến độ</th>';
+    html += '<th style="padding: 10px;">STT</th>';
+    html += '<th style="padding: 10px;">Dự án</th>';
+    if (exportCols['Nội dung']) html += '<th style="padding: 10px;">Nội dung</th>';
+    if (exportCols['Ghi chú']) html += '<th style="padding: 10px;">Ghi chú</th>';
+    html += '<th style="padding: 10px;">Định dạng</th>';
+    platforms.forEach(p => {
+       if (exportCols[p as keyof typeof exportCols]) {
+         const bg = PLATFORM_COLORS[p]?.bg || '#cbd5e1';
+         html += `<th style="padding: 10px; background-color: ${bg}; color: white;">${p}</th>`;
+       }
+    });
+    html += '</tr></thead><tbody>';
+
+    // 3. Đổ dữ liệu từng dòng (Body)
+    smTasks.forEach((task: any, idx: number) => {
+       const { note, smData } = getSMData(task);
+       const statusText = task.status === 'COMPLETED' ? 'Hoàn thành' : task.status === 'REVIEW' ? 'Chờ duyệt' : task.status === 'IN_PROGRESS' ? 'Đang thực hiện' : task.status === 'INFO' ? 'Tìm thông tin' : 'Dự án mới';
+       const formatText = smData?.format || 'Hình ảnh';
+
+       html += '<tr>';
+       if (exportCols['Tiến độ']) html += `<td style="padding: 8px; vertical-align: top;">${statusText}</td>`;
+       html += `<td style="padding: 8px; text-align: center; vertical-align: top;">${idx + 1}</td>`;
+       html += `<td style="padding: 8px; font-weight: bold; vertical-align: top;">${task.project || ''}</td>`;
+       if (exportCols['Nội dung']) html += `<td style="padding: 8px; vertical-align: top;">${task.description || ''}</td>`;
+       if (exportCols['Ghi chú']) html += `<td style="padding: 8px; vertical-align: top;">${note || ''}</td>`;
+       html += `<td style="padding: 8px; vertical-align: top; text-align: center;">${formatText}</td>`;
+
+       platforms.forEach(p => {
+         if (exportCols[p as keyof typeof exportCols]) {
+           const schedule = smData?.schedules?.find((s: any) => s.platform === p);
+           if (schedule && schedule.date) {
+              const lightBg = PLATFORM_COLORS[p]?.light || '#f8fafc';
+              const textColor = PLATFORM_COLORS[p]?.bg || '#000';
+              const dateObj = parseISO(schedule.date);
+              const dateStr = format(dateObj, 'dd/MM/yyyy');
+              html += `<td style="padding: 8px; text-align: center; vertical-align: middle; background-color: ${lightBg}; color: ${textColor}; font-weight: bold;">
+                         ${dateStr}<br/>${schedule.time || ''}
+                       </td>`;
+           } else {
+              html += `<td style="padding: 8px; text-align: center; vertical-align: middle; color: #94a3b8;">-</td>`;
+           }
+         }
+       });
+       html += '</tr>';
+    });
+
+    html += '</tbody></table></body></html>';
+
+    // 4. Mã hóa UTF-8 và Tạo lệnh Tải file xuống
+    const blob = new Blob(['\uFEFF' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Bao_Cao_Social_Media_${selectedMonth || 'Tat_Ca'}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    setShowExportModal(false);
+    showToast('Đã xuất báo cáo Excel thành công!', 'success');
+  };
   // Bộ nhớ lưu trữ dự án đang được bấm chọn trên Lịch để hiện ở Sidebar phải (1/3)
   const [selectedCalTask, setSelectedCalTask] = useState<any>(null);
   
@@ -1424,6 +1506,15 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
             ) : (
               <><ArrowDownUp size={18}/> Chèn dồn xuống</>
             )}
+          </button>
+
+          {/* NÚT XUẤT EXCEL */}
+          <button 
+            onClick={() => setShowExportModal(true)} 
+            className="p-3 bg-slate-50 text-slate-600 rounded-xl border border-slate-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-colors shadow-sm active:scale-95" 
+            title="Xuất báo cáo Excel"
+          >
+            <Download size={20} />
           </button>
 
           <button onClick={() => setShowSettings(true)} className="p-3 bg-slate-50 text-slate-600 rounded-xl border border-slate-200 hover:bg-slate-100 hover:text-blue-600 transition-colors shadow-sm active:scale-95" title="Cài đặt hiển thị & Tự động">
@@ -2313,6 +2404,45 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
             <div className="flex gap-4 pt-6 mt-8 border-t border-slate-100">
               <button onClick={() => setShowSettings(false)} className="px-6 py-3 rounded-xl bg-slate-100 font-bold text-slate-600 hover:bg-slate-200 transition-colors">Hủy</button>
               <button onClick={() => { setShowSettings(false); showToast('Đã lưu cài đặt Social Media', 'success'); }} className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all">Lưu thay đổi</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. MODAL TÙY CHỈNH XUẤT FILE EXCEL */}
+      {showExportModal && (
+        <div className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in p-4">
+          <div className="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <h3 className="text-2xl font-bold text-blue-900 mb-2 flex items-center gap-3">
+              <Download size={24} className="text-emerald-500" /> Tùy Chọn Xuất Excel
+            </h3>
+            <p className="text-slate-500 text-sm mb-6 pb-4 border-b border-slate-100">
+              Chọn các nội dung bạn muốn xuất vào báo cáo (Mặc định hệ thống đã chọn sẵn các cột đang hiển thị).
+            </p>
+            
+            <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2">
+              <div className="grid grid-cols-2 gap-3">
+                {Object.keys(visibleCols).map(col => (
+                  <label key={col} className="flex items-center gap-3 cursor-pointer group bg-slate-50 p-3 rounded-xl border border-slate-100 hover:border-emerald-200 transition-all">
+                    <input 
+                      type="checkbox" 
+                      checked={(exportCols as any)[col]} 
+                      onChange={() => setExportCols(prev => ({...prev, [col]: !prev[col as keyof typeof prev]}))} 
+                      className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 transition-colors cursor-pointer" 
+                    />
+                    <span className="font-bold text-slate-700 group-hover:text-emerald-700 transition-colors">{col}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-4 pt-6 mt-6 border-t border-slate-100">
+              <button onClick={() => setShowExportModal(false)} className="px-6 py-3 rounded-xl bg-slate-100 font-bold text-slate-600 hover:bg-slate-200 transition-colors active:scale-95">
+                Hủy
+              </button>
+              <button onClick={handleExportExcel} className="flex-1 bg-emerald-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-emerald-200 hover:bg-emerald-700 active:scale-95 transition-all flex items-center justify-center gap-2">
+                <Download size={18} /> Tải file Excel
+              </button>
             </div>
           </div>
         </div>
