@@ -853,26 +853,43 @@ function SidebarItem({ icon, label, active, onClick, collapsed }: {
   );
 }
 // --- COMPONENT RÚT GỌN CHỮ (TIÊU ĐỀ / NỘI DUNG / GHI CHÚ) ---
-// Ép text vào 2 dòng, mở rộng chiều ngang thêm 30% và Khóa kéo thả khi đang mở
+// Ép text vào 2 dòng, mở rộng ngang 30% và KHÓA KÉO THẢ khi mở rộng
 function ExpandableCell({ text, isTitle = false }: { text: string, isTitle?: boolean }) {
   const [expanded, setExpanded] = useState(false);
+  
   if (!text) return <span className="text-slate-400 italic text-sm">Trống</span>;
+
+  // Thuật toán can thiệp DOM: Khóa/Mở khóa khả năng kéo của thẻ <tr> chứa nó
+  const handleToggleDrag = (isExpandedState: boolean, target: any) => {
+    const tr = target.closest('tr'); // Tìm ngược lên thẻ tr bọc ngoài cùng
+    if (tr) {
+      // Nếu đang mở rộng -> Ép tr thành draggable="false", ngược lại là "true"
+      tr.setAttribute('draggable', isExpandedState ? 'false' : 'true');
+    }
+  };
+
   return (
     <div
       className="group cursor-pointer w-full"
-      style={{ maxWidth: isTitle ? '300px' : '340px' }} // Đã mở rộng 30%
-      onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
-      draggable={expanded} // Kích hoạt bắt sự kiện kéo khi đang mở rộng
-      onDragStart={(e) => {
-        if (expanded) {
-          e.preventDefault(); // Ngăn trình duyệt kéo chữ đi
-          e.stopPropagation(); // Khóa không cho sự kiện truyền ra ngoài làm di chuyển dòng
-        }
+      style={{ maxWidth: isTitle ? '300px' : '340px' }}
+      onClick={(e) => { 
+        e.stopPropagation(); 
+        const newState = !expanded;
+        setExpanded(newState); 
+        handleToggleDrag(newState, e.currentTarget); // Khóa/Mở khi click
+      }}
+      onMouseEnter={(e) => {
+        // Đảm bảo khi rê chuột vào khu vực đang mở rộng thì tuyệt đối không bị kéo
+        if (expanded) handleToggleDrag(true, e.currentTarget);
+      }}
+      onMouseLeave={(e) => {
+        // Khi chuột rời khỏi ô chữ này, tự động trả lại khả năng kéo thả cho dòng
+        handleToggleDrag(false, e.currentTarget);
       }}
     >
       <div className={cn(
         "text-sm break-words transition-all duration-200",
-        !expanded ? "line-clamp-2 overflow-hidden" : "whitespace-pre-wrap",
+        !expanded ? "line-clamp-2 overflow-hidden" : "whitespace-pre-wrap cursor-text", // Thêm cursor-text để báo hiệu có thể copy chữ
         isTitle ? "font-bold text-blue-900" : "text-slate-700"
       )}>
         {text}
@@ -888,7 +905,6 @@ function ExpandableCell({ text, isTitle = false }: { text: string, isTitle?: boo
     </div>
   );
 }
-
 // ==========================================
 // HÀM MÀU SẮC TRẠNG THÁI - ĐỒNG BỘ VỚI CÔNG VIỆC HẰNG NGÀY
 // ==========================================
