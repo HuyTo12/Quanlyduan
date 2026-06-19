@@ -2367,12 +2367,17 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
               <button 
                 onClick={() => {
                   // THUẬT TOÁN TẠO FILE EXCEL TỪ HTML GẮN KÈM CSS TẠO MÀU BẢNG
+                  // 1. Chuyển đổi định dạng tháng để gắn vào Tiêu đề (VD: 2026-07 -> 07/2026)
+                  const reportMonthStr = selectedMonth ? selectedMonth.split('-').reverse().join('/') : 'TẤT CẢ';
+                  
                   let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
                     <head><meta charset="utf-8">
                     <style>
                       table { border-collapse: collapse; font-family: Arial, sans-serif; width: 100%; }
-                      th { background-color: #1e3a8a; color: #ffffff; font-weight: bold; border: 1px solid #94a3b8; padding: 10px; text-align: center; }
-                      td { border: 1px solid #cbd5e1; padding: 8px; vertical-align: middle; }
+                      /* Bổ sung white-space: nowrap và height để ép Excel không xuống dòng, giữ chiều cao các hàng bằng nhau */
+                      th { background-color: #1e3a8a; color: #ffffff; font-weight: bold; border: 1px solid #94a3b8; padding: 6px 10px; text-align: center; white-space: nowrap; height: 25px; }
+                      td { border: 1px solid #cbd5e1; padding: 6px 10px; vertical-align: middle; white-space: nowrap; overflow: hidden; height: 25px; }
+                      
                       .bg-fb { background-color: #1877F2; color: #ffffff; text-align: center; font-weight: bold; }
                       .bg-zl { background-color: #0068FF; color: #ffffff; text-align: center; font-weight: bold; }
                       .bg-oazl { background-color: #006AF5; color: #ffffff; text-align: center; font-weight: bold; }
@@ -2381,16 +2386,15 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                       .bg-status { background-color: #f1f5f9; font-weight: bold; text-align: center; color: #334155; }
                     </style>
                     </head><body>
-                      <h2 style="color: #1e3a8a; text-align: center; text-transform: uppercase;">BÁO CÁO SOCIAL MEDIA</h2>
-                      <p><strong>Tháng làm việc:</strong> ${selectedMonth || 'Tất cả'}</p>
+                      <h2 style="color: #1e3a8a; text-align: center; text-transform: uppercase;">BÁO CÁO SOCIAL MEDIA - THÁNG ${reportMonthStr}</h2>
                       <table>
                         <thead>
                           <tr>
                             <th>STT</th>
                             <th style="width: 250px;">Dự án</th>
                             ${exportCols['Tiến độ'] ? '<th>Tiến độ</th>' : ''}
-                            ${exportCols['Nội dung'] ? '<th style="width: 350px;">Nội dung</th>' : ''}
-                            ${exportCols['Ghi chú'] ? '<th style="width: 200px;">Ghi chú</th>' : ''}
+                            ${exportCols['Nội dung'] ? '<th style="width: 450px;">Nội dung</th>' : ''}
+                            ${exportCols['Ghi chú'] ? '<th style="width: 300px;">Ghi chú</th>' : ''}
                             <th>Định dạng</th>
                             ${platforms.map(p => exportCols[p] ? `<th>${p}</th>` : '').join('')}
                           </tr>
@@ -2404,22 +2408,27 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                     const statusText = task.status === 'COMPLETED' ? 'Hoàn thành' : task.status === 'REVIEW' ? 'Chờ duyệt' : task.status === 'IN_PROGRESS' ? 'Đang làm' : task.status === 'INFO' ? 'Tìm thông tin' : 'Dự án mới';
                     const formatData = smData?.format || 'Hình ảnh';
 
+                    // 3. Xử lý Nội dung & Ghi chú: Thay dấu \n (Enter) bằng dấu gạch nối " - " để dồn tất cả lên 1 dòng ngang
+                    const cleanDesc = task.description ? task.description.replace(/\n/g, ' - ') : '';
+                    const cleanNoteTxt = note ? note.replace(/\n/g, ' - ') : '';
+
                     html += `<tr>
                       <td style="text-align: center;">${index + 1}</td>
                       <td><strong>${task.project}</strong></td>
                       ${exportCols['Tiến độ'] ? `<td class="bg-status">${statusText}</td>` : ''}
-                      ${exportCols['Nội dung'] ? `<td>${task.description ? task.description.replace(/\n/g, '<br>') : ''}</td>` : ''}
-                      ${exportCols['Ghi chú'] ? `<td>${note ? note.replace(/\n/g, '<br>') : ''}</td>` : ''}
+                      ${exportCols['Nội dung'] ? `<td>${cleanDesc}</td>` : ''}
+                      ${exportCols['Ghi chú'] ? `<td>${cleanNoteTxt}</td>` : ''}
                       <td style="text-align: center;">${formatData}</td>
                     `;
 
-                    // CỘT NỀN TẢNG CÓ MÀU SẮC
+                    // 4. Xử lý Thời gian Nền tảng: Nối Ngày và Giờ bằng khoảng trắng thay vì thẻ <br>
                     platforms.forEach(p => {
                       if (!exportCols[p]) return;
                       const schedule = smData?.schedules.find((s: any) => s.platform === p);
                       if (schedule?.date) {
                          const bgClass = p === 'Facebook' ? 'bg-fb' : p === 'Zalo' ? 'bg-zl' : p === 'OA Zalo' ? 'bg-oazl' : p === 'Tiktok' ? 'bg-tt' : 'bg-sp';
-                         html += `<td class="${bgClass}">${format(parseISO(schedule.date), 'dd/MM')}<br>${schedule.time || ''}</td>`;
+                         const timeStr = schedule.time ? ` - ${schedule.time}` : '';
+                         html += `<td class="${bgClass}">${format(parseISO(schedule.date), 'dd/MM')}${timeStr}</td>`;
                       } else {
                          html += `<td style="text-align: center; color: #94a3b8;">-</td>`;
                       }
