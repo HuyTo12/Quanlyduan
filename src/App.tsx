@@ -2371,13 +2371,13 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                     <head><meta charset="utf-8">
                     <style>
                       table { border-collapse: collapse; font-family: Arial, sans-serif; width: 100%; }
-                      th { background-color: #1e3a8a; color: #ffffff; font-weight: bold; border: 1px solid #94a3b8; padding: 10px; text-align: center; vertical-align: middle; }
+                      
+                      /* CHỐT CHIỀU CAO TIÊU ĐỀ: 30px */
+                      th { background-color: #1e3a8a; color: #ffffff; font-weight: bold; border: 1px solid #94a3b8; padding: 10px; text-align: center; vertical-align: middle; height: 30px; }
                       td { border: 1px solid #cbd5e1; padding: 8px; vertical-align: middle; }
                       
-                      /* Lớp CSS Wrap Text ép Excel tự động giãn dòng nhưng vẫn giữ nguyên trong 1 ô */
                       .wrap-text { white-space: normal; mso-word-wrap: break-word; }
                       
-                      /* CSS Nền tảng (màu giống website, chữ canh giữa) */
                       .bg-fb { background-color: #1877F2; color: #ffffff; font-weight: bold; text-align: center; }
                       .bg-zl { background-color: #0068FF; color: #ffffff; font-weight: bold; text-align: center; }
                       .bg-oazl { background-color: #006AF5; color: #ffffff; font-weight: bold; text-align: center; }
@@ -2408,15 +2408,14 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                     const statusText = task.status === 'COMPLETED' ? 'Hoàn thành' : task.status === 'REVIEW' ? 'Chờ duyệt' : task.status === 'IN_PROGRESS' ? 'Đang làm' : task.status === 'INFO' ? 'Tìm thông tin' : 'Dự án mới';
                     const formatData = smData?.format || 'Hình ảnh';
 
-                    // 1. CHUYỂN DẤU XUỐNG DÒNG (\n) THÀNH MÃ XUỐNG DÒNG NỘI BỘ TRONG 1 Ô CỦA EXCEL
                     const excelLineBreak = '<br style="mso-data-placement:same-cell;"/>';
                     const safeDesc = task.description ? task.description.replace(/\n/g, excelLineBreak) : '';
                     const safeNote = note ? note.replace(/\n/g, excelLineBreak) : '';
 
-                    // 2. TẠO MÀU XEN KẼ (Zebra striping): Dòng chẵn màu trắng, dòng lẻ màu xanh nhạt
                     const rowBgColor = index % 2 === 0 ? '#ffffff' : '#f0f7ff';
 
-                    html += `<tr style="background-color: ${rowBgColor};">
+                    // CHỐT CHIỀU CAO HÀNG DỰ ÁN: 60px (Gấp đôi chiều cao tiêu đề 30px)
+                    html += `<tr style="background-color: ${rowBgColor}; height: 60px;">
                       <td style="text-align: center;">${index + 1}</td>
                       <td><strong>${task.project}</strong></td>
                       ${exportCols['Tiến độ'] ? `<td class="bg-status">${statusText}</td>` : ''}
@@ -2425,14 +2424,11 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                       <td style="text-align: center;">${formatData}</td>
                     `;
 
-                    // 3. ÉP THỜI GIAN VÀ NGÀY THÁNG VÀO CÙNG 1 HÀNG CHỮ BÌNH THƯỜNG
                     platforms.forEach(p => {
                       if (!exportCols[p]) return;
                       const schedule = smData?.schedules.find((s: any) => s.platform === p);
                       if (schedule?.date) {
                          const bgClass = p === 'Facebook' ? 'bg-fb' : p === 'Zalo' ? 'bg-zl' : p === 'OA Zalo' ? 'bg-oazl' : p === 'Tiktok' ? 'bg-tt' : 'bg-sp';
-                         
-                         // Ghép giờ và ngày/tháng với dấu cách (11:30 10/07)
                          html += `<td class="${bgClass}">${schedule.time || ''} ${format(parseISO(schedule.date), 'dd/MM')}</td>`;
                       } else {
                          html += `<td style="text-align: center; color: #94a3b8;">-</td>`;
@@ -2444,7 +2440,6 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
 
                   html += `</tbody></table></body></html>`;
 
-                  // TẠO BLOB KÈM MÃ BOM ĐỂ TRÁNH LỖI FONT TIẾNG VIỆT
                   const blob = new Blob(['\ufeff', html], { type: 'application/vnd.ms-excel' });
                   const url = URL.createObjectURL(blob);
                   const link = document.createElement('a');
