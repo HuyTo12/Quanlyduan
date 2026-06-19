@@ -2429,7 +2429,9 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                       const schedule = smData?.schedules.find((s: any) => s.platform === p);
                       if (schedule?.date) {
                          const bgClass = p === 'Facebook' ? 'bg-fb' : p === 'Zalo' ? 'bg-zl' : p === 'OA Zalo' ? 'bg-oazl' : p === 'Tiktok' ? 'bg-tt' : 'bg-sp';
-                         html += `<td class="${bgClass}">${schedule.time || ''} ${format(parseISO(schedule.date), 'dd/MM')}</td>`;
+                         const formattedDate = format(parseISO(schedule.date), 'dd/MM');
+const formattedTime = schedule.time || '--:--';
+html += `<td class="${bgClass}">${formattedDate} | ${formattedTime}</td>`;
                       } else {
                          html += `<td style="text-align: center; color: #94a3b8;">-</td>`;
                       }
