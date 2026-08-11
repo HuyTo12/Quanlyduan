@@ -1192,44 +1192,57 @@ function SocialMedia({ workspace, tasks, onAdd, onUpdate, onDelete, showToast, o
       const minIdx = Math.min(dragIdx, dropIndex);
       const maxIdx = Math.max(dragIdx, dropIndex);
       
-      // Cắt lấy cụm dự án đang bị tác động đẩy lùi
+      // 1. Cắt lấy cụm dự án đang bị tác động đẩy lùi
       const affectedTasks = smTasks.slice(minIdx, maxIdx + 1);
       
-      // Lưu lại Cấu trúc Ngày và Lịch theo đúng thứ tự mảng ban đầu
-      const originalProps = affectedTasks.map((t: any) => {
+      // 2. Trích xuất Timestamps và Lịch nguyên bản theo đúng thứ tự gốc để làm khuôn
+      const originalTimestamps = affectedTasks.map((t: any) => t.createdAt || t.startDate);
+      const originalSchedules = affectedTasks.map((t: any) => {
         const { smData } = getSMData(t);
-        return {
-          createdAt: t.createdAt || t.startDate,
-          schedules: smData?.schedules || []
-        };
+        return smData?.schedules || [];
       });
       
-      // Tính toán mảng mới sau khi cục gạch được rút ra và chèn vào chỗ mới
-      const newOrderedTasks = [...affectedTasks];
-      const movedItem = newOrderedTasks.splice(dragIdx - minIdx, 1)[0];
-      newOrderedTasks.splice(dropIndex - minIdx, 0, movedItem);
-      
-      // Đồng loạt cập nhật lại Dữ liệu đẩy lên Supabase
-      newOrderedTasks.forEach((task: any, index: number) => {
-        const props = originalProps[index];
-        let newTask = { ...task };
-        const { note, smData } = getSMData(task);
-        const format = smData?.format || 'Hình ảnh';
+      const relDrag = dragIdx - minIdx;
+      const relDrop = dropIndex - minIdx;
+
+      if (dragType === 'AREA2') {
+        // CHỈ KÉO LỊCH (Khu vực 2): Dự án đứng im, Lịch dồn xuống
+        const newOrderedSchedules = [...originalSchedules];
+        const movedSchedule = newOrderedSchedules.splice(relDrag, 1)[0];
+        newOrderedSchedules.splice(relDrop, 0, movedSchedule);
         
-        if (dragType === 'AREA2') {
-           // Chỉ dồn Lịch đăng (Khu vực 2), Dự án đứng im
-           newTask.note = encodeSMData(note, { format, schedules: props.schedules });
-        } else if (dragType === 'AREA1') {
-           // Dồn Dự án (Khu vực 1), tự động ép Lịch đăng gán theo vị trí mới
-           newTask.createdAt = props.createdAt;
-           newTask.note = encodeSMData(note, { format, schedules: props.schedules });
-        } else {
-           // Kéo cả hàng: dồn vị trí, Lịch riêng của ai người nấy giữ
-           newTask.createdAt = props.createdAt;
-        }
+        // Ghi đè lịch mới dồn vào mảng dự án đứng im
+        affectedTasks.forEach((task: any, index: number) => {
+          let newTask = { ...task };
+          const { note, smData } = getSMData(task);
+          const format = smData?.format || 'Hình ảnh';
+          
+          newTask.note = encodeSMData(note, { format, schedules: newOrderedSchedules[index] });
+          onUpdate(newTask);
+        });
+      } else {
+        // KÉO DỰ ÁN HOẶC CẢ HÀNG (Khu vực 1 / BOTH): Dự án dồn xuống, cập nhật lại Timestamps
+        const newOrderedTasks = [...affectedTasks];
+        const movedTask = newOrderedTasks.splice(relDrag, 1)[0];
+        newOrderedTasks.splice(relDrop, 0, movedTask);
         
-        onUpdate(newTask);
-      });
+        newOrderedTasks.forEach((task: any, index: number) => {
+          let newTask = { ...task };
+          const { note, smData } = getSMData(task);
+          const format = smData?.format || 'Hình ảnh';
+          
+          // Ép Timestamp gốc vào vị trí mới để bảng sắp xếp đẩy dòng xuống
+          newTask.createdAt = originalTimestamps[index];
+          
+          if (dragType === 'AREA1') {
+            // AREA1: Nếu chỉ kéo Dự án, Dự án tới vị trí mới sẽ nhận lại Lịch cũ của vị trí đó
+            newTask.note = encodeSMData(note, { format, schedules: originalSchedules[index] });
+          }
+          // NẾU BOTH (Kéo cả hàng): Không can thiệp lịch, dự án mang theo lịch của chính nó đi
+          
+          onUpdate(newTask);
+        });
+      }
     }
 
     setDraggedItem(null);
