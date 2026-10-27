@@ -27,9 +27,6 @@ import {
   Share2, Settings, Facebook, MessageCircle, MessageSquare, Music, ShoppingBag, GripVertical, Image as ImageIcon, Video,
   ArrowLeftRight,
   ArrowDownUp,
-  Bell,
-  BellRing,
-  PlusCircle
 } from 'lucide-react';
 import { 
   format, 
@@ -193,74 +190,6 @@ type Toast = {
   isClosing?: boolean;
 };
 export default function App() {
-  // --- HỆ THỐNG THÔNG BÁO (NOTIFICATIONS) ---
-  const [showWebSettings, setShowWebSettings] = useState(false);
-  const [notiSettings, setNotiSettings] = useState(() => {
-    const saved = localStorage.getItem('kpi_noti_settings');
-    // Mặc định bật, ngày T2-T6 (1->5), 2 khung giờ 08:00 và 13:30
-    return saved ? JSON.parse(saved) : { enabled: false, days: [1, 2, 3, 4, 5], times: ['08:00', '13:30'] };
-  });
-
-  // Lưu cài đặt mỗi khi có thay đổi
-  useEffect(() => {
-    localStorage.setItem('kpi_noti_settings', JSON.stringify(notiSettings));
-  }, [notiSettings]);
-  // 1. Xin quyền thông báo khi trình duyệt load lần đầu
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  }, []);
-
-  // 2. Vòng lặp kiểm tra giờ để bắn thông báo (Kiểm tra mỗi 30 giây)
-  const lastNotifiedRef = useRef<string>(''); // Bộ nhớ đệm chặn spam thông báo
-  
-  useEffect(() => {
-    // Chỉ chạy nếu bật thông báo VÀ đang ở giao diện Public (chính)
-    if (!notiSettings.enabled || workspace !== 'public') return;
-
-    const checkAndNotify = () => {
-      const now = new Date();
-      // Chuyển đổi getDay() của JS (0=CN, 1=T2) thành mốc của web (1=T2, 2=T3..., 7=CN)
-      const jsDay = now.getDay();
-      const currentDay = jsDay === 0 ? 7 : jsDay; 
-
-      // Nếu hôm nay không nằm trong danh sách ngày được chọn thì bỏ qua
-      if (!notiSettings.days.includes(currentDay)) return;
-
-      const currentHourMin = format(now, 'HH:mm');
-      
-      // Nếu khớp với 1 trong các giờ đã cài đặt
-      if (notiSettings.times.includes(currentHourMin)) {
-        // Tạo khóa (key) lưu vết để không bắn thông báo 2 lần trong cùng 1 phút
-        const notiKey = `${format(now, 'yyyy-MM-dd')}-${currentHourMin}`;
-        
-        if (lastNotifiedRef.current !== notiKey) {
-          lastNotifiedRef.current = notiKey; // Đánh dấu là đã thông báo
-          
-          // Đếm số công việc hôm nay (chưa hoàn thành)
-          const todayTasks = tasks.filter(t => {
-             const isUnfinished = t.status !== 'COMPLETED';
-             const isToday = t.workingDays.some((d: any) => isSameDay(parseISO(d), startOfDay(now)));
-             return isUnfinished && isToday;
-          });
-
-          if (todayTasks.length > 0 && 'Notification' in window && Notification.permission === 'granted') {
-             new Notification('KPI Manager - Thông Báo Công Việc', {
-                body: `Hôm nay bạn có ${todayTasks.length} công việc cần xử lý. Hãy vào kiểm tra ngay nhé!`,
-                icon: '/favicon.ico', // Có thể thay bằng link logo của bạn
-                badge: '/favicon.ico'
-             });
-          }
-        }
-      }
-    };
-
-    const timer = setInterval(checkAndNotify, 30000); // 30s check 1 lần
-    checkAndNotify(); // Chạy thử ngay khi load
-    
-    return () => clearInterval(timer);
-  }, [notiSettings, tasks, workspace]);
   // --- BỘ NHỚ LƯU TRẠNG THÁI TAB KHI F5 ---
   const [activeSection, setActiveSection] = useState(() => {
     // Kiểm tra xem trình duyệt có lưu tab nào trước đó không
@@ -658,9 +587,7 @@ export default function App() {
         
         {/* NÚT BẤM ẨN DANH: NHÁY CHUỘT 5 LẦN VÀO ĐÂY ĐỂ MỞ BẢNG ĐĂNG NHẬP */}
         <div 
-          className="p-6 flex items-center gap-3 border-b border-slate-100 cursor-pointer select-none group relative"
-          onDoubleClick={() => setShowWebSettings(true)}
-          title="Nháy đúp chuột để mở Cài đặt Website"
+          className="p-6 flex items-center gap-3 border-b border-slate-100 cursor-pointer select-none group"
           onClick={() => {
             if (workspace === 'private') return; // Đã đăng nhập rồi thì vô hiệu hóa
             setSecretClickCount(prev => prev + 1);
@@ -894,151 +821,6 @@ export default function App() {
                 Lưu PIN
               </button>
             </div>
-          </div>
-        </div>
-      )}
-        {/* MODAL CÀI ĐẶT WEBSITE (NHÁY ĐÚP LOGO) */}
-      {showWebSettings && (
-        <div className="fixed inset-0 z-[999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-md w-full relative animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
-            
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
-              <h3 className="text-2xl font-bold text-blue-900 flex items-center gap-2">
-                <Settings size={24} className="text-blue-500"/> Cài đặt Website
-              </h3>
-              <button onClick={() => setShowWebSettings(false)} className="text-slate-400 hover:text-slate-600 bg-slate-100 hover:bg-slate-200 p-2 rounded-full transition-colors">
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="space-y-8">
-              {/* Mục 1: Bật/Tắt Thông Báo */}
-              <div className="flex items-center justify-between bg-blue-50 p-4 rounded-2xl border border-blue-100">
-                <div className="flex items-center gap-3">
-                  <div className={cn("p-2 rounded-full text-white", notiSettings.enabled ? "bg-blue-500 shadow-md shadow-blue-200" : "bg-slate-300")}>
-                    {notiSettings.enabled ? <BellRing size={20} /> : <Bell size={20} />}
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-blue-900">Thông báo nhắc việc</h4>
-                    <p className="text-xs text-blue-600/80">Chỉ thông báo ở giao diện chính</p>
-                  </div>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" checked={notiSettings.enabled} 
-                         onChange={async (e) => {
-                           // Nếu bật lên, hỏi quyền trình duyệt luôn
-                           if (e.target.checked && 'Notification' in window && Notification.permission !== 'granted') {
-                             await Notification.requestPermission();
-                           }
-                           setNotiSettings(prev => ({...prev, enabled: e.target.checked}));
-                         }} 
-                         className="sr-only peer" />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
-                </label>
-              </div>
-
-              {notiSettings.enabled && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-top-2">
-                  
-                  {/* Mục 2: Chọn Ngày (Hàng ngang T2 -> CN) */}
-                  <div>
-                    <label className="text-sm font-bold text-slate-700 block mb-3 uppercase tracking-wider">Chọn ngày thông báo</label>
-                    <div className="flex items-center justify-between gap-1">
-                      {[
-                        { id: 1, label: 'T2' }, { id: 2, label: 'T3' }, { id: 3, label: 'T4' },
-                        { id: 4, label: 'T5' }, { id: 5, label: 'T6' }, { id: 6, label: 'T7' }, { id: 7, label: 'CN' }
-                      ].map(day => {
-                        const isSelected = notiSettings.days.includes(day.id);
-                        return (
-                          <button
-                            key={day.id}
-                            onClick={() => {
-                              setNotiSettings(prev => {
-                                const newDays = isSelected 
-                                  ? prev.days.filter(d => d !== day.id) 
-                                  : [...prev.days, day.id].sort();
-                                return { ...prev, days: newDays };
-                              });
-                            }}
-                            className={cn(
-                              "w-10 h-10 rounded-full font-bold text-sm transition-all shadow-sm active:scale-95",
-                              isSelected 
-                                ? "bg-blue-600 text-white shadow-blue-200 border border-blue-700" 
-                                : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-100"
-                            )}
-                          >
-                            {day.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Mục 3: Chọn Số Lần & Khung Giờ (Cách nhau 30p) */}
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                     <div className="flex items-center justify-between mb-3 border-b border-slate-200 pb-2">
-                       <label className="text-sm font-bold text-slate-700 uppercase tracking-wider">Khung giờ báo</label>
-                       <span className="text-xs font-bold bg-blue-100 text-blue-600 px-2 py-1 rounded-lg">{notiSettings.times.length} lần/ngày</span>
-                     </div>
-                     
-                     <div className="space-y-3 max-h-[160px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-200">
-                       {notiSettings.times.map((time, idx) => (
-                         <div key={idx} className="flex items-center gap-2">
-                           <select 
-                             value={time}
-                             onChange={(e) => {
-                               const newTimes = [...notiSettings.times];
-                               newTimes[idx] = e.target.value;
-                               setNotiSettings(prev => ({...prev, times: newTimes.sort()}));
-                             }}
-                             className="flex-1 p-2.5 rounded-xl border-2 border-slate-200 font-bold text-blue-800 text-center outline-none focus:border-blue-500 transition-colors bg-white shadow-sm appearance-none cursor-pointer"
-                           >
-                             {/* Sinh tự động 48 khung giờ cách nhau 30p */}
-                             {Array.from({ length: 48 }, (_, i) => {
-                               const h = Math.floor(i / 2).toString().padStart(2, '0');
-                               const m = i % 2 === 0 ? '00' : '30';
-                               return `${h}:${m}`;
-                             }).map(t => <option key={t} value={t}>{t}</option>)}
-                           </select>
-                           
-                           {notiSettings.times.length > 1 && (
-                             <button 
-                               onClick={() => setNotiSettings(prev => ({...prev, times: prev.times.filter((_, i) => i !== idx)}))}
-                               className="p-2.5 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded-xl transition-colors border border-red-100"
-                             >
-                               <Trash2 size={18} />
-                             </button>
-                           )}
-                         </div>
-                       ))}
-                     </div>
-                     
-                     {/* Nút Cộng giờ */}
-                     <button 
-                       onClick={() => {
-                         if (notiSettings.times.length < 10) { // Giới hạn tối đa 10 lần
-                           setNotiSettings(prev => ({...prev, times: [...prev.times, '08:00']}));
-                         } else {
-                           showToast('Chỉ cho phép tối đa 10 khung giờ/ngày', 'error');
-                         }
-                       }}
-                       className="w-full mt-3 py-2.5 rounded-xl border-2 border-dashed border-blue-300 text-blue-600 font-bold flex items-center justify-center gap-2 hover:bg-blue-50 transition-colors"
-                     >
-                       <PlusCircle size={18} /> Thêm lượt báo
-                     </button>
-                  </div>
-
-                </div>
-              )}
-            </div>
-
-            <button onClick={() => {
-              setShowWebSettings(false);
-              showToast('Đã lưu cấu hình Website', 'success');
-            }} className="w-full mt-8 bg-blue-600 text-white p-3.5 rounded-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all text-lg">
-              Xong
-            </button>
           </div>
         </div>
       )}
