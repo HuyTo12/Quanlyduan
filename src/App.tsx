@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LayoutDashboard, 
   Lock, 
@@ -24,7 +24,7 @@ import {
   Clock,
   AlertCircle,
   X,
-  Share2, Settings, Facebook, MessageCircle, MessageSquare, Music, ShoppingBag, GripVertical, Image as ImageIcon, Video,
+  Share2, Settings, MessageSquare, GripVertical, Bell,
   ArrowLeftRight,
   ArrowDownUp,
 } from 'lucide-react';
@@ -40,7 +40,6 @@ import {
   startOfWeek, 
   endOfWeek,
   parseISO,
-  isWithinInterval,
   addMonths,
   differenceInDays,
   isWeekend,
@@ -71,7 +70,6 @@ import {
   KPI_CONFIG, 
   Task, 
   calculateTaskDates, 
-  isWorkingDay,
   TaskStatus
 } from './types';
 
@@ -79,7 +77,8 @@ import {
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const gasUrl = import.meta.env.VITE_GAS_URL || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// createClient ném lỗi (trắng màn hình) nếu URL rỗng -> luôn có giá trị dự phòng để web vẫn hiển thị khi thiếu biến môi trường
+const supabase = createClient(supabaseUrl || 'https://placeholder.supabase.co', supabaseAnonKey || 'placeholder-key');
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -151,8 +150,6 @@ function ExpandableFiles({ files }: { files: string[] }) {
   );
 }
 
-type Section = 'giao-viec' | 'cong-viec-hang-ngay' | 'timeline' | 'danh-gia' | 'search' | 'social-media';
-
 // --- BỘ CÔNG CỤ XỬ LÝ DỮ LIỆU SOCIAL MEDIA ---
 export type SMPlatform = 'Facebook' | 'Zalo' | 'OA Zalo' | 'Tiktok' | 'Shopee';
 export type SMSchedule = { platform: SMPlatform; date: string; time: string; };
@@ -182,6 +179,8 @@ export const encodeSMData = (note: string, smData: SMData): string => {
   return `${cleanNote}SM_DATA:::${JSON.stringify(smData)}`;
 };
 
+type AutoSchedule = { enabled: boolean; mainPlatform: string; subPlatforms: { platform: string; offsetDays: number }[] };
+
 type Toast = {
   id: number;
   message: string;
@@ -189,6 +188,188 @@ type Toast = {
   task?: Task;
   isClosing?: boolean;
 };
+// --- THÔNG BÁO CÔNG VIỆC HẰNG NGÀY (chỉ áp dụng cho giao diện chính) ---
+type NotifySettings = { enabled: boolean; days: number[]; times: string[] };
+
+const NOTIFY_SETTINGS_KEY = 'kpi_notify_settings';
+const NOTIFY_ASKED_KEY = 'kpi_notify_asked';
+const NOTIFY_FIRED_KEY = 'kpi_notify_fired';
+const NOTIFY_WINDOW_MS = 3 * 60 * 1000; // Trình duyệt có thể làm chậm bộ đếm khi tab ẩn -> cho phép trễ tối đa 3 phút
+const MAX_NOTIFY_TIMES = 8;
+const DEFAULT_NOTIFY: NotifySettings = { enabled: true, days: [1, 2, 3, 4, 5], times: ['08:30'] };
+const WEEKDAY_OPTIONS = [
+  { d: 1, label: 'T2' }, { d: 2, label: 'T3' }, { d: 3, label: 'T4' }, { d: 4, label: 'T5' },
+  { d: 5, label: 'T6' }, { d: 6, label: 'T7' }, { d: 0, label: 'CN' },
+];
+// 48 khung giờ, mỗi khung cách nhau 30 phút
+const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => `${String(Math.floor(i / 2)).padStart(2, '0')}:${i % 2 === 0 ? '00' : '30'}`);
+
+const canNotify = () => typeof window !== 'undefined' && 'Notification' in window;
+
+const safeStorage = {
+  get: (key: string): string | null => { try { return localStorage.getItem(key); } catch { return null; } },
+  set: (key: string, value: string) => { try { localStorage.setItem(key, value); } catch { /* bỏ qua */ } },
+};
+
+const loadNotifySettings = (): NotifySettings => {
+  try {
+    const raw = safeStorage.get(NOTIFY_SETTINGS_KEY);
+    if (!raw) return DEFAULT_NOTIFY;
+    const p = JSON.parse(raw);
+    const days = Array.isArray(p.days) ? p.days.filter((d: any) => Number.isInteger(d) && d >= 0 && d <= 6) : DEFAULT_NOTIFY.days;
+    const times = Array.isArray(p.times) ? p.times.filter((t: any) => TIME_OPTIONS.includes(t)) : [];
+    return { enabled: p.enabled !== false, days, times: times.length > 0 ? times : DEFAULT_NOTIFY.times };
+  } catch {
+    return DEFAULT_NOTIFY;
+  }
+};
+
+// Danh sách công việc của một ngày (dùng chung cho tab "Công việc hằng ngày" và thông báo)
+const getTasksForDate = (tasks: Task[], date: Date): Task[] => {
+  const today = startOfDay(new Date());
+  const isToday = isSameDay(date, today);
+  return tasks.filter(task => {
+    if ((task.workingDays || []).some((day: any) => isSameDay(parseISO(day), date))) return true;
+    // Dồn việc CHƯA XONG về "Hôm nay" (trừ Thứ 7, CN) nếu đã đến ngày bắt đầu hoặc trễ hạn
+    return isToday && !isWeekend(today) && task.status !== TaskStatus.COMPLETED
+      && !!task.startDate && isBefore(startOfDay(parseISO(task.startDate)), addDays(today, 1));
+  });
+};
+
+const buildDailySummary = (tasks: Task[]) => {
+  const today = startOfDay(new Date());
+  const list = getTasksForDate(tasks, today);
+  const done = list.filter(t => t.status === TaskStatus.COMPLETED).length;
+  const overdue = list.filter(t => t.status !== TaskStatus.COMPLETED && isBefore(startOfDay(parseISO(t.deadline)), today)).length;
+  const title = `Công việc hôm nay (${format(today, 'dd/MM')})`;
+  if (list.length === 0) return { title, body: 'Hôm nay bạn không có công việc nào cần xử lý.' };
+  const parts = [`${list.length - done} chưa hoàn thành`];
+  if (overdue > 0) parts.push(`${overdue} quá hạn`);
+  parts.push(`${done} đã xong`);
+  return { title, body: `Tổng ${list.length} công việc: ${parts.join(', ')}.` };
+};
+
+function SettingsModal({ settings, onChange, onClose, onTest, isPrivate }: {
+  settings: NotifySettings;
+  onChange: (next: NotifySettings) => void;
+  onClose: () => void;
+  onTest: () => void;
+  isPrivate: boolean;
+}) {
+  const [permission, setPermission] = useState<string>(canNotify() ? Notification.permission : 'unsupported');
+
+  const requestPermission = async () => {
+    if (!canNotify()) return;
+    try { setPermission(await Notification.requestPermission()); } catch { /* bỏ qua */ }
+  };
+
+  const toggleDay = (d: number) => {
+    const days = settings.days.includes(d) ? settings.days.filter(x => x !== d) : [...settings.days, d];
+    onChange({ ...settings, days });
+  };
+  const setTime = (idx: number, value: string) => onChange({ ...settings, times: settings.times.map((t, i) => i === idx ? value : t) });
+  const removeTime = (idx: number) => onChange({ ...settings, times: settings.times.filter((_, i) => i !== idx) });
+  const addTime = () => {
+    if (settings.times.length >= MAX_NOTIFY_TIMES) return;
+    // Mặc định lấy khung giờ kế tiếp (cách 30 phút) chưa được dùng
+    let i = TIME_OPTIONS.indexOf(settings.times[settings.times.length - 1]);
+    for (let n = 0; n < TIME_OPTIONS.length; n++) {
+      i = (i + 1) % TIME_OPTIONS.length;
+      if (!settings.times.includes(TIME_OPTIONS[i])) break;
+    }
+    onChange({ ...settings, times: [...settings.times, TIME_OPTIONS[i]] });
+  };
+
+  return (
+    <div className="fixed inset-0 z-[120] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={onClose}>
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-6 border-b border-slate-100">
+          <h3 className="text-xl font-bold text-blue-900 flex items-center gap-2"><Settings size={22} /> Cài đặt Website</h3>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 text-slate-500" title="Đóng"><X size={20} /></button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+            <Bell size={20} className="text-blue-600" />
+            <h4 className="font-bold text-slate-800 text-lg">1. Thông báo công việc</h4>
+            <label className="relative inline-flex items-center cursor-pointer ml-auto">
+              <input type="checkbox" checked={settings.enabled} onChange={() => onChange({ ...settings, enabled: !settings.enabled })} className="sr-only peer" />
+              <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+
+          {isPrivate && (
+            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3">Thông báo chỉ áp dụng cho giao diện chính, không hoạt động ở tài khoản riêng.</p>
+          )}
+
+          <div className={cn("space-y-6 transition-opacity", !settings.enabled && "opacity-50 pointer-events-none")}>
+            <div className="space-y-3">
+              <label className="text-sm font-bold text-slate-600 block">Ngày hiện thông báo</label>
+              <div className="flex gap-2">
+                {WEEKDAY_OPTIONS.map(({ d, label }) => {
+                  const checked = settings.days.includes(d);
+                  return (
+                    <label key={d} className={cn(
+                      "flex-1 flex flex-col items-center gap-1.5 py-2 rounded-xl border-2 cursor-pointer select-none transition-all",
+                      checked ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-500 hover:border-blue-200"
+                    )}>
+                      <span className="text-sm font-bold">{label}</span>
+                      <input type="checkbox" checked={checked} onChange={() => toggleDay(d)} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-bold text-slate-600">Số lần hiện thông báo trong ngày ({settings.times.length})</label>
+                <button
+                  onClick={addTime}
+                  disabled={settings.times.length >= MAX_NOTIFY_TIMES}
+                  className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm transition-colors"
+                  title="Thêm lượt thông báo"
+                >
+                  <Plus size={18} />
+                </button>
+              </div>
+              <div className="space-y-2">
+                {settings.times.map((t, idx) => (
+                  <div key={idx} className="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                    <span className="text-sm font-semibold text-slate-500 w-14">Lần {idx + 1}</span>
+                    <select
+                      value={t}
+                      onChange={e => setTime(idx, e.target.value)}
+                      size={1}
+                      className="flex-1 p-2 rounded-lg border border-slate-200 font-bold text-blue-800 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                    >
+                      {TIME_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                    {settings.times.length > 1 && (
+                      <button onClick={() => removeTime(idx)} className="p-2 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Xóa lượt này"><X size={16} /></button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 flex-wrap">
+              <button onClick={onTest} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-sm hover:bg-slate-200 transition-colors">Gửi thông báo thử</button>
+              {permission === 'default' && (
+                <button onClick={requestPermission} className="px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 transition-colors">Cho phép thông báo trình duyệt</button>
+              )}
+              {permission === 'granted' && <span className="text-sm text-emerald-600 font-semibold flex items-center gap-1"><CheckCircle2 size={16} /> Trình duyệt đã cho phép</span>}
+              {permission === 'denied' && <span className="text-sm text-red-500 font-semibold">Trình duyệt đang chặn thông báo – hãy bật lại trong cài đặt của trang web (biểu tượng ổ khóa cạnh thanh địa chỉ).</span>}
+              {permission === 'unsupported' && <span className="text-sm text-slate-500">Trình duyệt không hỗ trợ thông báo hệ thống, web sẽ hiện thông báo ngay trong trang.</span>}
+            </div>
+            <p className="text-xs text-slate-400">Thông báo chỉ hiện khi trang web đang được mở trong trình duyệt. Cài đặt được lưu riêng cho từng trình duyệt.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   // --- BỘ NHỚ LƯU TRẠNG THÁI TAB KHI F5 ---
   const [activeSection, setActiveSection] = useState(() => {
@@ -221,28 +402,35 @@ export default function App() {
   const [secretClickCount, setSecretClickCount] = useState(0);
 
   // Lấy dữ liệu từ Supabase (Đã kẹp thêm bộ lọc Workspace)
+  const [tasksLoaded, setTasksLoaded] = useState(false); // Đã tải xong dữ liệu thật từ Supabase chưa (để thông báo không báo sai số việc)
   const fetchTasks = async () => {
     const { data, error } = await supabase.from('projects')
       .select('*')
       .eq('workspace', workspace) // Bộ lọc phép thuật: Tách biệt hoàn toàn data
       .order('createdAt', { ascending: false });
-    if (!error && data) setTasks(data);
+    if (!error && data) {
+      setTasks(data);
+      setTasksLoaded(true);
+    }
   };
 
   // Mỗi khi đổi tài khoản (workspace thay đổi) -> Load lại data & Nhớ vào trình duyệt
   useEffect(() => { 
-    localStorage.setItem('kpi_workspace', workspace);
+    safeStorage.set('kpi_workspace', workspace);
+    setTasksLoaded(false);
     fetchTasks(); 
   }, [workspace]);
 
   // Bộ nhớ đệm tạm thời (Cũng tách riêng rẽ để không bị đè dữ liệu lên nhau)
   useEffect(() => {
-    const savedTasks = localStorage.getItem(`kpi_tasks_${workspace}`);
-    if (savedTasks) setTasks(JSON.parse(savedTasks));
+    try {
+      const savedTasks = safeStorage.get(`kpi_tasks_${workspace}`);
+      if (savedTasks) setTasks(JSON.parse(savedTasks));
+    } catch { /* cache hỏng -> bỏ qua, dữ liệu thật sẽ tải từ Supabase */ }
   }, [workspace]);
 
   useEffect(() => {
-    if (tasks.length > 0) localStorage.setItem(`kpi_tasks_${workspace}`, JSON.stringify(tasks));
+    if (tasks.length > 0) safeStorage.set(`kpi_tasks_${workspace}`, JSON.stringify(tasks));
   }, [tasks, workspace]);
 
   // Đẩy file lên Google Drive
@@ -474,6 +662,85 @@ export default function App() {
     return () => window.removeEventListener('TRIGGER_VIEW', listener);
   }, []);
 
+  // --- THÔNG BÁO CÔNG VIỆC HẰNG NGÀY ---
+  const [showSettings, setShowSettings] = useState(false);
+  const [showNotifyPrompt, setShowNotifyPrompt] = useState(false);
+  const [notifySettings, setNotifySettings] = useState<NotifySettings>(loadNotifySettings);
+
+  const updateNotifySettings = (next: NotifySettings) => {
+    setNotifySettings(next);
+    safeStorage.set(NOTIFY_SETTINGS_KEY, JSON.stringify(next));
+  };
+
+  // Luôn trỏ tới bản mới nhất để bộ hẹn giờ không bị "cũ" dữ liệu
+  const fireDailyNotification = useRef<() => void>(() => {});
+  fireDailyNotification.current = () => {
+    const { title, body } = buildDailySummary(tasks);
+    if (canNotify() && Notification.permission === 'granted') {
+      try {
+        const n = new Notification(title, { body, tag: 'kpi-daily' });
+        n.onclick = () => { window.focus(); setActiveSection('cong-viec-hang-ngay'); n.close(); };
+        return;
+      } catch { /* một số trình duyệt di động không cho tạo trực tiếp -> dùng thông báo trong trang */ }
+    }
+    showToast(`${title}: ${body}`, 'success');
+  };
+
+  // Lần đầu truy cập ở trình duyệt này: hỏi quyền thông báo
+  useEffect(() => {
+    if (canNotify() && Notification.permission === 'default' && !safeStorage.get(NOTIFY_ASKED_KEY)) setShowNotifyPrompt(true);
+  }, []);
+
+  const answerNotifyPrompt = async (allow: boolean) => {
+    safeStorage.set(NOTIFY_ASKED_KEY, '1');
+    setShowNotifyPrompt(false);
+    if (allow && canNotify()) {
+      try { await Notification.requestPermission(); } catch { /* bỏ qua */ }
+    }
+  };
+
+  // Bộ hẹn giờ: chỉ chạy ở giao diện chính (public) và sau khi đã tải xong dữ liệu
+  useEffect(() => {
+    if (workspace !== 'public' || !tasksLoaded || !notifySettings.enabled) return;
+    const check = () => {
+      const now = new Date();
+      if (!notifySettings.days.includes(now.getDay())) return;
+      const dayKey = format(now, 'yyyy-MM-dd');
+      let fired: string[] = [];
+      try {
+        const saved = JSON.parse(safeStorage.get(NOTIFY_FIRED_KEY) || '{}');
+        if (saved.day === dayKey && Array.isArray(saved.keys)) fired = saved.keys;
+      } catch { /* bỏ qua */ }
+      let shouldFire = false;
+      notifySettings.times.forEach(t => {
+        const [h, m] = t.split(':').map(Number);
+        const diff = now.getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m).getTime();
+        if (diff >= 0 && diff < NOTIFY_WINDOW_MS && !fired.includes(t)) { fired.push(t); shouldFire = true; }
+      });
+      if (shouldFire) {
+        safeStorage.set(NOTIFY_FIRED_KEY, JSON.stringify({ day: dayKey, keys: fired }));
+        fireDailyNotification.current();
+      }
+    };
+    check();
+    const timer = setInterval(check, 15000);
+    document.addEventListener('visibilitychange', check);
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', check); };
+  }, [workspace, tasksLoaded, notifySettings]);
+
+  // Kiểm tra mã PIN (dùng chung cho nút Mở khóa và phím Enter)
+  const unlockPrivate = async () => {
+    const { data } = await supabase.from('app_settings').select('value').eq('key', 'admin_pin').single();
+    // Ưu tiên data Supabase, nếu đứt mạng/lỗi RLS thì dùng mã dự phòng
+    const validPin = (data && data.value) ? data.value : '151101';
+    if (pinInput === validPin) {
+      setWorkspace('private'); setPinInput(''); setShowPinModal(false);
+      showToast('Đã mở khóa tài khoản thành công!', 'success');
+    } else {
+      showToast('Sai mã PIN!', 'error'); setPinInput('');
+    }
+  };
+
   return (
     <div className="flex h-screen bg-[#f0f7ff] text-slate-800 font-sans overflow-hidden">
       
@@ -588,10 +855,13 @@ export default function App() {
         {/* NÚT BẤM ẨN DANH: NHÁY CHUỘT 5 LẦN VÀO ĐÂY ĐỂ MỞ BẢNG ĐĂNG NHẬP */}
         <div 
           className="p-6 flex items-center gap-3 border-b border-slate-100 cursor-pointer select-none group"
+          title="Nháy đúp để mở Cài đặt Website"
+          onDoubleClick={() => setShowSettings(true)}
           onClick={() => {
             if (workspace === 'private') return; // Đã đăng nhập rồi thì vô hiệu hóa
             setSecretClickCount(prev => prev + 1);
             if (secretClickCount >= 4) { // Bấm lần thứ 5
+              setShowSettings(false);
               setShowPinModal(true);
               setSecretClickCount(0);
             }
@@ -735,6 +1005,34 @@ export default function App() {
     onDelete={deleteTask}
   />
 )}
+      {/* BẢNG CÀI ĐẶT WEBSITE (nháy đúp logo KPI) */}
+      {showSettings && (
+        <SettingsModal
+          settings={notifySettings}
+          onChange={updateNotifySettings}
+          onClose={() => setShowSettings(false)}
+          onTest={() => fireDailyNotification.current()}
+          isPrivate={workspace === 'private'}
+        />
+      )}
+
+      {/* HỎI QUYỀN THÔNG BÁO LẦN ĐẦU TRUY CẬP */}
+      {showNotifyPrompt && workspace === 'public' && (
+        <div className="fixed bottom-6 right-6 z-[998] bg-white rounded-2xl shadow-2xl border border-blue-100 p-5 w-[340px] animate-in slide-in-from-bottom-8 fade-in">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0"><Bell size={20} /></div>
+            <div>
+              <p className="font-bold text-slate-800">Bật thông báo công việc?</p>
+              <p className="text-sm text-slate-500 mt-1">Nhận tổng số công việc hằng ngày vào các giờ bạn chọn. Có thể chỉnh trong Cài đặt (nháy đúp vào logo KPI).</p>
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button onClick={() => answerNotifyPrompt(false)} className="flex-1 bg-slate-100 text-slate-600 font-bold py-2 rounded-xl hover:bg-slate-200 transition-colors">Để sau</button>
+            <button onClick={() => answerNotifyPrompt(true)} className="flex-[2] bg-blue-600 text-white font-bold py-2 rounded-xl hover:bg-blue-700 transition-colors">Cho phép</button>
+          </div>
+        </div>
+      )}
+
       {/* MODAL NHẬP MÃ PIN (CÁNH CỬA ẨN) */}
       {showPinModal && (
         <div className="fixed inset-0 z-[999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
@@ -748,40 +1046,14 @@ export default function App() {
               type="password" autoFocus
               value={pinInput}
               onChange={e => setPinInput(e.target.value)}
-              onKeyDown={async (e) => {
-                if (e.key === 'Enter') {
-                  // Gọi cơ sở dữ liệu
-                  const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'admin_pin').single();
-                  
-                  // THUẬT TOÁN DỰ PHÒNG THÁNG 6/2026: Ưu tiên data Supabase, nếu đứt mạng/lỗi RLS thì dùng mã cứng 151101
-                  const validPin = (data && data.value) ? data.value : '151101';
-                  
-                  if (pinInput === validPin) {
-                    setWorkspace('private'); setPinInput(''); setShowPinModal(false);
-                    showToast('Đã mở khóa tài khoản thành công!', 'success');
-                  } else {
-                    showToast('Sai mã PIN!', 'error'); setPinInput('');
-                  }
-                }
-              }}
+              onKeyDown={(e) => { if (e.key === 'Enter') unlockPrivate(); }}
               className="w-full text-center text-2xl tracking-[0.5em] font-black p-4 rounded-xl border-2 border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all"
               placeholder="••••"
             />
             <div className="flex gap-3">
               <button onClick={() => { setShowPinModal(false); setPinInput(''); }} className="flex-1 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl hover:bg-slate-200 transition-colors">Đóng</button>
               <button 
-                onClick={async () => {
-                  const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'admin_pin').single();
-                  
-                  const validPin = (data && data.value) ? data.value : '151101';
-
-                  if (pinInput === validPin) {
-                    setWorkspace('private'); setPinInput(''); setShowPinModal(false);
-                    showToast('Đã mở khóa tài khoản thành công!', 'success');
-                  } else {
-                    showToast('Sai mã PIN!', 'error'); setPinInput('');
-                  }
-                }}
+                onClick={unlockPrivate}
                 className="flex-[2] bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 shadow-md transition-all"
               >
                 Mở khóa
@@ -1249,7 +1521,7 @@ function SocialMedia({ workspace, tasks, onAdd, onUpdate, onDelete, showToast, o
   };
 
   // Trạng thái Cài đặt Cột (CÁCH LY THEO TÀI KHOẢN)
-const [visibleCols, setVisibleCols] = useState(() => {
+const [visibleCols, setVisibleCols] = useState<Record<string, boolean>>(() => {
   const savedCols = localStorage.getItem(`smVisibleCols_${workspace}`);
   if (savedCols) {
     try { return JSON.parse(savedCols); } catch (e) {}
@@ -1262,12 +1534,12 @@ useEffect(() => {
 }, [visibleCols, workspace]);
 
 // Trạng thái Quy tắc xếp lịch chéo (CÁCH LY THEO TÀI KHOẢN)
-const [autoSchedule, setAutoSchedule] = useState(() => {
+const [autoSchedule, setAutoSchedule] = useState<AutoSchedule>(() => {
   const savedAuto = localStorage.getItem(`smAutoSchedule_${workspace}`);
   if (savedAuto) {
     try { return JSON.parse(savedAuto); } catch (e) {}
   }
-  return { enabled: false, mainPlatform: 'Facebook', subPlatforms: [] as { platform: string, offsetDays: number }[] };
+  return { enabled: false, mainPlatform: 'Facebook', subPlatforms: [] };
 });
 
 useEffect(() => {
@@ -1303,61 +1575,6 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
   // --- LOGIC PHẦN 3: XỬ LÝ FORM & LỊCH ---
   const [showAddModal, setShowAddModal] = useState(false);
   const [formData, setFormData] = useState({ project: '', description: '', format: 'Hình ảnh', note: '', deadline: '', files: [] as string[] });
-
-  // Tạo mảng 48 khung giờ (mỗi 30 phút)
-  const timeOptions = useMemo(() => Array.from({ length: 48 }, (_, i) => {
-    const h = Math.floor(i / 2).toString().padStart(2, '0');
-    const m = i % 2 === 0 ? '00' : '30';
-    return `${h}:${m}`;
-  }), []);
-
-  // Hàm cập nhật Ngày/Giờ & Tự động tính KPI
-  const updateSMTaskSchedule = (task: any, platform: string, field: 'date' | 'time', value: string) => {
-    const { note, smData } = getSMData(task);
-    const currentData = smData || { format: 'Hình ảnh', schedules: [] };
-    
-    let scheduleIndex = currentData.schedules.findIndex((s: any) => s.platform === platform);
-    if (scheduleIndex === -1) {
-       currentData.schedules.push({ platform: platform as any, date: '', time: '12:00' });
-       scheduleIndex = currentData.schedules.length - 1;
-    }
-    
-    currentData.schedules[scheduleIndex][field] = value;
-    
-    // Auto-schedule: Xếp lịch tự động đăng chéo
-    if (field === 'date' && autoSchedule.enabled && platform === autoSchedule.mainPlatform && value) {
-       autoSchedule.subPlatforms.forEach(sub => {
-          let subIdx = currentData.schedules.findIndex((s: any) => s.platform === sub.platform);
-          if (subIdx === -1) {
-             currentData.schedules.push({ platform: sub.platform as any, date: '', time: '12:00' });
-             subIdx = currentData.schedules.length - 1;
-          }
-          try {
-             currentData.schedules[subIdx].date = format(addDays(parseISO(value), sub.offsetDays), 'yyyy-MM-dd');
-          } catch (e) {}
-       });
-    }
-
-    // Auto-KPI: Hình(Mức 2) / Video(Mức 3). Có Zalo -> + 1 Mức
-    const hasZalo = currentData.schedules.some((s: any) => s.platform === 'Zalo' || s.platform === 'OA Zalo');
-    const baseLevel = currentData.format === 'Video' ? 3 : 2;
-    const kpiLevel = Math.min(5, baseLevel + (hasZalo ? 1 : 0));
-
-    onUpdate({ ...task, note: encodeSMData(note, currentData), kpiLevel });
-  };
-
-  const handleAddSMSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.project) return;
-    const smData: SMData = { format: formData.format as any, schedules: [] };
-    onAdd({
-      project: formData.project, description: formData.description, note: encodeSMData(formData.note, smData),
-      files: formData.files, kpiLevel: formData.format === 'Video' ? 3 : 2, deadline: format(new Date(), 'yyyy-MM-dd')
-    });
-    setFormData({ project: '', description: '', format: 'Hình ảnh', note: '', deadline: '', files: [] });
-    setShowAddModal(false);
-    showToast('Đã tạo dự án Social Media', 'success');
-  };
 
   // Hàm xử lý file đính kèm cho Social Media
   const processSMFiles = (files: FileList) => {
@@ -1791,7 +2008,7 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                         const isToday = isSameDay(day, new Date());
                         
                         const daySchedules: any[] = [];
-                        smTasks.forEach(task => {
+                        smTasks.forEach((task: any) => {
                           const { smData } = getSMData(task);
                           if (!smData) return;
                           smData.schedules.forEach((schedule: any) => {
@@ -2261,7 +2478,7 @@ const platforms = ['Facebook', 'Zalo', 'OA Zalo', 'Tiktok', 'Shopee'];
                 <div className="grid grid-cols-2 gap-3 px-2">
                   {Object.keys(visibleCols).map(col => (
                     <label key={col} className="flex items-center gap-3 cursor-pointer group">
-                      <input type="checkbox" checked={(visibleCols as any)[col]} onChange={() => setVisibleCols(prev => ({...prev, [col]: !prev[col as keyof typeof prev]}))} className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                      <input type="checkbox" checked={visibleCols[col]} onChange={() => setVisibleCols(prev => ({...prev, [col]: !prev[col]}))} className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                       <span className="font-bold text-slate-600 group-hover:text-blue-600 transition-colors">{col}</span>
                     </label>
                   ))}
@@ -2497,8 +2714,6 @@ function GiaoViec({ tasks, onAdd, onDelete, onUpdate, showToast, onDoubleClickTa
     note: '',
     files: [] as string[]
   });
-
-  const [isDragging, setIsDragging] = useState(false);
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -2834,23 +3049,7 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
   };
   
   const currentTasks = useMemo(() => {
-    const today = startOfDay(new Date());
-    return tasks
-      .filter(task => {
-        // 1. Công việc có lịch làm việc đúng vào ngày đang chọn trên lịch
-        const isScheduledForSelectedDate = task.workingDays.some((day: any) => isSameDay(parseISO(day), selectedDate));
-        
-        // 2. Dồn việc CHƯA XONG về ngày "Hôm nay" (trừ Thứ 7, CN)
-        const isToday = isSameDay(selectedDate, today);
-        const isNotWeekend = !isWeekend(today);
-        const isUnfinished = task.status !== TaskStatus.COMPLETED;
-        // Đảm bảo dự án đã đến ngày bắt đầu hoặc trễ hạn mới hiện lên
-        const hasStarted = task.startDate && isBefore(startOfDay(parseISO(task.startDate)), addDays(today, 1));
-        
-        const isRollover = isToday && isNotWeekend && isUnfinished && hasStarted;
-
-        return isScheduledForSelectedDate || isRollover;
-      })
+    return getTasksForDate(tasks, selectedDate)
       .sort((a, b) => {
         const todayDate = startOfDay(new Date());
 
@@ -2887,11 +3086,6 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
         return aDeadline - bDeadline;
       });
   }, [tasks, selectedDate]);
-
-  const toggleStatus = (task: Task) => {
-    const newStatus = task.status === TaskStatus.COMPLETED ? TaskStatus.IN_PROGRESS : TaskStatus.COMPLETED;
-    onUpdate({ ...task, status: newStatus });
-  };
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -2950,8 +3144,6 @@ function CongViecHangNgay({ tasks, onUpdate, onDoubleClickTask }: { tasks: Task[
                 const todayDate = startOfDay(new Date());
                 const isPastDeadline = isBefore(deadlineDate, todayDate);
                 const daysToDeadline = differenceInDays(deadlineDate, todayDate);
-                const isCompleted = task.status === TaskStatus.COMPLETED;
-                
                 let gradientClass = "bg-white";
                 if (task.status === TaskStatus.INFO) gradientClass = "bg-gradient-to-t from-yellow-100 to-white";
                 else if (task.status === TaskStatus.IN_PROGRESS) gradientClass = "bg-gradient-to-t from-orange-100 to-white";
@@ -3429,10 +3621,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
             </thead>
             <tbody>
               {sortedTasks.map((task, index) => {
-                const today = startOfDay(new Date());
-                const deadlineDate = startOfDay(parseISO(task.deadline));
                 const isCompleted = task.status === 'COMPLETED';
-                const isPastDeadline = isBefore(deadlineDate, today);
                 // CHỈ công việc đã HOÀN THÀNH mới bị chuyển sang màu xám nhạt
                 const isInactive = isCompleted;
                 
