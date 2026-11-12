@@ -631,7 +631,7 @@ export default function App() {
     }
   };
 
-  const updateTask = async (updatedTask: Task) => {
+  const updateTask = async (updatedTask: Task): Promise<boolean> => {
     let driveLinks: string[] = [];
     let existingFolderId = "";
 
@@ -662,9 +662,12 @@ export default function App() {
 
     updatedTask.files = driveLinks;
     const { error } = await supabase.from('projects').update(updatedTask).eq('id', updatedTask.id);
-    if (!error) {
-      setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
+    if (error) {
+      showToast('Không lưu được thay đổi lên Cloud, vui lòng thử lại', 'error');
+      return false;
     }
+    setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
+    return true;
   };
 
   const [doubleClickTask, setDoubleClickTask] = useState<Task | null>(null);
@@ -1041,7 +1044,7 @@ export default function App() {
           {activeSection === 'timeline' && <TimelineCongViec tasks={tasks} onSelectTask={(id) => {
             const taskToView = tasks.find(t => t.id === id);
             if (taskToView) window.dispatchEvent(new CustomEvent('TRIGGER_VIEW', { detail: taskToView }));
-          }} onDoubleClickTask={setTimelineActionTask} />}
+          }} onDoubleClickTask={setTimelineActionTask} onUpdate={updateTask} showToast={showToast} />}
           {activeSection === 'danh-gia' && <DanhGiaCongViec tasks={tasks} />}
           {activeSection === 'search' && <SearchSection tasks={tasks} selectedId={selectedTaskId} onClearSelection={() => setSelectedTaskId(null)} onDelete={deleteTask} />}
         </div>
@@ -3455,9 +3458,231 @@ function SearchSection({ tasks, selectedId, onClearSelection, onDelete }: {
   );
 }
 // --- Section: Timeline Công Việc ---
-function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: Task[], onSelectTask: (id: string) => void, onDoubleClickTask?: (task: Task) => void }) {
+// --- TIMELINE: CHẾ ĐỘ "THAY ĐỔI" (kéo thanh màu / kéo giãn 2 đầu) ---
+type TimelineEdit = { deadline: Date; level: number };
+type TimelineEditState = { edits: Record<string, TimelineEdit>; past: Record<string, TimelineEdit>[]; future: Record<string, TimelineEdit>[] };
+const EMPTY_EDIT_STATE: TimelineEditState = { edits: {}, past: [], future: [] };
+
+// Số ngày làm việc của từng mức KPI, lấy trực tiếp từ calculateTaskDates để luôn khớp quy định đã có
+const KPI_LEVEL_DAYS: Record<number, number> = (() => {
+  const ref = new Date(2026, 0, 7); // một ngày thứ Tư bất kỳ
+  const map: Record<number, number> = {};
+  for (let level = 1; level <= 5; level++) {
+    try { map[level] = calculateTaskDates(ref, level as any).workingDays.length; } catch { map[level] = level; }
+  }
+  return map;
+})();
+const KPI_MIN_DAYS = Math.min(...Object.values(KPI_LEVEL_DAYS));
+const KPI_MAX_DAYS = Math.max(...Object.values(KPI_LEVEL_DAYS));
+// Mức KPI gần nhất với số ngày làm việc (số ngày bằng nhau thì lấy mức thấp hơn)
+const levelForDays = (days: number) => {
+  let best = 1;
+  for (let level = 1; level <= 5; level++) {
+    if (Math.abs(KPI_LEVEL_DAYS[level] - days) < Math.abs(KPI_LEVEL_DAYS[best] - days)) best = level;
+  }
+  return best;
+};
+
+const applyTimelineEdit = (task: Task, edit: TimelineEdit): Task => {
+  const { startDate, workingDays } = calculateTaskDates(edit.deadline, edit.level as any);
+  return {
+    ...task,
+    deadline: format(edit.deadline, 'yyyy-MM-dd'),
+    kpiLevel: edit.level as any,
+    startDate: startDate.toISOString(),
+    workingDays: workingDays.map((d: any) => d.toISOString()),
+    dailyKpiPoints: KPI_CONFIG[edit.level].points / workingDays.length,
+  };
+};
+
+const sameTimelineEdit = (task: Task, edit: TimelineEdit) =>
+  startOfDay(parseISO(task.deadline)).getTime() === edit.deadline.getTime() && Number(task.kpiLevel) === edit.level;
+
+function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask, onUpdate, showToast }: {
+  tasks: Task[],
+  onSelectTask: (id: string) => void,
+  onDoubleClickTask?: (task: Task) => void,
+  onUpdate: (task: Task) => Promise<boolean> | void,
+  showToast: (message: string, type: 'success' | 'delete' | 'edit' | 'error' | 'cancel', task?: Task) => void
+}) {
   const [centerDate, setCenterDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
+
+  // --- Chế độ "Thay đổi" ---
+  const [editMode, setEditMode] = useState(false);
+  const [editState, setEditState] = useState<TimelineEditState>(EMPTY_EDIT_STATE);
+  const [drag, setDrag] = useState<{ taskId: string; edit: TimelineEdit } | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const isDraggingRef = useRef(false);
+  const colRefs = useRef<(HTMLTableCellElement | null)[]>([]);
+  const canEditBars = editMode && viewMode === 'day'; // Chế độ Tuần chỉ để xem (mỗi cột là cả tuần nên không kéo theo ngày được)
+
+  const toggleEditMode = () => {
+    if (!editMode) {
+      setViewMode('day');
+      setEditState(EMPTY_EDIT_STATE);
+      setEditMode(true);
+      return;
+    }
+    // Đang ở chế độ Thay đổi -> bấm "Lưu"
+    if (Object.keys(editState.edits).length === 0) {
+      setEditMode(false);
+      showToast('Không có thay đổi nào để lưu', 'cancel');
+    } else {
+      setConfirmOpen(true);
+    }
+  };
+
+  const discardAllEdits = () => {
+    setConfirmOpen(false);
+    setEditState(EMPTY_EDIT_STATE);
+    setEditMode(false);
+    showToast('Đã hủy toàn bộ thay đổi trên Timeline', 'cancel');
+  };
+
+  const confirmSaveEdits = async () => {
+    setSaving(true);
+    const failed: Record<string, TimelineEdit> = {};
+    let okCount = 0;
+    for (const [id, edit] of Object.entries(editState.edits)) {
+      const base = tasks.find(t => t.id === id);
+      if (!base) continue;
+      try {
+        const result = await onUpdate(applyTimelineEdit(base, edit));
+        if (result === false) failed[id] = edit; else okCount++;
+      } catch {
+        failed[id] = edit;
+      }
+    }
+    setSaving(false);
+    setConfirmOpen(false);
+    if (Object.keys(failed).length === 0) {
+      setEditState(EMPTY_EDIT_STATE);
+      setEditMode(false);
+      showToast(`Đã lưu thay đổi cho ${okCount} công việc`, 'success');
+    } else {
+      // Giữ lại các thay đổi chưa lưu được để người dùng thử lại
+      setEditState({ edits: failed, past: [], future: [] });
+      showToast(`Có ${Object.keys(failed).length} công việc chưa lưu được, hãy bấm Lưu để thử lại`, 'error');
+    }
+  };
+
+  // Ctrl + Z: hoàn tác 1 thao tác | Ctrl + Shift + Z: làm lại 1 thao tác (không có gì để hoàn/làm lại thì không làm gì)
+  useEffect(() => {
+    if (!editMode) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z') return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
+      e.preventDefault();
+      if (confirmOpen || isDraggingRef.current) return;
+      setEditState(st => {
+        if (e.shiftKey) {
+          if (st.future.length === 0) return st;
+          return { edits: st.future[0], past: [...st.past, st.edits], future: st.future.slice(1) };
+        }
+        if (st.past.length === 0) return st;
+        return { edits: st.past[st.past.length - 1], past: st.past.slice(0, -1), future: [st.edits, ...st.future] };
+      });
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [editMode, confirmOpen]);
+
+  // Tìm cột ngày dưới con trỏ chuột (dùng vị trí thật của từng cột nên vẫn đúng khi cuộn ngang)
+  const colIndexAt = (clientX: number, count: number) => {
+    let best = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < count; i++) {
+      const rect = colRefs.current[i]?.getBoundingClientRect();
+      if (!rect) continue;
+      if (clientX >= rect.left && clientX < rect.right) return i;
+      const dist = Math.min(Math.abs(clientX - rect.left), Math.abs(clientX - rect.right)); // khe hở giữa 2 cột / ngoài mép -> lấy cột gần nhất
+      if (dist < bestDist) { bestDist = dist; best = i; }
+    }
+    return best;
+  };
+
+  const commitEdit = (taskId: string, edit: TimelineEdit) => {
+    setEditState(st => {
+      const base = tasks.find(t => t.id === taskId);
+      if (!base) return st;
+      const current = st.edits[taskId];
+      const curDeadline = current ? current.deadline.getTime() : startOfDay(parseISO(base.deadline)).getTime();
+      const curLevel = current ? current.level : Number(base.kpiLevel);
+      if (curDeadline === edit.deadline.getTime() && curLevel === edit.level) return st; // không đổi gì thì không ghi vào lịch sử
+      const next = { ...st.edits };
+      if (sameTimelineEdit(base, edit)) delete next[taskId]; else next[taskId] = edit;
+      return { edits: next, past: [...st.past, st.edits], future: [] };
+    });
+  };
+
+  // Bắt đầu kéo: 'move' = dời cả thanh (đổi deadline), 'left'/'right' = kéo giãn 1 đầu (đổi số ngày làm việc -> mức KPI)
+  const startDrag = (
+    e: React.PointerEvent,
+    task: Task,
+    mode: 'move' | 'left' | 'right',
+    startIdx: number,
+    endIdx: number
+  ) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const cols = timelineData;
+    const count = cols.length;
+    const pointerStart = colIndexAt(e.clientX, count);
+    const todayStart = startOfDay(new Date());
+    const minEnd = cols.findIndex(c => !isBefore(c.start, todayStart)); // deadline thấp nhất là ngày hiện tại
+    const maxCol = count - 1;
+    const keepDeadline = startOfDay(parseISO(task.deadline));
+    let latest: TimelineEdit | null = null;
+    isDraggingRef.current = true;
+    document.body.style.cursor = mode === 'move' ? 'grabbing' : 'ew-resize';
+
+    const compute = (delta: number): TimelineEdit | null => {
+      const level = Number(task.kpiLevel);
+      if (mode === 'move') {
+        if (minEnd < 0) return null;
+        const newEnd = Math.min(maxCol, Math.max(minEnd, endIdx + delta));
+        if (newEnd === endIdx) return null;
+        return { deadline: cols[newEnd].start, level };
+      }
+      if (mode === 'right') {
+        if (minEnd < 0) return null;
+        const lo = Math.max(minEnd, startIdx + KPI_MIN_DAYS - 1);
+        const hi = Math.min(maxCol, startIdx + KPI_MAX_DAYS - 1);
+        if (lo > hi) return null;
+        const newEnd = Math.min(hi, Math.max(lo, endIdx + delta));
+        const newLevel = levelForDays(newEnd - startIdx + 1);
+        const finalEnd = startIdx + KPI_LEVEL_DAYS[newLevel] - 1;
+        if (finalEnd < minEnd || finalEnd > maxCol || finalEnd === endIdx) return null;
+        return { deadline: cols[finalEnd].start, level: newLevel };
+      }
+      // 'left': giữ nguyên deadline, đổi số ngày làm việc
+      const newStart = Math.min(endIdx - KPI_MIN_DAYS + 1, Math.max(endIdx - KPI_MAX_DAYS + 1, startIdx + delta));
+      const newLevel = levelForDays(endIdx - newStart + 1);
+      if (newLevel === level) return null;
+      return { deadline: keepDeadline, level: newLevel };
+    };
+
+    const onMove = (ev: PointerEvent) => {
+      latest = compute(colIndexAt(ev.clientX, count) - pointerStart);
+      setDrag(latest ? { taskId: task.id, edit: latest } : null);
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      document.body.style.cursor = '';
+      isDraggingRef.current = false;
+      setDrag(null);
+      if (latest) commitEdit(task.id, latest);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  };
 
   // NÚT CHUYỂN TRÁI PHẢI (Ngày nhảy 7 ngày, Tuần nhảy 1 tuần = 7 ngày)
   const handlePrev = () => {
@@ -3471,6 +3696,7 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.value) {
       setCenterDate(new Date(e.target.value));
+      e.target.blur(); // Trả focus để phím Ctrl+Z vẫn dùng được cho thao tác kéo
     }
   };
 
@@ -3603,6 +3829,22 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
       });
   }, [tasks, timelineData]);
 
+  // Bản hiển thị của từng công việc sau khi áp các thay đổi chưa lưu (thứ tự hàng giữ nguyên để không bị nhảy khi kéo)
+  const effectiveById = useMemo(() => {
+    const map: Record<string, Task> = {};
+    tasks.forEach(t => {
+      const edit = drag && drag.taskId === t.id ? drag.edit : editState.edits[t.id];
+      if (edit) map[t.id] = applyTimelineEdit(t, edit);
+    });
+    return map;
+  }, [tasks, editState.edits, drag]);
+
+  // Danh sách thay đổi hiển thị trong bảng xác nhận
+  const pendingChanges = useMemo(() => Object.entries(editState.edits).flatMap(([id, edit]) => {
+    const base = tasks.find(t => t.id === id);
+    return base ? [{ task: base, edit }] : [];
+  }), [tasks, editState.edits]);
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <h2 className="text-3xl font-bold text-center text-blue-900 mb-12">Timeline Công Việc</h2>
@@ -3622,9 +3864,12 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
               </button>
               <button
                 onClick={() => setViewMode('week')}
+                disabled={editMode}
+                title={editMode ? 'Hãy Lưu hoặc Hủy thay đổi trước khi chuyển sang chế độ Tuần' : undefined}
                 className={cn(
                   "px-4 py-2 rounded-lg text-sm font-bold transition-all",
-                  viewMode === 'week' ? "bg-white text-blue-900 shadow-sm" : "text-blue-600 hover:bg-blue-50"
+                  viewMode === 'week' ? "bg-white text-blue-900 shadow-sm" : "text-blue-600 hover:bg-blue-50",
+                  editMode && "opacity-40 cursor-not-allowed"
                 )}
               >
                 Tuần
@@ -3653,8 +3898,22 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
               onChange={handleDateChange}
               className="px-3 py-2 rounded-xl border border-blue-200 text-sm outline-none focus:ring-2 focus:ring-blue-500"
             />
+            <button
+              onClick={toggleEditMode}
+              className={cn(
+                "ml-2 px-5 py-2 rounded-xl text-sm font-bold text-white shadow-sm transition-colors",
+                editMode ? "bg-emerald-600 hover:bg-emerald-700" : "bg-blue-600 hover:bg-blue-700"
+              )}
+            >
+              {editMode ? 'Lưu' : 'Thay đổi'}
+            </button>
           </div>
         </div>
+        {canEditBars && (
+          <div className="px-6 py-3 bg-amber-50 border-b border-amber-100 text-sm text-amber-800">
+            Kéo thanh màu để dời deadline (thấp nhất là hôm nay) • Kéo 2 đầu thanh để đổi số ngày làm việc (tự đổi mức KPI) • <b>Ctrl + Z</b> hoàn tác • <b>Ctrl + Shift + Z</b> làm lại
+          </div>
+        )}
         
         {/* Đã gỡ bỏ khung kéo thả, trả lại thanh cuộn ngang mượt mà mặc định của web */}
         <div className="overflow-x-auto">
@@ -3671,14 +3930,15 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
               </tr>
               <tr className="bg-blue-600 text-white">
                 {timelineData.map((item, i) => (
-                  <th key={i} className={cn("p-2 font-semibold text-sm text-center border-r border-blue-500/30 pointer-events-none", item.isCurrent && "bg-blue-800")}>
+                  <th key={i} ref={el => { colRefs.current[i] = el; }} className={cn("p-2 font-semibold text-sm text-center border-r border-blue-500/30 pointer-events-none", item.isCurrent && "bg-blue-800")}>
                     {item.label}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {sortedTasks.map((task, index) => {
+              {sortedTasks.map((baseTask, index) => {
+                const task = effectiveById[baseTask.id] || baseTask;
                 const isCompleted = task.status === 'COMPLETED';
                 // CHỈ công việc đã HOÀN THÀNH mới bị chuyển sang màu xám nhạt
                 const isInactive = isCompleted;
@@ -3756,6 +4016,11 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                           }
                           
                           skipCount = colSpan - 1;
+
+                          // Vị trí cột cuối/đầu của thanh (đầu có thể < 0 nếu thanh bị cắt bởi mép trái khung nhìn)
+                          const barEnd = i + colSpan - 1;
+                          const barStart = barEnd - task.workingDays.length + 1;
+                          const barDraggable = canEditBars && !isCompleted;
                           
                           cells.push(
                             <td key={i} colSpan={colSpan} className={cn(
@@ -3767,14 +4032,39 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
                               <div 
                                 onDoubleClick={(e) => {
                                   e.stopPropagation();
-                                  if (onDoubleClickTask) onDoubleClickTask(task);
+                                  if (!canEditBars && onDoubleClickTask) onDoubleClickTask(task);
                                 }}
-                                className="h-10 mx-0 rounded-none flex flex-col justify-center items-center text-[10px] text-white font-bold shadow-sm cursor-pointer hover:opacity-80 transition-opacity overflow-hidden whitespace-nowrap relative"
+                                onPointerDown={barDraggable ? (e) => startDrag(e, task, 'move', barStart, barEnd) : undefined}
+                                className={cn(
+                                  "h-10 mx-0 rounded-none flex flex-col justify-center items-center text-[10px] text-white font-bold shadow-sm overflow-hidden whitespace-nowrap relative",
+                                  barDraggable ? "cursor-grab touch-none select-none" : "cursor-pointer hover:opacity-80 transition-opacity",
+                                  editState.edits[task.id] && "ring-2 ring-inset ring-amber-400"
+                                )}
                                 style={{ backgroundColor: isInactive ? '#cbd5e1' : KPI_CONFIG[task.kpiLevel].color }}
                                 title={`${task.project} - Tiến độ: ${task.status === 'COMPLETED' ? 'Hoàn thành' : task.status === 'REVIEW' ? 'Chờ xác nhận' : task.status === 'IN_PROGRESS' ? 'Đang thực hiện' : task.status === 'INFO' ? 'Tìm thông tin' : 'Dự án mới'}`}
                               >
                                 {viewMode === 'week' && (
                                   <span className="shrink-0 z-10 px-2">{format(deadlineDate, 'dd/MM')}</span>
+                                )}
+
+                                {/* CHẾ ĐỘ THAY ĐỔI: nhãn + 2 tay nắm kéo giãn (con trỏ hiện mũi tên ↔) */}
+                                {barDraggable && (
+                                  <>
+                                    <span className="z-10 leading-tight pointer-events-none">{format(timelineData[barEnd].start, 'dd/MM')}</span>
+                                    <span className="z-10 leading-tight font-medium opacity-90 pointer-events-none">{task.workingDays.length} ngày</span>
+                                    {barStart >= 0 && (
+                                      <div
+                                        onPointerDown={(e) => startDrag(e, task, 'left', barStart, barEnd)}
+                                        className="absolute left-0 top-0 h-full w-2.5 z-20 cursor-ew-resize bg-white/30 hover:bg-white/70"
+                                        title="Kéo để đổi số ngày làm việc"
+                                      />
+                                    )}
+                                    <div
+                                      onPointerDown={(e) => startDrag(e, task, 'right', barStart, barEnd)}
+                                      className="absolute right-0 top-0 h-full w-2.5 z-20 cursor-ew-resize bg-white/30 hover:bg-white/70"
+                                      title="Kéo để đổi số ngày làm việc"
+                                    />
+                                  </>
                                 )}
 
                                 {/* THANH TIẾN ĐỘ NHỎ DƯỚI ĐÁY (Ẩn khi Hoàn thành, 5 mức tỷ lệ mới) */}
@@ -3821,6 +4111,46 @@ function TimelineCongViec({ tasks, onSelectTask, onDoubleClickTask }: { tasks: T
           </table>
         </div>
       </div>
+
+      {/* BẢNG XÁC NHẬN LƯU THAY ĐỔI TIMELINE */}
+      {confirmOpen && (
+        <div className="fixed inset-0 z-[130] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-slate-100">
+              <h3 className="text-xl font-bold text-blue-900">Xác nhận thay đổi ({pendingChanges.length} công việc)</h3>
+            </div>
+            <div className="p-6 space-y-4 overflow-y-auto">
+              {pendingChanges.map(({ task, edit }) => {
+                const oldDeadline = startOfDay(parseISO(task.deadline));
+                const deadlineChanged = oldDeadline.getTime() !== edit.deadline.getTime();
+                const levelChanged = Number(task.kpiLevel) !== edit.level;
+                return (
+                  <div key={task.id} className="rounded-2xl border border-slate-200 p-4 space-y-2">
+                    <p className="font-bold text-slate-800 break-words">{task.project}</p>
+                    {deadlineChanged && (
+                      <p className="text-sm text-slate-600">
+                        Ngày deadline: <span className="line-through text-slate-400">{format(oldDeadline, 'dd/MM/yyyy')}</span>
+                        {' → '}<b className="text-blue-700">{format(edit.deadline, 'dd/MM/yyyy')}</b>
+                      </p>
+                    )}
+                    {levelChanged && (
+                      <p className="text-sm text-slate-600">
+                        Mức deadline (KPI): <span className="line-through text-slate-400">Mức {task.kpiLevel}</span>
+                        {' → '}<b className="text-blue-700">Mức {edit.level}</b>
+                        <span className="text-slate-400"> ({KPI_LEVEL_DAYS[edit.level]} ngày làm việc)</span>
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="p-6 border-t border-slate-100 flex gap-3">
+              <button onClick={discardAllEdits} disabled={saving} className="flex-1 bg-slate-100 text-slate-700 font-bold py-3 rounded-xl hover:bg-slate-200 disabled:opacity-50 transition-colors">Hủy</button>
+              <button onClick={confirmSaveEdits} disabled={saving} className="flex-[2] bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 disabled:opacity-60 shadow-md transition-colors">{saving ? 'Đang lưu...' : 'Xác nhận'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
