@@ -194,7 +194,7 @@ type NotifySettings = { enabled: boolean; days: number[]; times: string[] };
 const NOTIFY_SETTINGS_KEY = 'kpi_notify_settings';
 const NOTIFY_ASKED_KEY = 'kpi_notify_asked';
 const NOTIFY_FIRED_KEY = 'kpi_notify_fired';
-const NOTIFY_WINDOW_MS = 3 * 60 * 1000; // Trình duyệt có thể làm chậm bộ đếm khi tab ẩn -> cho phép trễ tối đa 3 phút
+const NOTIFY_LATE_MS = 3 * 60 * 1000; // Trễ quá 3 phút (tab bị ngủ/đóng băng) thì ghi chú "hẹn lúc ..." trong thông báo bù
 const MAX_NOTIFY_TIMES = 8;
 const DEFAULT_NOTIFY: NotifySettings = { enabled: true, days: [1, 2, 3, 4, 5], times: ['08:30'] };
 const WEEKDAY_OPTIONS = [
@@ -203,6 +203,50 @@ const WEEKDAY_OPTIONS = [
 ];
 // 48 khung giờ, mỗi khung cách nhau 30 phút
 const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => `${String(Math.floor(i / 2)).padStart(2, '0')}:${i % 2 === 0 ? '00' : '30'}`);
+
+const slotDate = (base: Date, t: string) => {
+  const [h, m] = t.split(':').map(Number);
+  return new Date(base.getFullYear(), base.getMonth(), base.getDate(), h, m);
+};
+
+// Các lượt đã báo trong ngày (lưu localStorage để không báo lặp, kể cả khi mở nhiều tab / F5)
+const readFired = (dayKey: string): string[] => {
+  try {
+    const saved = JSON.parse(safeStorage.get(NOTIFY_FIRED_KEY) || '{}');
+    return saved.day === dayKey && Array.isArray(saved.keys) ? saved.keys : [];
+  } catch { return []; }
+};
+const writeFired = (dayKey: string, keys: string[]) => safeStorage.set(NOTIFY_FIRED_KEY, JSON.stringify({ day: dayKey, keys }));
+
+// Bộ đếm chạy trong Web Worker: không bị trình duyệt làm chậm như setInterval của tab đang ẩn. Lỗi thì dùng setInterval thường.
+const startTicker = (cb: () => void, ms: number) => {
+  try {
+    const url = URL.createObjectURL(new Blob([`setInterval(() => postMessage(0), ${ms});`], { type: 'application/javascript' }));
+    const worker = new Worker(url);
+    worker.onmessage = cb;
+    return () => { worker.terminate(); URL.revokeObjectURL(url); };
+  } catch {
+    const id = setInterval(cb, ms);
+    return () => clearInterval(id);
+  }
+};
+
+// Lượt báo kế tiếp (để hiển thị trong bảng cài đặt)
+const getNextNotifyLabel = (settings: NotifySettings): string | null => {
+  if (!settings.enabled || settings.days.length === 0) return null;
+  const now = new Date();
+  const fired = readFired(format(now, 'yyyy-MM-dd'));
+  for (let d = 0; d <= 7; d++) {
+    const day = addDays(now, d);
+    if (!settings.days.includes(day.getDay())) continue;
+    const next = [...settings.times].sort().find(t => {
+      const at = slotDate(day, t);
+      return d === 0 ? at.getTime() > now.getTime() && !fired.includes(t) : true;
+    });
+    if (next) return `${d === 0 ? 'Hôm nay' : d === 1 ? 'Ngày mai' : format(day, 'dd/MM')} lúc ${next}`;
+  }
+  return null;
+};
 
 const canNotify = () => typeof window !== 'undefined' && 'Notification' in window;
 
@@ -253,9 +297,12 @@ function SettingsModal({ settings, onChange, onClose, onTest, isPrivate }: {
   settings: NotifySettings;
   onChange: (next: NotifySettings) => void;
   onClose: () => void;
-  onTest: () => void;
+  onTest: (delayMs: number) => void;
   isPrivate: boolean;
 }) {
+  const [, setTick] = useState(0);
+  useEffect(() => { const id = setInterval(() => setTick(n => n + 1), 30000); return () => clearInterval(id); }, []);
+  const nextLabel = getNextNotifyLabel(settings);
   const [permission, setPermission] = useState<string>(canNotify() ? Notification.permission : 'unsupported');
 
   const requestPermission = async () => {
@@ -354,7 +401,8 @@ function SettingsModal({ settings, onChange, onClose, onTest, isPrivate }: {
             </div>
 
             <div className="flex items-center gap-3 flex-wrap">
-              <button onClick={onTest} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-sm hover:bg-slate-200 transition-colors">Gửi thông báo thử</button>
+              <button onClick={() => onTest(0)} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-sm hover:bg-slate-200 transition-colors">Gửi thông báo thử</button>
+              <button onClick={() => onTest(10000)} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold text-sm hover:bg-slate-200 transition-colors" title="Chuyển sang tab/cửa sổ khác trong 10 giây để kiểm tra khi web đang chạy nền">Thử sau 10 giây</button>
               {permission === 'default' && (
                 <button onClick={requestPermission} className="px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 transition-colors">Cho phép thông báo trình duyệt</button>
               )}
@@ -362,7 +410,10 @@ function SettingsModal({ settings, onChange, onClose, onTest, isPrivate }: {
               {permission === 'denied' && <span className="text-sm text-red-500 font-semibold">Trình duyệt đang chặn thông báo – hãy bật lại trong cài đặt của trang web (biểu tượng ổ khóa cạnh thanh địa chỉ).</span>}
               {permission === 'unsupported' && <span className="text-sm text-slate-500">Trình duyệt không hỗ trợ thông báo hệ thống, web sẽ hiện thông báo ngay trong trang.</span>}
             </div>
-            <p className="text-xs text-slate-400">Thông báo chỉ hiện khi trang web đang được mở trong trình duyệt. Cài đặt được lưu riêng cho từng trình duyệt.</p>
+            <p className="text-sm text-slate-600 bg-slate-50 rounded-xl p-3">
+              {nextLabel ? <>Lần báo kế tiếp: <b className="text-blue-700">{nextLabel}</b></> : 'Chưa có lượt báo nào được hẹn (hãy chọn ít nhất 1 ngày).'}
+            </p>
+            <p className="text-xs text-slate-400">Thông báo chỉ hiện khi trang web đang được mở trong trình duyệt (có thể ở tab nền). Nếu trình duyệt cho tab ngủ để tiết kiệm bộ nhớ hoặc máy ngủ, thông báo sẽ hiện bù ngay khi bạn quay lại. Cài đặt được lưu riêng cho từng trình duyệt.</p>
           </div>
         </div>
       </div>
@@ -411,6 +462,8 @@ export default function App() {
     if (!error && data) {
       setTasks(data);
       setTasksLoaded(true);
+    } else if (safeStorage.get(`kpi_tasks_${workspace}`)) {
+      setTasksLoaded(true); // Mất mạng/lỗi Supabase: vẫn báo theo dữ liệu đã lưu gần nhất
     }
   };
 
@@ -670,20 +723,25 @@ export default function App() {
   const updateNotifySettings = (next: NotifySettings) => {
     setNotifySettings(next);
     safeStorage.set(NOTIFY_SETTINGS_KEY, JSON.stringify(next));
+    // Các giờ đã qua trong hôm nay coi như đã báo, để vừa chỉnh cài đặt xong không bị báo bù ngay
+    const now = new Date();
+    const dayKey = format(now, 'yyyy-MM-dd');
+    writeFired(dayKey, Array.from(new Set([...readFired(dayKey), ...next.times.filter(t => slotDate(now, t).getTime() <= now.getTime())])));
   };
 
   // Luôn trỏ tới bản mới nhất để bộ hẹn giờ không bị "cũ" dữ liệu
-  const fireDailyNotification = useRef<() => void>(() => {});
-  fireDailyNotification.current = () => {
+  const fireDailyNotification = useRef<(tag?: string, prefix?: string) => void>(() => {});
+  fireDailyNotification.current = (tag = `kpi-test-${Date.now()}`, prefix = '') => {
     const { title, body } = buildDailySummary(tasks);
     if (canNotify() && Notification.permission === 'granted') {
       try {
-        const n = new Notification(title, { body, tag: 'kpi-daily' });
+        // Mỗi lượt có tag riêng: dùng chung 1 tag sẽ khiến trình duyệt thay thế thông báo cũ một cách âm thầm (không hiện lại)
+        const n = new Notification(title, { body: prefix + body, tag, requireInteraction: true });
         n.onclick = () => { window.focus(); setActiveSection('cong-viec-hang-ngay'); n.close(); };
         return;
       } catch { /* một số trình duyệt di động không cho tạo trực tiếp -> dùng thông báo trong trang */ }
     }
-    showToast(`${title}: ${body}`, 'success');
+    showToast(`${title}: ${prefix}${body}`, 'success');
   };
 
   // Lần đầu truy cập ở trình duyệt này: hỏi quyền thông báo
@@ -706,26 +764,26 @@ export default function App() {
       const now = new Date();
       if (!notifySettings.days.includes(now.getDay())) return;
       const dayKey = format(now, 'yyyy-MM-dd');
-      let fired: string[] = [];
-      try {
-        const saved = JSON.parse(safeStorage.get(NOTIFY_FIRED_KEY) || '{}');
-        if (saved.day === dayKey && Array.isArray(saved.keys)) fired = saved.keys;
-      } catch { /* bỏ qua */ }
-      let shouldFire = false;
-      notifySettings.times.forEach(t => {
-        const [h, m] = t.split(':').map(Number);
-        const diff = now.getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m).getTime();
-        if (diff >= 0 && diff < NOTIFY_WINDOW_MS && !fired.includes(t)) { fired.push(t); shouldFire = true; }
-      });
-      if (shouldFire) {
-        safeStorage.set(NOTIFY_FIRED_KEY, JSON.stringify({ day: dayKey, keys: fired }));
-        fireDailyNotification.current();
-      }
+      const fired = readFired(dayKey);
+      // Mọi lượt đã đến giờ mà chưa báo (kể cả bị lỡ do tab ngủ / máy ngủ) -> báo 1 thông báo cho lượt mới nhất
+      const due = notifySettings.times.filter(t => !fired.includes(t) && slotDate(now, t).getTime() <= now.getTime()).sort();
+      if (due.length === 0) return;
+      writeFired(dayKey, [...fired, ...due]);
+      const latest = due[due.length - 1];
+      const late = now.getTime() - slotDate(now, latest).getTime() > NOTIFY_LATE_MS;
+      fireDailyNotification.current(`kpi-${dayKey}-${latest}`, late ? `(Hẹn lúc ${latest}) ` : '');
     };
     check();
-    const timer = setInterval(check, 15000);
+    const stopTicker = startTicker(check, 10000);
     document.addEventListener('visibilitychange', check);
-    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', check); };
+    window.addEventListener('focus', check);
+    window.addEventListener('online', check);
+    return () => {
+      stopTicker();
+      document.removeEventListener('visibilitychange', check);
+      window.removeEventListener('focus', check);
+      window.removeEventListener('online', check);
+    };
   }, [workspace, tasksLoaded, notifySettings]);
 
   // Kiểm tra mã PIN (dùng chung cho nút Mở khóa và phím Enter)
@@ -1011,7 +1069,7 @@ export default function App() {
           settings={notifySettings}
           onChange={updateNotifySettings}
           onClose={() => setShowSettings(false)}
-          onTest={() => fireDailyNotification.current()}
+          onTest={(delayMs) => { if (delayMs > 0) setTimeout(() => fireDailyNotification.current(), delayMs); else fireDailyNotification.current(); }}
           isPrivate={workspace === 'private'}
         />
       )}
