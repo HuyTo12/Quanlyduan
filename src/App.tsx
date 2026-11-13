@@ -421,6 +421,285 @@ function SettingsModal({ settings, onChange, onClose, onTest, isPrivate }: {
   );
 }
 
+// --- NHẬT KÝ HOẠT ĐỘNG (chuông thông báo góc phải) ---
+type ActivityChange = { label: string; from?: string; to?: string };
+type ActivityEntry = { id: string; ts: string; workspace: string; taskId: string; project: string; action: string; summary: string; changes: ActivityChange[] };
+type ActivityGroup = { id: string; taskId: string; project: string; entries: ActivityEntry[] }; // entries: mới nhất -> cũ nhất
+
+const ACTIVITY_DAYS = 14;
+const STATUS_LABELS: Record<string, string> = { NEW: 'Dự án mới', INFO: 'Tìm thông tin', IN_PROGRESS: 'Đang thực hiện', REVIEW: 'Chờ xác nhận', COMPLETED: 'Hoàn thành' };
+const ACTION_TITLES: Record<string, string> = { add: 'Giao việc mới', edit: 'Chỉnh sửa', delete: 'Xóa dự án', restore: 'Hoàn tác xóa', purge: 'Xóa vĩnh viễn' };
+
+const activityCutoffMs = () => Date.now() - ACTIVITY_DAYS * 24 * 60 * 60 * 1000;
+const isMissingLogTable = (error: any) => !!error && (error.code === 'PGRST205' || error.code === '42P01' || /activity_logs/.test(String(error.message || '')));
+
+const fmtActDate = (value?: string) => {
+  if (!value) return '';
+  try { const d = parseISO(value); return isNaN(d.getTime()) ? String(value) : format(d, 'dd/MM/yyyy'); } catch { return String(value); }
+};
+
+const fmtActivityTime = (ts: string) => {
+  const d = new Date(ts);
+  const today = startOfDay(new Date());
+  if (isSameDay(d, today)) return `Hôm nay ${format(d, 'HH:mm')}`;
+  if (isSameDay(d, addDays(today, -1))) return `Hôm qua ${format(d, 'HH:mm')}`;
+  return format(d, 'dd/MM HH:mm');
+};
+
+// So sánh lịch đăng Social Media cũ/mới thành danh sách thay đổi dễ đọc
+const diffSMData = (oldSm: SMData | null, newSm: SMData | null): ActivityChange[] => {
+  const out: ActivityChange[] = [];
+  if (!newSm && !oldSm) return out;
+  if ((oldSm?.format ?? '') !== (newSm?.format ?? '')) out.push({ label: 'Định dạng', from: oldSm?.format, to: newSm?.format });
+  const platforms = Array.from(new Set([...(oldSm?.schedules || []), ...(newSm?.schedules || [])].map(s => s.platform)));
+  platforms.forEach(platform => {
+    const a = oldSm?.schedules.find(s => s.platform === platform);
+    const b = newSm?.schedules.find(s => s.platform === platform);
+    const fa = a ? `${fmtActDate(a.date)} ${a.time}` : undefined;
+    const fb = b ? `${fmtActDate(b.date)} ${b.time}` : undefined;
+    if (fa !== fb) out.push({ label: `Lịch đăng ${platform}`, from: oldSm ? (fa ?? 'chưa đặt') : undefined, to: fb ?? 'đã xóa lịch' });
+  });
+  return out;
+};
+
+// So sánh công việc cũ/mới (oldT = null nghĩa là công việc mới tạo). Bỏ qua các trường nội bộ (vị trí hàng, ngày làm việc tự tính...)
+const diffTasks = (oldT: Task | null, newT: Task, uploaded = 0): ActivityChange[] => {
+  const out: ActivityChange[] = [];
+  const add = (label: string, from: string | undefined, to: string | undefined) => {
+    if (oldT ? (from ?? '') === (to ?? '') : !to) return;
+    out.push({ label, from: oldT ? from : undefined, to });
+  };
+  add('Tên dự án', oldT?.project, newT.project);
+  add('Mô tả', oldT?.description, newT.description);
+  add('Deadline', oldT ? fmtActDate(oldT.deadline) : undefined, fmtActDate(newT.deadline));
+  add('Mức KPI', oldT ? `Mức ${oldT.kpiLevel}` : undefined, `Mức ${newT.kpiLevel}`);
+  if (oldT) add('Trạng thái', STATUS_LABELS[oldT.status] || oldT.status, STATUS_LABELS[newT.status] || newT.status);
+  const oldSm = oldT ? getSMData(oldT) : { note: '', smData: null };
+  const newSm = getSMData(newT);
+  add('Ghi chú', oldSm.note, newSm.note);
+  out.push(...diffSMData(oldSm.smData, newSm.smData));
+  if (uploaded > 0) out.push({ label: 'Tệp đính kèm', to: `Tải lên ${uploaded} tệp mới` });
+  return out;
+};
+
+const summarizeChanges = (changes: ActivityChange[]) => {
+  if (changes.length === 1) {
+    const c = changes[0];
+    return `${c.label}: ${c.from !== undefined ? `${c.from || '(trống)'} → ` : ''}${c.to || '(trống)'}`;
+  }
+  return changes.map(c => c.label).join(', ');
+};
+
+const normalizeActivityRow = (row: any): ActivityEntry | null => {
+  if (!row || !row.id || !row.action || !row.created_at) return null; // bỏ qua dữ liệu không phải nhật ký
+  const ms = Date.parse(row.created_at);
+  if (isNaN(ms)) return null;
+  return {
+    id: String(row.id), ts: new Date(ms).toISOString(), workspace: row.workspace || 'public', taskId: String(row.task_id || ''),
+    project: String(row.project || ''), action: String(row.action), summary: String(row.summary || ''),
+    changes: Array.isArray(row.changes) ? row.changes : [],
+  };
+};
+
+// Gộp theo id, chỉ giữ đúng tài khoản + trong 14 ngày, mới nhất lên đầu
+const mergeActivities = (list: ActivityEntry[], workspace: string): ActivityEntry[] => {
+  const cutoff = activityCutoffMs();
+  const map = new Map<string, ActivityEntry>();
+  list.forEach(e => { if (e.workspace === workspace && Date.parse(e.ts) >= cutoff) map.set(e.id, e); });
+  return Array.from(map.values()).sort((a, b) => Date.parse(b.ts) - Date.parse(a.ts)).slice(0, 500);
+};
+
+const loadLocalActivities = (workspace: string): ActivityEntry[] => {
+  try {
+    const parsed = JSON.parse(safeStorage.get(`kpi_activity_${workspace}`) || '[]');
+    return mergeActivities(Array.isArray(parsed) ? parsed : [], workspace);
+  } catch { return []; }
+};
+
+// Nhiều thao tác liên tiếp trên cùng 1 dự án (trong cùng ngày) gom thành 1 ô
+const groupActivities = (entries: ActivityEntry[]): ActivityGroup[] => {
+  const groups: ActivityGroup[] = [];
+  entries.forEach(e => {
+    const last = groups[groups.length - 1];
+    if (last && last.taskId === e.taskId && isSameDay(new Date(last.entries[last.entries.length - 1].ts), new Date(e.ts))) last.entries.push(e);
+    else groups.push({ id: e.id, taskId: e.taskId, project: e.project, entries: [e] });
+  });
+  return groups;
+};
+
+const entryBrief = (e: ActivityEntry) => (e.action === 'edit' && e.changes.length > 0 ? e.changes.map(c => c.label).join(', ') : e.summary);
+const groupSummary = (g: ActivityGroup) => {
+  if (g.entries.length === 1) return g.entries[0].summary;
+  return Array.from(new Set(g.entries.map(entryBrief))).join(' • ');
+};
+
+function ActivityBell({ entries, workspace }: { entries: ActivityEntry[]; workspace: string }) {
+  const seenKey = `kpi_activity_seen_${workspace}`;
+  const [open, setOpen] = useState(false);
+  const [entered, setEntered] = useState(false);
+  const [lastSeen, setLastSeen] = useState(() => Date.now());
+  const [seenSnapshot, setSeenSnapshot] = useState(0); // mốc "đã xem" lúc mở bảng, dùng để tô nền đỏ nhạt cho thông báo mới
+  const [hover, setHover] = useState<{ id: string; top: number; left: number; width: number } | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const closeTimer = useRef<number | undefined>(undefined);
+
+  const groups = useMemo(() => groupActivities(entries), [entries]);
+  const isUnread = (g: ActivityGroup, since: number) => g.entries.some(e => Date.parse(e.ts) > since);
+  const unreadCount = groups.filter(g => isUnread(g, lastSeen)).length;
+  const hoverGroup = hover ? groups.find(g => g.id === hover.id) : undefined;
+
+  const markSeen = () => {
+    const now = Date.now();
+    setLastSeen(now);
+    safeStorage.set(seenKey, String(now));
+  };
+
+  // Lần đầu dùng ở trình duyệt này thì lịch sử cũ coi như đã xem; đổi tài khoản thì nạp lại mốc đã xem
+  useEffect(() => {
+    const raw = safeStorage.get(seenKey);
+    if (raw && Number(raw)) setLastSeen(Number(raw));
+    else markSeen();
+    setOpen(false);
+    setHover(null);
+  }, [workspace]);
+
+  // Đang mở bảng mà có thông báo mới đến thì vẫn coi là đã xem (nhưng giữ nền đỏ nhạt nhờ seenSnapshot)
+  useEffect(() => { if (open) markSeen(); }, [open, entries]);
+
+  useEffect(() => {
+    if (!open) { setEntered(false); return; }
+    const id = requestAnimationFrame(() => setEntered(true));
+    const onMouseDown = (e: MouseEvent) => { if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('keydown', onKey);
+    return () => { cancelAnimationFrame(id); document.removeEventListener('mousedown', onMouseDown); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+
+  useEffect(() => () => window.clearTimeout(closeTimer.current), []);
+
+  const toggle = () => {
+    if (!open) setSeenSnapshot(lastSeen);
+    setHover(null);
+    setOpen(o => !o);
+  };
+
+  const cancelClose = () => window.clearTimeout(closeTimer.current);
+  const scheduleClose = () => {
+    window.clearTimeout(closeTimer.current);
+    closeTimer.current = window.setTimeout(() => setHover(null), 150);
+  };
+  // Bảng chi tiết mở ra bên trái khung thông báo, ngang hàng với ô đang trỏ tới
+  const showDetail = (g: ActivityGroup, cell: HTMLElement) => {
+    cancelClose();
+    const dd = dropdownRef.current?.getBoundingClientRect();
+    if (!dd) return;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let width = Math.min(520, Math.max(340, vw * 0.36));
+    let left = dd.left - width - 8;
+    if (left < 8) {
+      width = dd.left - 16 >= 260 ? dd.left - 16 : vw - 16;
+      left = 8;
+    }
+    setHover({ id: g.id, top: Math.min(Math.max(8, cell.getBoundingClientRect().top), vh - 260), left, width });
+  };
+
+  return (
+    <div ref={wrapperRef} className="fixed top-3 right-6 z-[90]">
+      <button
+        onClick={toggle}
+        title="Hoạt động trong 14 ngày gần nhất"
+        className={cn("group relative w-10 h-10 rounded-full bg-white border border-slate-200 shadow-md flex items-center justify-center hover:shadow-lg hover:text-blue-600 transition-all", open ? "text-blue-600" : "text-slate-600")}
+      >
+        <Bell size={20} />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 h-3 min-w-[12px] rounded-full bg-red-500 ring-2 ring-white text-white text-[0px] font-bold flex items-center justify-center transition-all duration-200 group-hover:h-5 group-hover:min-w-[20px] group-hover:px-1 group-hover:text-[11px]">
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div
+          ref={dropdownRef}
+          className={cn(
+            "absolute right-0 top-12 w-[25vw] min-w-[min(340px,calc(100vw-2rem))] max-w-[min(480px,calc(100vw-2rem))] h-[55vh] min-h-[360px] max-h-[600px] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden origin-top-right transition-all duration-200",
+            entered ? "opacity-100 scale-100" : "opacity-0 scale-75"
+          )}
+        >
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+            <h3 className="font-bold text-blue-900">Hoạt động gần đây</h3>
+            <span className="text-xs text-slate-400">{ACTIVITY_DAYS} ngày qua</span>
+          </div>
+          <div className="flex-1 overflow-y-auto p-3" onScroll={() => setHover(null)}>
+            {groups.length === 0 ? (
+              <p className="h-full flex items-center justify-center text-sm text-slate-400 text-center px-6">Chưa có hoạt động nào trong {ACTIVITY_DAYS} ngày qua.</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {groups.map(g => (
+                  <div
+                    key={g.id}
+                    onMouseEnter={e => showDetail(g, e.currentTarget)}
+                    onMouseLeave={scheduleClose}
+                    onClick={e => showDetail(g, e.currentTarget)}
+                    className={cn(
+                      "aspect-square rounded-2xl border p-3 flex flex-col overflow-hidden transition-colors",
+                      isUnread(g, seenSnapshot) ? "bg-red-50 border-red-200" : "bg-white border-slate-200",
+                      hover?.id === g.id && "ring-2 ring-blue-300"
+                    )}
+                  >
+                    <p className="font-bold text-lg leading-snug text-slate-800 line-clamp-2 break-words">{g.project}</p>
+                    <p className="mt-1 text-sm text-slate-600 line-clamp-3 break-words">{groupSummary(g)}</p>
+                    <div className="mt-auto pt-2 flex items-center justify-between gap-1 text-xs text-slate-400">
+                      <span className="truncate">{fmtActivityTime(g.entries[0].ts)}</span>
+                      {g.entries.length > 1 && <span className="shrink-0 px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 font-semibold">{g.entries.length} thao tác</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {open && hover && hoverGroup && (
+        <div
+          onMouseEnter={cancelClose}
+          onMouseLeave={scheduleClose}
+          className="fixed bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in fade-in"
+          style={{ top: hover.top, left: hover.left, width: hover.width, maxHeight: window.innerHeight - hover.top - 12 }}
+        >
+          <div className="p-5 border-b border-slate-100">
+            <p className="text-xl font-bold text-blue-900 break-words">{hoverGroup.project}</p>
+            <p className="text-sm text-slate-400 mt-1">{hoverGroup.entries.length} thao tác • {fmtActivityTime(hoverGroup.entries[hoverGroup.entries.length - 1].ts)}{hoverGroup.entries.length > 1 && ` → ${fmtActivityTime(hoverGroup.entries[0].ts)}`}</p>
+          </div>
+          <div className="p-5 space-y-3 overflow-y-auto">
+            {hoverGroup.entries.map(e => (
+              <div key={e.id} className="rounded-xl bg-slate-50 border border-slate-100 p-3 space-y-1.5">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-bold text-slate-800">{ACTION_TITLES[e.action] || 'Thao tác'}</span>
+                  <span className="text-xs text-slate-400 whitespace-nowrap">{format(new Date(e.ts), 'HH:mm dd/MM/yyyy')}</span>
+                </div>
+                {e.changes.length === 0 ? (
+                  <p className="text-sm text-slate-600 break-words">{e.summary}</p>
+                ) : e.changes.map((c, i) => (
+                  <p key={i} className="text-sm text-slate-600 break-words">
+                    <span className="font-semibold">{c.label}: </span>
+                    {c.from !== undefined && <><span className="text-slate-400 line-through">{c.from || '(trống)'}</span>{' → '}</>}
+                    <span className="text-blue-700">{c.to || '(trống)'}</span>
+                  </p>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   // --- BỘ NHỚ LƯU TRẠNG THÁI TAB KHI F5 ---
   const [activeSection, setActiveSection] = useState(() => {
@@ -510,6 +789,46 @@ export default function App() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000);
   };
 
+  // --- NHẬT KÝ HOẠT ĐỘNG: lưu cục bộ + đồng bộ bảng Supabase `activity_logs` (nếu chưa tạo bảng thì chỉ lưu cục bộ) ---
+  const [activities, setActivities] = useState<ActivityEntry[]>([]);
+  const remoteLogOk = useRef(true);
+  const oldLogsPurged = useRef(false);
+
+  const logActivity = (task: { id: string; project: string }, action: string, summary: string, changes: ActivityChange[] = []) => {
+    const entry: ActivityEntry = { id: crypto.randomUUID(), ts: new Date().toISOString(), workspace, taskId: task.id, project: task.project, action, summary, changes };
+    setActivities(prev => mergeActivities([entry, ...prev], workspace));
+    if (!remoteLogOk.current) return;
+    supabase.from('activity_logs')
+      .insert({ id: entry.id, created_at: entry.ts, workspace, task_id: entry.taskId, project: entry.project, action, summary, changes })
+      .then(({ error }) => { if (isMissingLogTable(error)) remoteLogOk.current = false; }, () => {});
+  };
+
+  useEffect(() => {
+    remoteLogOk.current = true;
+    setActivities(loadLocalActivities(workspace));
+    const fetchRemote = async () => {
+      if (!remoteLogOk.current) return;
+      const { data, error } = await supabase.from('activity_logs').select('*')
+        .eq('workspace', workspace).gte('created_at', new Date(activityCutoffMs()).toISOString())
+        .order('created_at', { ascending: false }).limit(500);
+      if (error) { if (isMissingLogTable(error)) remoteLogOk.current = false; return; }
+      const rows = (data || []).map(normalizeActivityRow).filter((r): r is ActivityEntry => !!r);
+      setActivities(prev => mergeActivities([...prev, ...rows], workspace));
+      if (!oldLogsPurged.current) { // dọn nhật ký quá 14 ngày (1 lần mỗi phiên)
+        oldLogsPurged.current = true;
+        supabase.from('activity_logs').delete().lt('created_at', new Date(activityCutoffMs()).toISOString()).then(() => {}, () => {});
+      }
+    };
+    fetchRemote();
+    const timer = setInterval(fetchRemote, 60000);
+    window.addEventListener('focus', fetchRemote);
+    return () => { clearInterval(timer); window.removeEventListener('focus', fetchRemote); };
+  }, [workspace]);
+
+  useEffect(() => {
+    safeStorage.set(`kpi_activity_${workspace}`, JSON.stringify(activities.filter(a => a.workspace === workspace).slice(0, 300)));
+  }, [activities, workspace]);
+
   // THÊM MỚI: Bộ nhớ để lưu các đồng hồ đếm ngược chờ xóa
   const deleteTimeouts = useRef<{ [key: string]: any }>({});
 
@@ -529,6 +848,8 @@ export default function App() {
       if (!exists) return [task, ...prev]; // Trả lại dự án lên đầu bảng
       return prev;
     });
+
+    logActivity(task, 'restore', 'Hoàn tác xóa dự án');
 
     // 4. Tắt thông báo cũ và báo thành công
     setToasts(prev => prev.filter(t => t.id !== toastId));
@@ -561,6 +882,7 @@ export default function App() {
       
       // Dùng type 'delete' để hiện nút Hoàn tác thay vì 'error'
       showToast(isPast ? 'Dự án sẽ bị xoá sau 3 ngày' : 'Dự án sẽ bị xoá sau 30 phút', 'delete', task);
+      logActivity(task, 'delete', isPast ? 'Xóa dự án (tự xóa hẳn sau 3 ngày)' : 'Xóa dự án (tự xóa hẳn sau 30 phút)');
       setPendingDeleteIds(prev => [...prev, task.id]);
       
       // Hẹn giờ xóa thật sự và cất vào bộ nhớ
@@ -570,6 +892,7 @@ export default function App() {
     } else {
       // LẦN 2: Bấm xóa vĩnh viễn
       showToast('Đang xóa dự án vĩnh viễn...', 'delete', task);
+      logActivity(task, 'purge', 'Xóa vĩnh viễn dự án');
       
       // Xóa ảo trên giao diện ngay lập tức để người dùng thấy nó biến mất
       setTasks(prev => prev.filter(t => t.id !== task.id));
@@ -627,6 +950,7 @@ export default function App() {
     const { error } = await supabase.from('projects').insert([taskRecord]);
     if (!error) {
       setTasks(prev => [taskRecord, ...prev]);
+      logActivity(taskRecord, 'add', 'Giao việc / thêm dự án mới', diffTasks(null, taskRecord as Task, filesToUpload.length));
       showToast('Đã giao việc & lưu Cloud thành công', 'success', taskRecord as Task);
     }
   };
@@ -660,6 +984,7 @@ export default function App() {
       setTimeout(() => setUploadProgress(null), 1000);
     }
 
+    const oldTask = tasks.find(t => t.id === updatedTask.id) || null;
     updatedTask.files = driveLinks;
     const { error } = await supabase.from('projects').update(updatedTask).eq('id', updatedTask.id);
     if (error) {
@@ -667,6 +992,10 @@ export default function App() {
       return false;
     }
     setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
+    if (oldTask) {
+      const changes = diffTasks(oldTask, updatedTask, filesToUpload.length);
+      if (changes.length > 0) logActivity(updatedTask, 'edit', summarizeChanges(changes), changes);
+    }
     return true;
   };
 
@@ -981,7 +1310,9 @@ export default function App() {
       {/* Main Content */}
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto p-4 md:p-8 relative">
-        <div className="fixed top-4 right-4 z-[999] flex flex-col gap-2">
+        <ActivityBell entries={activities} workspace={workspace} />
+
+        <div className="fixed top-16 right-4 z-[999] flex flex-col gap-2">
           
           {/* Thanh Tiến độ Tải File */}
           {uploadProgress && (
